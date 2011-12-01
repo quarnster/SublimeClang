@@ -73,7 +73,7 @@ def get_cindex_library():
     if name == 'Darwin':
         return cdll.LoadLibrary('libclang.dylib')
     elif name == 'Windows':
-        return cdll.LoadLibrary('libclang.dll')
+        return cdll.LoadLibrary('clang.dll')
     else:
         return cdll.LoadLibrary('libclang.so')
 
