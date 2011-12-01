@@ -42,6 +42,8 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
             if s.has("options"):
                 opts = s.get("options")
             tu = index.parse(view.file_name(), opts)
+            #for diag in tu.diagnostics:
+            #    print diag
         row,col = view.rowcol(locations[0])
         unsaved_files = []
         if view.is_dirty():
@@ -50,7 +52,7 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         ret = []
         if res != None:
             for compRes in res.results:
-                print compRes.kind, compRes.string
+                #print compRes.kind, compRes.string
                 representation = ""
                 insertion = ""
                 add = False
@@ -64,7 +66,7 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
                     representation = "%s%s" % (representation, chunk.spelling)
                     if chunk.kind == cindex.completionChunkKindMap[15]:
                         representation = representation + " "
-                    if start:
+                    if start and not chunk.isKindInformative():
                         if chunk.isKindPlaceHolder():
                             placeHolderCount = placeHolderCount + 1
                             insertion = "%s${%d:%s}" % (insertion, placeHolderCount, chunk.spelling)
@@ -72,8 +74,27 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
                             insertion = "%s%s" % (insertion, chunk.spelling)
                 if add:
                     #print compRes.kind, compRes.string
-                    ret.append(("clang " + representation, insertion))
+                    ret.append((representation, insertion))
         return ret 
 
+    def complete(self):
+        if self.auto_complete:
+            self.auto_complete = False
+            self.view.window().run_command("auto_complete")
 
- 
+
+    def on_modified(self, view):
+        self.auto_complete = False
+        caret = view.sel()[0].a
+        language = re.search("(?<=source\.)[a-zA-Z0-9+#]+", view.scope_name(caret))
+        if language == None:
+            return
+        language = language.group(0)
+        if language != "c++" and language != "c":
+            return
+        caret = view.sel()[0].a
+        word = view.substr(view.word(caret))
+        if word.endswith(".") or word.endswith("->") or word.endswith("::"):
+            self.auto_complete = True
+            self.view = view
+            sublime.set_timeout(self.complete, 500)
