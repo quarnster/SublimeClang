@@ -1,0 +1,7 @@
+{
+	"options":
+	[
+		"-I/path/to/sources/1",
+        "-I/path/to/sources/2"
+	]
+}
