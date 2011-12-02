@@ -884,7 +884,10 @@ class CodeCompletionResults(ClangObject):
                 return int(_clang_codeCompleteGetNumDiagnostics(self.ccr))
 
             def __getitem__(self, key):
-                return _clang_codeCompleteGetDiagnostic(self.ccr, key)
+                diag = _clang_codeCompleteGetDiagnostic(self.ccr, key)
+                if not diag:
+                    raise IndexError
+                return Diagnostic(diag)
 
         return DiagnosticsItr(self)
 
@@ -1270,7 +1273,7 @@ _clang_codeCompleteGetNumDiagnostics.restype = c_int
 
 _clang_codeCompleteGetDiagnostic = lib.clang_codeCompleteGetDiagnostic
 _clang_codeCompleteGetDiagnostic.argtypes = [CodeCompletionResults, c_int]
-_clang_codeCompleteGetDiagnostic.restype = Diagnostic
+_clang_codeCompleteGetDiagnostic.restype = c_object_p
 
 _clang_getCompletionChunkText = lib.clang_getCompletionChunkText
 _clang_getCompletionChunkText.argtypes = [c_void_p, c_int]
