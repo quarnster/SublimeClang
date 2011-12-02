@@ -26,6 +26,13 @@ from sublime import Region
 import sublime
 import re
 
+def select(view, line, col):
+    point = view.text_point(line-1, col-1)
+    s = view.sel()
+    s.clear()
+    s.add(view.word(point))
+    view.show_at_center(point)
+
 translationUnits = {}
 index = None
 class SublimeClangAutoComplete(sublime_plugin.EventListener):
@@ -74,23 +81,23 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
                     insertion = "%s%s" % (insertion, chunk.spelling)
         return (True, "%s - %s" % (representation, returnType), insertion)
 
-    def get_translation_unit(self, view):
+    def get_translation_unit(self, filename):
         global translationUnits 
         global index
         if index == None:
             index = cindex.Index.create()
         tu = None
-        if view.file_name() not in translationUnits:
+        if filename not in translationUnits:
             s = sublime.load_settings("clang.sublime-settings")
             opts = []
             if s.has("options"):
                 opts = s.get("options")
-            opts.append(view.file_name())
+            opts.append(filename)
             tu = index.parse(None, opts)
             if tu != None:
-                translationUnits[view.file_name()] = tu
+                translationUnits[filename] = tu
         else:
-            tu = translationUnits[view.file_name()]        
+            tu = translationUnits[filename]        
         return tu
 
     def is_supported_language(self, view):
@@ -107,7 +114,7 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         if not self.is_supported_language(view):
             return []
 
-        tu = self.get_translation_unit(view)
+        tu = self.get_translation_unit(view.file_name())
         if tu == None:
             return []
         row,col = view.rowcol(locations[0]-len(prefix)) # Getting strange results form clang if I don't remove prefix
@@ -142,7 +149,7 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
     def recompile(self):
         view = self.view
         unsaved_files = [(view.file_name(), str(view.substr(Region(0, 65536))))]
-        tu = self.get_translation_unit(view)
+        tu = self.get_translation_unit(view.file_name())
         tu.reparse(unsaved_files)
         errString = ""
         show = False
@@ -158,14 +165,44 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
                 errString = "%s%s\n" % (errString, err)
             show = True
         v = view.window().get_output_panel("clang")
+        v.set_read_only(False)
+        v.set_scratch(True)
+        v.set_name("sublimeclang.%s" % view.file_name())
         e = v.begin_edit()
         v.insert(e, 0, errString)
         v.end_edit(e)
+        v.set_read_only(True)
         if show:
             view.window().run_command("show_panel", {"panel": "output.clang"})
         elif self.hide_clang_output:
             view.window().run_command("hide_panel", {"panel": "output.clang"})
         self.recompile_active = False
+
+    class callback:
+        def __init__(self, line, col):
+            self.line = line
+            self.col = col
+            sublime_plugin.all_callbacks['on_load'].append(self)
+
+        def on_load(self, view):
+            select(view, self.line, self.col)
+            sublime_plugin.all_callbacks['on_load'].remove(self)
+
+    def on_selection_modified(self, view):
+        if view.name().startswith("sublimeclang"):
+            inputFile = view.name()[13:]
+            tu = self.get_translation_unit(inputFile)
+            line,col = view.rowcol(view.sel()[0].a)
+            if line >= len(tu.diagnostics):
+                return
+            loc = tu.diagnostics[line].location
+            if loc.file != None:
+                v = sublime.active_window().open_file(loc.file.name)
+                if v.is_loading():
+                    self.callback(loc.line,loc.column)
+                else:
+                    select(v,loc.line, loc.column)
+
 
     def on_modified(self, view):
         if (self.popupDelay <= 0 and self.reparseDelay <= 0) or not self.is_supported_language(view):
