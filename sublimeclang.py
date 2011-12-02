@@ -32,37 +32,43 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
     def __init__(self):
         s = sublime.load_settings("clang.sublime-settings")
         s.clear_on_change("options")
-        s.add_on_change("options", self.on_clang_options_changed)
+        s.add_on_change("options", self.load_settings)
+        self.load_settings(s)
+
+    def load_settings(self, s = None):
+        global translationUnits
+        translationUnits.clear()
+        if s == None:
+            s = sublime.load_settings("clang.sublime-settings")
         self.popupDelay = s.get("popupDelay", 500)
+        self.dont_complete_startswith = s.get("dont_complete_startswith", ['operator','~'])
 
     def parse_res(self, compRes, prefix):
         #print compRes.kind, compRes.string
         representation = ""
         insertion = ""
-        add = False
+        returnType = ""
         start = False;
         placeHolderCount = 0
         for chunk in compRes.string:
             if chunk.isKindTypedText():
                 start = True
-                if chunk.spelling.startswith(prefix):
-                    add = True
-            representation = "%s%s" % (representation, chunk.spelling)
+                if not chunk.spelling.startswith(prefix):
+                    return (False, None, None)
+                for test in self.dont_complete_startswith:
+                    if chunk.spelling.startswith(test):
+                        return (False, None, None)
             if chunk.isKindResultType():
-                representation = representation + " "
+                returnType = chunk.spelling
+            else:
+                representation = "%s%s" % (representation, chunk.spelling)
             if start and not chunk.isKindInformative():
                 if chunk.isKindPlaceHolder():
                     placeHolderCount = placeHolderCount + 1
                     insertion = "%s${%d:%s}" % (insertion, placeHolderCount, chunk.spelling)
                 else: 
                     insertion = "%s%s" % (insertion, chunk.spelling)
-        return (add, representation, insertion)
-
-    def on_clang_options_changed(self):
-        global translationUnits
-        translationUnits.clear()
-        s = sublime.load_settings("clang.sublime-settings")
-        self.popupDelay = s.get("popupDelay", 500)
+        return (True, "%s - %s" % (representation, returnType), insertion)
 
     def on_query_completions(self, view, prefix, locations):
         global translationUnits 
@@ -108,7 +114,7 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
                 if add:
                     #print compRes.kind, compRes.string
                     ret.append((representation, insertion))
-        return ret 
+        return sorted(ret)
 
     def complete(self):
         if self.auto_complete:
