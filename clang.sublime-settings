@@ -1,6 +1,14 @@
 {
     // Delay in ms until autocompletion pops up after . or :: or ->
+    // Set to 0 to disable
     "popupDelay": 100,
+
+    // Delay in ms until recompiling the file after the buffer is modified
+    // Set to 0 to disable
+    "recompileDelay": 1000,
+
+    // Whether or not to hide the clang output panel when it's empty
+    "hide_output_when_empty": false,
 
     // Don't show stuff in the autocomplete list when the name starts with the following
     "dont_complete_startswith":
