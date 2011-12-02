@@ -1,4 +1,4 @@
-Clang plugin for Sublime Text 2 providing auto complete suggestions for C/C++.
+Clang plugin for Sublime Text 2 providing auto complete suggestions for C/C++. It'll also optionally parse the code as it's typed and show errors and warnings.
 
 Installation:
     1) Go to your packages directory and type:

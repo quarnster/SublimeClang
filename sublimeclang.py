@@ -118,8 +118,8 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         res = tu.codeComplete(view.file_name(), row+1, col+1, unsaved_files)
         ret = []
         if res != None:
-            for diag in res.diagnostics:
-                print diag
+            #for diag in res.diagnostics:
+            #    print diag
             #lastRes = res.results[len(res.results)-1].string
             #if "CurrentParameter" in str(lastRes):
             #    for chunk in lastRes:
@@ -150,7 +150,11 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
             errString = ""
             for diag in tu.diagnostics:
                 f = diag.location
-                err = "%s:%d,%d - %s" % (f.file.name, f.line, f.column, diag.spelling)
+                filename = "" 
+                if f.file != None:
+                    filename = f.file.name
+
+                err = "%s:%d,%d - %s" % (filename, f.line, f.column, diag.spelling)
                 errString = "%s%s\n" % (errString, err)
             show = True
         v = view.window().get_output_panel("clang")
