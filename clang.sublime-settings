@@ -2,6 +2,13 @@
     // Delay in ms until autocompletion pops up after . or :: or ->
     "popupDelay": 100,
 
+    // Don't show stuff in the autocomplete list when the name starts with the following
+    "dont_complete_startswith":
+    [
+        "~",
+        "operator"
+    ],
+
     // Any options you want to give to clang
     "options":
     [
