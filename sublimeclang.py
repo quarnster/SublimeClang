@@ -148,7 +148,7 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
 
     def recompile(self):
         view = self.view
-        unsaved_files = [(view.file_name(), str(view.substr(Region(0, 65536))))]
+        unsaved_files = [(view.file_name(), view.substr(Region(0, 65536)))]
         tu = self.get_translation_unit(view.file_name())
         tu.reparse(unsaved_files)
         errString = ""

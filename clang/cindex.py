@@ -1014,6 +1014,13 @@ class TranslationUnit(ClangObject):
 
         return DiagIterator(self)
 
+    def makeString(self, value):
+        if not isinstance(value, str):
+            value = value.encode("ascii", "ignore") 
+        if not isinstance(value, str):
+            raise TypeError,'Unexpected unsaved file contents.'
+        return value
+
     def reparse(self, unsaved_files = [], options = 0):
         """
         Reparse an already parsed translation unit.
@@ -1027,13 +1034,7 @@ class TranslationUnit(ClangObject):
         if len(unsaved_files):
             unsaved_files_array = (_CXUnsavedFile * len(unsaved_files))()
             for i,(name,value) in enumerate(unsaved_files):
-                if not isinstance(value, str):
-                    # FIXME: It would be great to support an efficient version
-                    # of this, one day.
-                    value = value.read()
-                    print value
-                if not isinstance(value, str):
-                    raise TypeError,'Unexpected unsaved file contents.'
+                value = self.makeString(value)
                 unsaved_files_array[i].name = name
                 unsaved_files_array[i].contents = value
                 unsaved_files_array[i].length = len(value)
@@ -1053,13 +1054,7 @@ class TranslationUnit(ClangObject):
         if len(unsaved_files):
             unsaved_files_array = (_CXUnsavedFile * len(unsaved_files))()
             for i,(name,value) in enumerate(unsaved_files):
-                if not isinstance(value, str):
-                    # FIXME: It would be great to support an efficient version
-                    # of this, one day.
-                    value = value.read()
-                    print value
-                if not isinstance(value, str):
-                    raise TypeError,'Unexpected unsaved file contents.'
+                value = self.makeString(value)
                 unsaved_files_array[i].name = name
                 unsaved_files_array[i].contents = value
                 unsaved_files_array[i].length = len(value)
