@@ -29,6 +29,9 @@ import re
 translationUnits = {}
 index = None
 class SublimeClangAutoComplete(sublime_plugin.EventListener):
+    def __init__(self):
+        s = sublime.load_settings("clang.sublime-settings")
+        s.add_on_change("options", self.on_clang_options_changed)
 
     def parse_res(self, compRes, prefix):
         #print compRes.kind, compRes.string
@@ -52,6 +55,10 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
                 else: 
                     insertion = "%s%s" % (insertion, chunk.spelling)
         return (add, representation, insertion)
+
+    def on_clang_options_changed(self):
+        global translationUnits
+        translationUnits.clear()
 
     def on_query_completions(self, view, prefix, locations):
         global translationUnits 
