@@ -31,7 +31,9 @@ index = None
 class SublimeClangAutoComplete(sublime_plugin.EventListener):
     def __init__(self):
         s = sublime.load_settings("clang.sublime-settings")
+        s.clear_on_change("options")
         s.add_on_change("options", self.on_clang_options_changed)
+        self.popupDelay = s.get("popupDelay", 500)
 
     def parse_res(self, compRes, prefix):
         #print compRes.kind, compRes.string
@@ -59,6 +61,8 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
     def on_clang_options_changed(self):
         global translationUnits
         translationUnits.clear()
+        s = sublime.load_settings("clang.sublime-settings")
+        self.popupDelay = s.get("popupDelay", 500)
 
     def on_query_completions(self, view, prefix, locations):
         global translationUnits 
@@ -75,7 +79,8 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
             opts = []
             if s.has("options"):
                 opts = s.get("options")
-            tu = index.parse(view.file_name(), opts)
+            opts.append(view.file_name())
+            tu = index.parse(None, opts)
             if tu != None:
                 translationUnits[view.file_name()] = tu
         else:
@@ -121,8 +126,8 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         if language != "c++" and language != "c":
             return
         caret = view.sel()[0].a
-        word = view.substr(view.word(caret))
+        word = view.substr(Region(view.word(caret).a, caret))
         if word.endswith(".") or word.endswith("->") or word.endswith("::"):
             self.auto_complete = True
             self.view = view
-            sublime.set_timeout(self.complete, 500)
+            sublime.set_timeout(self.complete, self.popupDelay) 
