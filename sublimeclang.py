@@ -93,11 +93,18 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
             tu = translationUnits[view.file_name()]        
         return tu
 
-    def on_query_completions(self, view, prefix, locations):
-        global translationUnits 
-        global index
-        language = re.search("(?<=source\.)[a-zA-Z0-9+#]+", view.scope_name(locations[0])).group(0)
+    def is_supported_language(self, view):
+        caret = view.sel()[0].a
+        language = re.search("(?<=source\.)[a-zA-Z0-9+#]+", view.scope_name(caret))
+        if language == None:
+            return False
+        language = language.group(0)
         if language != "c++" and language != "c":
+            return False
+        return True
+
+    def on_query_completions(self, view, prefix, locations):
+        if not self.is_supported_language(view):
             return []
 
         tu = self.get_translation_unit(view)
@@ -157,25 +164,19 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         self.recompile_active = False
 
     def on_modified(self, view):
-        if self.popupDelay <= 0 and self.reparseDelay <= 0:
+        if (self.popupDelay <= 0 and self.reparseDelay <= 0) or not self.is_supported_language(view):
             return
-        self.auto_complete_active = False
-        self.recompile
-        caret = view.sel()[0].a
-        language = re.search("(?<=source\.)[a-zA-Z0-9+#]+", view.scope_name(caret))
-        if language == None:
-            return
-        language = language.group(0)
-        if language != "c++" and language != "c":
-            return
+
         if self.recompileDelay > 0 and not self.recompile_active:
             self.recompile_active = True
             self.view = view
             sublime.set_timeout(self.recompile, self.recompileDelay)
 
-        caret = view.sel()[0].a
-        word = view.substr(Region(view.word(caret).a, caret))
-        if self.popupDelay > 0 and (word.endswith(".") or word.endswith("->") or word.endswith("::")):
-            self.auto_complete_active = True
-            self.view = view
-            sublime.set_timeout(self.complete, self.popupDelay) 
+        if self.popupDelay > 0:
+            self.auto_complete_active = False
+            caret = view.sel()[0].a
+            word = view.substr(Region(view.word(caret).a, caret))
+            if (word.endswith(".") or word.endswith("->") or word.endswith("::")):
+                self.auto_complete_active = True
+                self.view = view
+                sublime.set_timeout(self.complete, self.popupDelay) 
