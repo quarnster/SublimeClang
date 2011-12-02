@@ -771,6 +771,9 @@ class CompletionChunk:
     def isKindResultType(self):
       return self.kind == completionChunkKindMap[15]
 
+    def isKindCurrentParameter(self):
+      return self.kind == completionChunkKindMap[5]
+
 completionChunkKindMap = {
             0: CompletionChunk.Kind("Optional"),
             1: CompletionChunk.Kind("TypedText"),

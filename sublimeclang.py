@@ -26,22 +26,55 @@ from sublime import Region
 import sublime
 import re
 
-tu = None
+translationUnits = {}
 index = None
 class SublimeClangAutoComplete(sublime_plugin.EventListener):
+
+    def parse_res(self, compRes, prefix):
+        #print compRes.kind, compRes.string
+        representation = ""
+        insertion = ""
+        add = False
+        start = False;
+        placeHolderCount = 0
+        for chunk in compRes.string:
+            if chunk.isKindTypedText():
+                start = True
+                if chunk.spelling.startswith(prefix):
+                    add = True
+            representation = "%s%s" % (representation, chunk.spelling)
+            if chunk.isKindResultType():
+                representation = representation + " "
+            if start and not chunk.isKindInformative():
+                if chunk.isKindPlaceHolder():
+                    placeHolderCount = placeHolderCount + 1
+                    insertion = "%s${%d:%s}" % (insertion, placeHolderCount, chunk.spelling)
+                else: 
+                    insertion = "%s%s" % (insertion, chunk.spelling)
+        return (add, representation, insertion)
+
     def on_query_completions(self, view, prefix, locations):
-        global tu
+        global translationUnits 
         global index
         language = re.search("(?<=source\.)[a-zA-Z0-9+#]+", view.scope_name(locations[0])).group(0)
         if language != "c++" and language != "c":
             return []
-        if tu == None:
-            s = sublime.load_settings("clang.sublime-settings")
+        if index == None:
             index = cindex.Index.create()
+
+        tu = None
+        if view.file_name() not in translationUnits:
+            s = sublime.load_settings("clang.sublime-settings")
             opts = []
             if s.has("options"):
                 opts = s.get("options")
             tu = index.parse(view.file_name(), opts)
+            if tu != None:
+                translationUnits[view.file_name()] = tu
+        else:
+            tu = translationUnits[view.file_name()]
+        if tu == None:
+            return []
         row,col = view.rowcol(locations[0])
         unsaved_files = []
         if view.is_dirty():
@@ -51,27 +84,15 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         if res != None:
             for diag in res.diagnostics:
                 print diag
+            lastRes = res.results[len(res.results)-1].string
+            #if "CurrentParameter" in str(lastRes):
+            #    for chunk in lastRes:
+            #        if chunk.isKindCurrentParameter():
+            #            return [(chunk.spelling, "${1:%s}" % chunk.spelling)]
+            #    return []
+            
             for compRes in res.results:
-                #print compRes.kind, compRes.string
-                representation = ""
-                insertion = ""
-                add = False
-                start = False;
-                placeHolderCount = 0
-                for chunk in compRes.string:
-                    if chunk.isKindTypedText():
-                        start = True
-                        if chunk.spelling.startswith(prefix):
-                            add = True
-                    representation = "%s%s" % (representation, chunk.spelling)
-                    if chunk.kind == cindex.completionChunkKindMap[15]:
-                        representation = representation + " "
-                    if start and not chunk.isKindInformative():
-                        if chunk.isKindPlaceHolder():
-                            placeHolderCount = placeHolderCount + 1
-                            insertion = "%s${%d:%s}" % (insertion, placeHolderCount, chunk.spelling)
-                        else: 
-                            insertion = "%s%s" % (insertion, chunk.spelling)
+                add, representation, insertion = self.parse_res(compRes, prefix)
                 if add:
                     #print compRes.kind, compRes.string
                     ret.append((representation, insertion))
