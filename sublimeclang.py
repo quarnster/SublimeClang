@@ -42,8 +42,6 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
             if s.has("options"):
                 opts = s.get("options")
             tu = index.parse(view.file_name(), opts)
-            #for diag in tu.diagnostics:
-            #    print diag
         row,col = view.rowcol(locations[0])
         unsaved_files = []
         if view.is_dirty():
@@ -51,6 +49,8 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         res = tu.codeComplete(view.file_name(), row+1, col+1, unsaved_files)
         ret = []
         if res != None:
+            for diag in res.diagnostics:
+                print diag
             for compRes in res.results:
                 #print compRes.kind, compRes.string
                 representation = ""
