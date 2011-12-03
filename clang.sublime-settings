@@ -23,6 +23,7 @@
     // Any options you want to give to clang
     "options":
     [
+        "-Wall",
         "-I/path/to/sources/1",
         "-I/path/to/sources/2"
     ]

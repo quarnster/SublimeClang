@@ -187,6 +187,8 @@ class Diagnostic(object):
     Error   = 3
     Fatal   = 4
 
+    severityNames = ["Ignored", "Note", "Warning", "Error", "Fatal"]
+
     def __init__(self, ptr):
         self.ptr = ptr
 
@@ -196,6 +198,10 @@ class Diagnostic(object):
     @property
     def severity(self):
         return _clang_getDiagnosticSeverity(self)
+
+    @property
+    def severityName(self):
+        return self.severityNames[self.severity]
 
     @property
     def location(self):
