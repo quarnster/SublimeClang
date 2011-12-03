@@ -53,6 +53,7 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         self.dont_complete_startswith = s.get("dont_complete_startswith", ['operator','~'])
         self.recompileDelay = s.get("recompileDelay", 1000)
         self.hide_clang_output = s.get("hide_output_when_empty", False)
+        self.add_language_option = s.get("add_language_option", True)
 
     def parse_res(self, compRes, prefix):
         #print compRes.kind, compRes.string
@@ -92,6 +93,9 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
             opts = []
             if s.has("options"):
                 opts = s.get("options")
+            if self.add_language_option:
+                opts.append("-x")
+                opts.append(self.get_language(sublime.active_window().active_view()))
             opts.append(filename)
             tu = index.parse(None, opts)
             if tu != None:
@@ -100,12 +104,15 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
             tu = translationUnits[filename]        
         return tu
 
-    def is_supported_language(self, view):
+    def get_language(self, view):
         caret = view.sel()[0].a
         language = re.search("(?<=source\.)[a-zA-Z0-9+#]+", view.scope_name(caret))
         if language == None:
             return False
-        language = language.group(0)
+        return language.group(0)
+
+    def is_supported_language(self, view):
+        language = self.get_language(view)
         if language != "c++" and language != "c":
             return False
         return True
