@@ -129,7 +129,7 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         if view.is_dirty():
             unsaved_files.append((view.file_name(), str(view.substr(Region(0, 65536)))))
           
-        res = tu.codeComplete(view.file_name(), row+1, col+1, unsaved_files)
+        res = tu.codeComplete(view.file_name(), row+1, col+1, unsaved_files, 3)
         ret = []
         if res != None:
             #for diag in res.diagnostics:
