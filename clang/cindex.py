@@ -290,6 +290,12 @@ class CursorKind(object):
     def from_param(self):
         return self.value
 
+    def __eq__(self, other):
+        return self.value == other.value
+
+    def __ne__(self, other):
+        return self.value != other.value
+
     @property
     def name(self):
         """Get the enumeration name of this cursor kind."""

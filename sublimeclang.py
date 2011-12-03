@@ -140,8 +140,12 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
             #        if chunk.isKindCurrentParameter():
             #            return [(chunk.spelling, "${1:%s}" % chunk.spelling)]
             #    return []
-            
+            line = view.substr(Region(view.line(locations[0]).a, locations[0]))
+            onlyMembers = line.endswith(".") or line.endswith("->")
+
             for compRes in res.results:
+                if onlyMembers and (compRes.kind != cindex.CursorKind.CXX_METHOD and compRes.kind != cindex.CursorKind.FIELD_DECL):
+                    continue
                 add, representation, insertion = self.parse_res(compRes, prefix)
                 if add:
                     #print compRes.kind, compRes.string
