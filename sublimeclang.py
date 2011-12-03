@@ -168,7 +168,7 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
                 if f.file != None:
                     filename = f.file.name
 
-                err = "%s:%d,%d - %s" % (filename, f.line, f.column, diag.spelling)
+                err = "%s:%d,%d - %s - %s" % (filename, f.line, f.column, diag.severityName, diag.spelling)
                 errString = "%s%s\n" % (errString, err)
             show = True
         v = view.window().get_output_panel("clang")
