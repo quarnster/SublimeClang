@@ -17,6 +17,9 @@
         "operator"
     ],
 
+    // If set to true it'll add for example "-x c++" to the options for c++ files
+    "add_language_option": true,
+
     // Any options you want to give to clang
     "options":
     [
