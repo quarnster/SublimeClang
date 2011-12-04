@@ -11,12 +11,11 @@ WARNING = "warning"
 
 def clear_error_marks():
     '''Adds lint marks to view.'''
-    global ERRORS, WARNINGS, VIOLATIONS
+    global ERRORS, WARNINGS
 
     listdict = lambda: defaultdict(list)
     ERRORS = defaultdict(listdict)
     WARNINGS = defaultdict(listdict)
-    VIOLATIONS = defaultdict(listdict)
 
 
 def add_error_mark(severity, filename, line, message):
@@ -31,7 +30,7 @@ def show_error_marks(view):
     erase_error_marks(view)
     fill_outlines = False
     gutter_mark = 'dot'
-    outlines = {'warning': [], 'violation': [], 'illegal': []}
+    outlines = {'warning': [], 'illegal': []}
     fn = view.file_name()
 
     for line in ERRORS[fn].keys():
@@ -55,7 +54,6 @@ def show_error_marks(view):
 def erase_error_marks(view):
     '''erase all error marks from view'''
     view.erase_regions('sublimeclang-outlines-illegal')
-    view.erase_regions('sublimeclang-outlines-violation')
     view.erase_regions('sublimeclang-outlines-warning')
 
 
@@ -76,9 +74,8 @@ def update_statusbar(view):
 
 
 class SublimeClangStatusbarUpdater(sublime_plugin.EventListener):
-    '''This plugin controls a linter meant to work in the background
-    to provide interactive feedback as a file is edited. It can be
-    turned off via a setting.
+    ''' This EventListener will show the error messages for the current
+    line in the statusbar when the current line changes.
     '''
 
     def __init__(self):
