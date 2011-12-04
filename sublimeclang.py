@@ -25,9 +25,12 @@ import sublime_plugin
 from sublime import Region
 import sublime
 import re
+from errormarkers import clear_error_marks, add_error_mark, show_error_marks
 
 translationUnits = {}
 index = None
+
+
 class SublimeClangAutoComplete(sublime_plugin.EventListener):
     def __init__(self):
         s = sublime.load_settings("clang.sublime-settings")
@@ -37,13 +40,13 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         self.recompile_active = False
         self.auto_complete_active = False
 
-    def load_settings(self, s = None):
+    def load_settings(self, s=None):
         global translationUnits
         translationUnits.clear()
         if s == None:
             s = sublime.load_settings("clang.sublime-settings")
         self.popupDelay = s.get("popupDelay", 500)
-        self.dont_complete_startswith = s.get("dont_complete_startswith", ['operator','~'])
+        self.dont_complete_startswith = s.get("dont_complete_startswith", ['operator', '~'])
         self.recompileDelay = s.get("recompileDelay", 1000)
         self.hide_clang_output = s.get("hide_output_when_empty", False)
         self.add_language_option = s.get("add_language_option", True)
@@ -53,7 +56,7 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         representation = ""
         insertion = ""
         returnType = ""
-        start = False;
+        start = False
         placeHolderCount = 0
         for chunk in compRes.string:
             if chunk.isKindTypedText():
@@ -138,12 +141,12 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         tu = self.get_translation_unit(view.file_name())
         if tu == None:
             return []
-        row,col = view.rowcol(locations[0]-len(prefix)) # Getting strange results form clang if I don't remove prefix
+        row, col = view.rowcol(locations[0] - len(prefix))  # Getting strange results form clang if I don't remove prefix
         unsaved_files = []
         if view.is_dirty():
-            unsaved_files.append((view.file_name(), str(view.substr(Region(0, 65536)))))
+            unsaved_files.append((view.file_name(), str(view.substr(Region(0, view.size())))))
 
-        res = tu.codeComplete(view.file_name(), row+1, col+1, unsaved_files, 3)
+        res = tu.codeComplete(view.file_name(), row + 1, col + 1, unsaved_files, 3)
         ret = []
         if res != None:
             #for diag in res.diagnostics:
@@ -172,11 +175,12 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
 
     def recompile(self):
         view = self.view
-        unsaved_files = [(view.file_name(), view.substr(Region(0, 65536)))]
+        unsaved_files = [(view.file_name(), view.substr(Region(0, view.size())))]
         tu = self.get_translation_unit(view.file_name())
         tu.reparse(unsaved_files)
         errString = ""
         show = False
+        clear_error_marks()  # clear visual error marks
         if len(tu.diagnostics):
             errString = ""
             for diag in tu.diagnostics:
@@ -193,6 +197,8 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
                 for fix in diag.fixits:
                     errString = "%s%s\n" % (errString, fix)
                 """
+                add_error_mark(
+                    diag.severityName, filename, f.line - 1, diag.spelling)  # clear visual error marks
             show = True
         v = view.window().get_output_panel("clang")
         v.settings().set("result_file_regex", "^(...*?):([0-9]*):?([0-9]*)")
@@ -204,6 +210,7 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         v.insert(e, 0, errString)
         v.end_edit(e)
         v.set_read_only(True)
+        show_error_marks(view)
         if show:
             view.window().run_command("show_panel", {"panel": "output.clang"})
         elif self.hide_clang_output:
