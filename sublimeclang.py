@@ -25,6 +25,7 @@ import sublime_plugin
 from sublime import Region
 import sublime
 import re
+import threading
 from errormarkers import clear_error_marks, add_error_mark, show_error_marks
 
 translationUnits = {}
@@ -37,8 +38,9 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         s.clear_on_change("options")
         s.add_on_change("options", self.load_settings)
         self.load_settings(s)
-        self.recompile_active = False
         self.auto_complete_active = False
+        self.recompileTimer = None
+        self.compilationLock = threading.Lock()
 
     def load_settings(self, s=None):
         global translationUnits
@@ -146,7 +148,11 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         if view.is_dirty():
             unsaved_files.append((view.file_name(), str(view.substr(Region(0, view.size())))))
 
-        res = tu.codeComplete(view.file_name(), row + 1, col + 1, unsaved_files, 3)
+        self.compilationLock.acquire()
+        try:
+            res = tu.codeComplete(view.file_name(), row + 1, col + 1, unsaved_files, 3)
+        finally:
+            self.compilationLock.release()
         ret = []
         if res != None:
             #for diag in res.diagnostics:
@@ -173,17 +179,30 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
             self.auto_complete_active = False
             self.view.window().run_command("auto_complete")
 
-    def recompile(self):
-        self.recompile_active = False
+    class CompilationThread(threading.Thread):
+        def __init__(self, parent, tu, unsaved_files):
+            threading.Thread.__init__(self)
+            self.parent = parent
+            self.tu = tu
+            self.unsaved_files = unsaved_files
+
+        def run(self):
+            self.parent.compilationLock.acquire()
+            try:
+                self.tu.reparse(self.unsaved_files)
+            finally:
+                self.parent.compilationLock.release()
+            sublime.set_timeout(self.parent.display_compilation_results, 0)
+
+
+    def display_compilation_results(self):
         view = self.view
-        unsaved_files = [(view.file_name(), view.substr(Region(0, view.size())))]
         tu = self.get_translation_unit(view.file_name())
-        if tu == None:
-            return
-        tu.reparse(unsaved_files)
         errString = ""
         show = False
         clear_error_marks()  # clear visual error marks
+        if tu == None:
+            return
         if len(tu.diagnostics):
             errString = ""
             for diag in tu.diagnostics:
@@ -219,15 +238,27 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         elif self.hide_clang_output:
             view.window().run_command("hide_panel", {"panel": "output.clang"})
 
+    def restartRecompileTimer(self, timeout):
+        if self.recompileTimer != None:
+            self.recompileTimer.cancel()
+        self.recompileTimer = threading.Timer(timeout, sublime.set_timeout, [self.recompile, 0])
+        self.recompileTimer.start()
+
+    def recompile(self):
+        view = self.view
+        unsaved_files = [(view.file_name(), view.substr(Region(0, view.size())))]
+        tu = self.get_translation_unit(view.file_name())
+        if tu == None:
+            return
+        if self.compilationLock.locked():
+            # Already compiling. Try again in a bit
+            self.restartRecompileTimer(1)
+        else:
+            self.CompilationThread(self, tu, unsaved_files).start()
 
     def on_modified(self, view):
         if (self.popupDelay <= 0 and self.reparseDelay <= 0) or not self.is_supported_language(view):
             return
-
-        if self.recompileDelay > 0 and not self.recompile_active:
-            self.recompile_active = True
-            self.view = view
-            sublime.set_timeout(self.recompile, self.recompileDelay)
 
         if self.popupDelay > 0:
             self.auto_complete_active = False
@@ -237,3 +268,7 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
                 self.auto_complete_active = True
                 self.view = view
                 sublime.set_timeout(self.complete, self.popupDelay)
+
+        if self.recompileDelay > 0:
+            self.view = view
+            self.restartRecompileTimer(self.recompileDelay/1000.0)
