@@ -78,12 +78,12 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
                 if chunk.isKindPlaceHolder():
                     placeHolderCount = placeHolderCount + 1
                     insertion = "%s${%d:%s}" % (insertion, placeHolderCount, chunk.spelling)
-                else: 
+                else:
                     insertion = "%s%s" % (insertion, chunk.spelling)
         return (True, "%s - %s" % (representation, returnType), insertion)
 
     def get_translation_unit(self, filename):
-        global translationUnits 
+        global translationUnits
         global index
         if index == None:
             index = cindex.Index.create()
@@ -94,14 +94,20 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
             if s.has("options"):
                 opts = s.get("options")
             if self.add_language_option:
-                opts.append("-x")
-                opts.append(self.get_language(sublime.active_window().active_view()))
+                language = self.get_language(sublime.active_window().active_view())
+                if language == "objc":
+                    opts.append("-ObjC")
+                elif language == "objc++":
+                    opts.append("-ObjC++")
+                else:
+                    opts.append("-x")
+                    opts.append(language)
             opts.append(filename)
             tu = index.parse(None, opts)
             if tu != None:
                 translationUnits[filename] = tu
         else:
-            tu = translationUnits[filename]        
+            tu = translationUnits[filename]
         return tu
 
     def get_language(self, view):
@@ -113,9 +119,24 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
 
     def is_supported_language(self, view):
         language = self.get_language(view)
-        if language != "c++" and language != "c":
+        if language != "c++" and language != "c" and language != "objc" and language != "objc++":
             return False
         return True
+
+    def is_member_completion(self, view, caret):
+        line = view.substr(Region(view.line(caret).a, caret))
+        if line.endswith(".") or line.endswith("->"):
+            return True
+        elif self.get_language(view).startswith("objc"):
+            return re.search("[ \t]*\[[a-zA-Z0-9_]* $", line) != None
+        return False
+
+    def is_member_kind(self, kind):
+        return  kind == cindex.CursorKind.CXX_METHOD or \
+                kind == cindex.CursorKind.FIELD_DECL or \
+                kind == cindex.CursorKind.OBJC_PROPERTY_DECL or \
+                kind == cindex.CursorKind.OBJC_CLASS_METHOD_DECL or \
+                kind == cindex.CursorKind.OBJC_INSTANCE_METHOD_DECL
 
     def on_query_completions(self, view, prefix, locations):
         if not self.is_supported_language(view):
@@ -128,7 +149,7 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         unsaved_files = []
         if view.is_dirty():
             unsaved_files.append((view.file_name(), str(view.substr(Region(0, 65536)))))
-          
+
         res = tu.codeComplete(view.file_name(), row+1, col+1, unsaved_files, 3)
         ret = []
         if res != None:
@@ -140,11 +161,10 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
             #        if chunk.isKindCurrentParameter():
             #            return [(chunk.spelling, "${1:%s}" % chunk.spelling)]
             #    return []
-            line = view.substr(Region(view.line(locations[0]).a, locations[0]))
-            onlyMembers = line.endswith(".") or line.endswith("->")
+            onlyMembers = self.is_member_completion(view, locations[0])
 
             for compRes in res.results:
-                if onlyMembers and (compRes.kind != cindex.CursorKind.CXX_METHOD and compRes.kind != cindex.CursorKind.FIELD_DECL):
+                if onlyMembers and not self.is_member_kind(compRes.kind):
                     continue
                 add, representation, insertion = self.parse_res(compRes, prefix)
                 if add:
@@ -168,12 +188,18 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
             errString = ""
             for diag in tu.diagnostics:
                 f = diag.location
-                filename = "" 
+                filename = ""
                 if f.file != None:
                     filename = f.file.name
 
                 err = "%s:%d,%d - %s - %s" % (filename, f.line, f.column, diag.severityName, diag.spelling)
                 errString = "%s%s\n" % (errString, err)
+                """
+                for range in diag.ranges:
+                    errString = "%s%s\n" % (errString, range)
+                for fix in diag.fixits:
+                    errString = "%s%s\n" % (errString, fix)
+                """
             show = True
         v = view.window().get_output_panel("clang")
         v.set_read_only(False)
@@ -227,8 +253,8 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         if self.popupDelay > 0:
             self.auto_complete_active = False
             caret = view.sel()[0].a
-            word = view.substr(Region(view.word(caret).a, caret))
-            if (word.endswith(".") or word.endswith("->") or word.endswith("::")):
+            line = view.substr(Region(view.word(caret).a, caret))
+            if (self.is_member_completion(view, caret) or line.endswith("::")):
                 self.auto_complete_active = True
                 self.view = view
-                sublime.set_timeout(self.complete, self.popupDelay) 
+                sublime.set_timeout(self.complete, self.popupDelay)
