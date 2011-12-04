@@ -174,9 +174,12 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
             self.view.window().run_command("auto_complete")
 
     def recompile(self):
+        self.recompile_active = False
         view = self.view
         unsaved_files = [(view.file_name(), view.substr(Region(0, view.size())))]
         tu = self.get_translation_unit(view.file_name())
+        if tu == None:
+            return
         tu.reparse(unsaved_files)
         errString = ""
         show = False
@@ -215,7 +218,7 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
             view.window().run_command("show_panel", {"panel": "output.clang"})
         elif self.hide_clang_output:
             view.window().run_command("hide_panel", {"panel": "output.clang"})
-        self.recompile_active = False
+
 
     def on_modified(self, view):
         if (self.popupDelay <= 0 and self.reparseDelay <= 0) or not self.is_supported_language(view):
