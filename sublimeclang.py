@@ -25,6 +25,7 @@ import sublime_plugin
 from sublime import Region
 import sublime
 import re
+from errormarkers import clear_error_marks, add_error_mark, show_error_marks
 
 translationUnits = {}
 index = None
@@ -177,6 +178,7 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         tu.reparse(unsaved_files)
         errString = ""
         show = False
+        clear_error_marks()  # clear visual error marks
         if len(tu.diagnostics):
             errString = ""
             for diag in tu.diagnostics:
@@ -193,6 +195,8 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
                 for fix in diag.fixits:
                     errString = "%s%s\n" % (errString, fix)
                 """
+                add_error_mark(
+                    diag.severityName, filename, f.line - 1, diag.spelling)  # clear visual error marks
             show = True
         v = view.window().get_output_panel("clang")
         v.settings().set("result_file_regex", "^(...*?):([0-9]*):?([0-9]*)")
@@ -204,6 +208,7 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         v.insert(e, 0, errString)
         v.end_edit(e)
         v.set_read_only(True)
+        show_error_marks(view)
         if show:
             view.window().run_command("show_panel", {"panel": "output.clang"})
         elif self.hide_clang_output:
