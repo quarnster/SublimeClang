@@ -10,7 +10,6 @@ WARNING = "warning"
 
 
 def clear_error_marks():
-    '''Adds lint marks to view.'''
     global ERRORS, WARNINGS
 
     listdict = lambda: defaultdict(list)
