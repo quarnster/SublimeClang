@@ -26,13 +26,6 @@ from sublime import Region
 import sublime
 import re
 
-def select(view, line, col):
-    point = view.text_point(line-1, col-1)
-    s = view.sel()
-    s.clear()
-    s.add(view.word(point))
-    view.show_at_center(point)
-
 translationUnits = {}
 index = None
 class SublimeClangAutoComplete(sublime_plugin.EventListener):
@@ -202,6 +195,8 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
                 """
             show = True
         v = view.window().get_output_panel("clang")
+        v.settings().set("result_file_regex", "^(...*?):([0-9]*):?([0-9]*)")
+        view.window().get_output_panel("clang")
         v.set_read_only(False)
         v.set_scratch(True)
         v.set_name("sublimeclang.%s" % view.file_name())
@@ -214,32 +209,6 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         elif self.hide_clang_output:
             view.window().run_command("hide_panel", {"panel": "output.clang"})
         self.recompile_active = False
-
-    class callback:
-        def __init__(self, line, col):
-            self.line = line
-            self.col = col
-            sublime_plugin.all_callbacks['on_load'].append(self)
-
-        def on_load(self, view):
-            select(view, self.line, self.col)
-            sublime_plugin.all_callbacks['on_load'].remove(self)
-
-    def on_selection_modified(self, view):
-        if view.name().startswith("sublimeclang"):
-            inputFile = view.name()[13:]
-            tu = self.get_translation_unit(inputFile)
-            line,col = view.rowcol(view.sel()[0].a)
-            if line >= len(tu.diagnostics):
-                return
-            loc = tu.diagnostics[line].location
-            if loc.file != None:
-                v = sublime.active_window().open_file(loc.file.name)
-                if v.is_loading():
-                    self.callback(loc.line,loc.column)
-                else:
-                    select(v,loc.line, loc.column)
-
 
     def on_modified(self, view):
         if (self.popupDelay <= 0 and self.reparseDelay <= 0) or not self.is_supported_language(view):
