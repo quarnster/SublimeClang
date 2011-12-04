@@ -29,6 +29,8 @@ from errormarkers import clear_error_marks, add_error_mark, show_error_marks
 
 translationUnits = {}
 index = None
+
+
 class SublimeClangAutoComplete(sublime_plugin.EventListener):
     def __init__(self):
         s = sublime.load_settings("clang.sublime-settings")
@@ -38,13 +40,13 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         self.recompile_active = False
         self.auto_complete_active = False
 
-    def load_settings(self, s = None):
+    def load_settings(self, s=None):
         global translationUnits
         translationUnits.clear()
         if s == None:
             s = sublime.load_settings("clang.sublime-settings")
         self.popupDelay = s.get("popupDelay", 500)
-        self.dont_complete_startswith = s.get("dont_complete_startswith", ['operator','~'])
+        self.dont_complete_startswith = s.get("dont_complete_startswith", ['operator', '~'])
         self.recompileDelay = s.get("recompileDelay", 1000)
         self.hide_clang_output = s.get("hide_output_when_empty", False)
         self.add_language_option = s.get("add_language_option", True)
@@ -54,7 +56,7 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         representation = ""
         insertion = ""
         returnType = ""
-        start = False;
+        start = False
         placeHolderCount = 0
         for chunk in compRes.string:
             if chunk.isKindTypedText():
@@ -139,12 +141,12 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         tu = self.get_translation_unit(view.file_name())
         if tu == None:
             return []
-        row,col = view.rowcol(locations[0]-len(prefix)) # Getting strange results form clang if I don't remove prefix
+        row, col = view.rowcol(locations[0] - len(prefix))  # Getting strange results form clang if I don't remove prefix
         unsaved_files = []
         if view.is_dirty():
             unsaved_files.append((view.file_name(), str(view.substr(Region(0, view.size())))))
 
-        res = tu.codeComplete(view.file_name(), row+1, col+1, unsaved_files, 3)
+        res = tu.codeComplete(view.file_name(), row + 1, col + 1, unsaved_files, 3)
         ret = []
         if res != None:
             #for diag in res.diagnostics:
