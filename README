@@ -1,8 +1,8 @@
-Clang plugin for Sublime Text 2 providing auto complete suggestions for C/C++. It'll also optionally parse the code as it's typed and show errors and warnings.
+Clang plugin for Sublime Text 2 providing auto complete suggestions for C/C++/ObjC/ObjC++. It'll also optionally parse the code as it's typed and show errors and warnings.
 
 Installation:
     1) Go to your packages directory and type:
-            git clone https://github.com/quarnster/SublimeClang SublimeClang 
+            git clone https://github.com/quarnster/SublimeClang SublimeClang
     2) For some reason I have to copy the settings file into User or it won't work:
             cp SublimeClang/clang.sublime-settings User/
     3) Modify User/clang.sublime-settings with any include directories or other options you want to provide to clang
