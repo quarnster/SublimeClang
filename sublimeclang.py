@@ -39,20 +39,24 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         s.add_on_change("options", self.load_settings)
         self.load_settings(s)
         self.auto_complete_active = False
-        self.recompileTimer = None
-        self.compilationLock = threading.Lock()
-        self.languageRe = re.compile("(?<=source\.)[a-zA-Z0-9+#]+")
-        self.memberRe = re.compile("[a-zA-Z]+[0-9_\(\)]*((\.)|(->))$")
-        self.notCodeRe = re.compile("(string.)|(comment.)")
+        self.recompile_timer = None
+        self.compilation_lock = threading.Lock()
+        self.language_regex = re.compile("(?<=source\.)[a-zA-Z0-9+#]+")
+        self.member_regex = re.compile("[a-zA-Z]+[0-9_\(\)]*((\.)|(->))$")
+        self.not_code_regex = re.compile("(string.)|(comment.)")
 
     def load_settings(self, s=None):
         global translationUnits
         translationUnits.clear()
         if s == None:
             s = sublime.load_settings("clang.sublime-settings")
-        self.popupDelay = s.get("popupDelay", 500)
+        if s.get("popupDelay") != None:
+            sublime.error_message("SublimeClang changed the 'popupDelay' setting to 'popup_delay, please edit your clang.sublime-settings to match this")
+        if s.get("recompileDelay") != None:
+            sublime.error_message("SublimeClang changed the 'recompileDelay' setting to 'recompile_delay, please edit your clang.sublime-settings to match this")
+        self.popup_delay = s.get("popup_delay", 500)
         self.dont_complete_startswith = s.get("dont_complete_startswith", ['operator', '~'])
-        self.recompileDelay = s.get("recompileDelay", 1000)
+        self.recompile_delay = s.get("recompile_delay", 1000)
         self.hide_clang_output = s.get("hide_output_when_empty", False)
         self.add_language_option = s.get("add_language_option", True)
 
@@ -113,7 +117,7 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
 
     def get_language(self, view):
         caret = view.sel()[0].a
-        language = self.languageRe.search(view.scope_name(caret))
+        language = self.language_regex.search(view.scope_name(caret))
         if language == None:
             return False
         return language.group(0)
@@ -126,7 +130,7 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
 
     def is_member_completion(self, view, caret):
         line = view.substr(Region(view.line(caret).a, caret))
-        if self.memberRe.search(line) != None:
+        if self.member_regex.search(line) != None:
             return True
         elif self.get_language(view).startswith("objc"):
             return re.search("[ \t]*\[[a-zA-Z0-9_]* $", line) != None
@@ -151,11 +155,11 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         if view.is_dirty():
             unsaved_files.append((view.file_name(), str(view.substr(Region(0, view.size())))))
 
-        self.compilationLock.acquire()
+        self.compilation_lock.acquire()
         try:
             res = tu.codeComplete(view.file_name(), row + 1, col + 1, unsaved_files, 3)
         finally:
-            self.compilationLock.release()
+            self.compilation_lock.release()
         ret = []
         if res != None:
             #for diag in res.diagnostics:
@@ -190,11 +194,11 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
             self.unsaved_files = unsaved_files
 
         def run(self):
-            self.parent.compilationLock.acquire()
+            self.parent.compilation_lock.acquire()
             try:
                 self.tu.reparse(self.unsaved_files)
             finally:
-                self.parent.compilationLock.release()
+                self.parent.compilation_lock.release()
             sublime.set_timeout(self.parent.display_compilation_results, 0)
 
 
@@ -241,11 +245,11 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         elif self.hide_clang_output:
             view.window().run_command("hide_panel", {"panel": "output.clang"})
 
-    def restartRecompileTimer(self, timeout):
-        if self.recompileTimer != None:
-            self.recompileTimer.cancel()
-        self.recompileTimer = threading.Timer(timeout, sublime.set_timeout, [self.recompile, 0])
-        self.recompileTimer.start()
+    def restart_recompile_timer(self, timeout):
+        if self.recompile_timer != None:
+            self.recompile_timer.cancel()
+        self.recompile_timer = threading.Timer(timeout, sublime.set_timeout, [self.recompile, 0])
+        self.recompile_timer.start()
 
     def recompile(self):
         view = self.view
@@ -253,26 +257,26 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         tu = self.get_translation_unit(view.file_name())
         if tu == None:
             return
-        if self.compilationLock.locked():
+        if self.compilation_lock.locked():
             # Already compiling. Try again in a bit
-            self.restartRecompileTimer(1)
+            self.restart_recompile_timer(1)
         else:
             self.CompilationThread(self, tu, unsaved_files).start()
 
     def on_modified(self, view):
-        if (self.popupDelay <= 0 and self.reparseDelay <= 0) or not self.is_supported_language(view):
+        if (self.popup_delay <= 0 and self.reparse_delay <= 0) or not self.is_supported_language(view):
             return
 
-        if self.popupDelay > 0 :
+        if self.popup_delay > 0 :
             caret = view.sel()[0].a
-            if self.notCodeRe.search(view.scope_name(caret)) == None:
+            if self.not_code_regex.search(view.scope_name(caret)) == None:
                 self.auto_complete_active = False
                 line = view.substr(Region(view.word(caret).a, caret))
                 if (self.is_member_completion(view, caret) or line.endswith("::")):
                     self.auto_complete_active = True
                     self.view = view
-                    sublime.set_timeout(self.complete, self.popupDelay)
+                    sublime.set_timeout(self.complete, self.popup_delay)
 
-        if self.recompileDelay > 0:
+        if self.recompile_delay > 0:
             self.view = view
-            self.restartRecompileTimer(self.recompileDelay/1000.0)
+            self.restart_recompile_timer(self.recompile_delay/1000.0)
