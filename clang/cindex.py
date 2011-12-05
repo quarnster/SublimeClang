@@ -213,7 +213,7 @@ class Diagnostic(object):
                         self.name = """\
 Getting the filename, line and column from clang seems to be broken on Windows, and you just get
 'ValueError: Procedure called with not enough arguments (4 bytes missing) or wrong calling convention'
-instead. If you know have a fix for this, please provide a patch to github.com/quarnster/SublimeClang.\n"""
+instead. If you have a fix for this, please provide a patch to github.com/quarnster/SublimeClang.\n"""
                 def __init__(self):
                     self.file = self.hack2()
                     self.line = 0
