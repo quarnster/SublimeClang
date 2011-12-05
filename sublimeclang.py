@@ -42,7 +42,7 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         self.recompileTimer = None
         self.compilationLock = threading.Lock()
         self.languageRe = re.compile("(?<=source\.)[a-zA-Z0-9+#]+")
-        self.memberRe = re.compile("[a-zA-Z]+[0-9_]*((\.)|(->))$")
+        self.memberRe = re.compile("[a-zA-Z]+[0-9_\(\)]*((\.)|(->))$")
         self.notCodeRe = re.compile("(string.)|(comment.)")
 
     def load_settings(self, s=None):
