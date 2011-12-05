@@ -230,7 +230,7 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
                     diag.severityName, filename, f.line - 1, diag.spelling)  # clear visual error marks
             show = True
         v = view.window().get_output_panel("clang")
-        v.settings().set("result_file_regex", "^(...*?):([0-9]*):?([0-9]*)")
+        v.settings().set("result_file_regex", "^(.+):([0-9]+),([0-9]+)")
         view.window().get_output_panel("clang")
         v.set_read_only(False)
         v.set_scratch(True)
