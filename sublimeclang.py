@@ -153,7 +153,7 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         row, col = view.rowcol(locations[0] - len(prefix))  # Getting strange results form clang if I don't remove prefix
         unsaved_files = []
         if view.is_dirty():
-            unsaved_files.append((view.file_name(), str(view.substr(Region(0, view.size())))))
+            unsaved_files.append((view.file_name(), view.substr(Region(0, view.size()))))
 
         self.compilation_lock.acquire()
         try:
