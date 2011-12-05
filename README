@@ -3,9 +3,8 @@ Clang plugin for Sublime Text 2 providing auto complete suggestions for C/C++/Ob
 Installation:
     1) Go to your packages directory and type:
             git clone https://github.com/quarnster/SublimeClang SublimeClang
-    2) For some reason I have to copy the settings file into User or it won't work:
-            cp SublimeClang/clang.sublime-settings User/
-    3) Modify User/clang.sublime-settings with any include directories or other options you want to provide to clang
+    2) Back in the editor, open up the command palette by pressing cmd+shift+P or ctrl+shift+P
+    3) Type SublimeClang and open up the settings file you want to modify with any include directories or other options you want to provide to clang
 
 License
 
