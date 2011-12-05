@@ -1,0 +1,16 @@
+[
+    {
+        "caption": "Preferences: SublimeClang Settings – Default",
+        "command": "open_file", "args":
+        {
+            "file": "${packages}/SublimeClang/clang.sublime-settings"
+        }
+    },
+    {
+        "caption": "Preferences: SublimeClang Settings – User",
+        "command": "open_file", "args":
+        {
+            "file": "${packages}/User/clang.sublime-settings"
+        }
+    }
+]

@@ -41,7 +41,7 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         self.auto_complete_active = False
         self.recompile_timer = None
         self.compilation_lock = threading.Lock()
-        self.language_regex = re.compile("(?<=source\.)[a-zA-Z0-9+#]+")
+        self.language_regex = re.compile("(?<=source\.)[\w+#]+")
         self.member_regex = re.compile("[a-zA-Z]+[0-9_\(\)]*((\.)|(->))$")
         self.not_code_regex = re.compile("(string.)|(comment.)")
 
@@ -119,12 +119,12 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         caret = view.sel()[0].a
         language = self.language_regex.search(view.scope_name(caret))
         if language == None:
-            return False
+            return None
         return language.group(0)
 
     def is_supported_language(self, view):
         language = self.get_language(view)
-        if language != "c++" and language != "c" and language != "objc" and language != "objc++":
+        if language == None or (language != "c++" and language != "c" and language != "objc" and language != "objc++"):
             return False
         return True
 
@@ -133,7 +133,7 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         if self.member_regex.search(line) != None:
             return True
         elif self.get_language(view).startswith("objc"):
-            return re.search("[ \t]*\[[a-zA-Z0-9_]* $", line) != None
+            return re.search("[ \t]*\[[\w]+ $", line) != None
         return False
 
     def is_member_kind(self, kind):
