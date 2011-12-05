@@ -41,6 +41,9 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         self.auto_complete_active = False
         self.recompileTimer = None
         self.compilationLock = threading.Lock()
+        self.languageRe = re.compile("(?<=source\.)[a-zA-Z0-9+#]+")
+        self.memberRe = re.compile("[a-zA-Z]+[0-9_]*((\.)|(->))$")
+        self.notCodeRe = re.compile("(string.)|(comment.)")
 
     def load_settings(self, s=None):
         global translationUnits
@@ -110,7 +113,7 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
 
     def get_language(self, view):
         caret = view.sel()[0].a
-        language = re.search("(?<=source\.)[a-zA-Z0-9+#]+", view.scope_name(caret))
+        language = self.languageRe.search(view.scope_name(caret))
         if language == None:
             return False
         return language.group(0)
@@ -123,7 +126,7 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
 
     def is_member_completion(self, view, caret):
         line = view.substr(Region(view.line(caret).a, caret))
-        if line.endswith(".") or line.endswith("->"):
+        if self.memberRe.search(line) != None:
             return True
         elif self.get_language(view).startswith("objc"):
             return re.search("[ \t]*\[[a-zA-Z0-9_]* $", line) != None
@@ -260,14 +263,15 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         if (self.popupDelay <= 0 and self.reparseDelay <= 0) or not self.is_supported_language(view):
             return
 
-        if self.popupDelay > 0:
-            self.auto_complete_active = False
+        if self.popupDelay > 0 :
             caret = view.sel()[0].a
-            line = view.substr(Region(view.word(caret).a, caret))
-            if (self.is_member_completion(view, caret) or line.endswith("::")):
-                self.auto_complete_active = True
-                self.view = view
-                sublime.set_timeout(self.complete, self.popupDelay)
+            if self.notCodeRe.search(view.scope_name(caret)) == None:
+                self.auto_complete_active = False
+                line = view.substr(Region(view.word(caret).a, caret))
+                if (self.is_member_completion(view, caret) or line.endswith("::")):
+                    self.auto_complete_active = True
+                    self.view = view
+                    sublime.set_timeout(self.complete, self.popupDelay)
 
         if self.recompileDelay > 0:
             self.view = view
