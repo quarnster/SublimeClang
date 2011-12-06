@@ -73,7 +73,7 @@ def get_cindex_library():
     if name == 'Darwin':
         return cdll.LoadLibrary('libclang.dylib')
     elif name == 'Windows':
-        return cdll.LoadLibrary('clang.dll')
+        return cdll.LoadLibrary('libclang.dll')
     else:
         return cdll.LoadLibrary('libclang.so')
 
@@ -205,20 +205,6 @@ class Diagnostic(object):
 
     @property
     def location(self):
-        import platform
-        if platform.system() == "Windows":
-            class hack:
-                class hack2:
-                    def __init__(self):
-                        self.name = """\
-Getting the filename, line and column from clang seems to be broken on Windows, and you just get
-'ValueError: Procedure called with not enough arguments (4 bytes missing) or wrong calling convention'
-instead. If you have a fix for this, please provide a patch to github.com/quarnster/SublimeClang.\n"""
-                def __init__(self):
-                    self.file = self.hack2()
-                    self.line = 0
-                    self.column = 0
-            return hack()
         return _clang_getDiagnosticLocation(self)
 
     @property
