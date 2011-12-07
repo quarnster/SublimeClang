@@ -96,7 +96,15 @@ class SublimeClangStatusbarUpdater(sublime_plugin.EventListener):
             self.lastSelectedLineNo = lastSelectedLineNo
             update_statusbar(view)
 
-    def on_activated(self, view):
+    def has_errors(self, view):
         fn = view.file_name()
-        if fn in ERRORS or fn in WARNINGS:
+        return fn in ERRORS or fn in WARNINGS
+
+    def on_activated(self, view):
+        if self.has_errors(view):
             show_error_marks(view)
+
+    def on_load(self, view):
+        if self.has_errors(view):
+            show_error_marks(view)
+
