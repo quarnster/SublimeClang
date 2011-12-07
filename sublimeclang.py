@@ -26,7 +26,7 @@ from sublime import Region
 import sublime
 import re
 import threading
-from errormarkers import clear_error_marks, add_error_mark, show_error_marks
+from errormarkers import clear_error_marks, add_error_mark, show_error_marks, update_statusbar
 
 translationUnits = {}
 index = None
@@ -173,7 +173,7 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
             onlyMembers = self.is_member_completion(view, locations[0])
 
             for compRes in res.results:
-                if onlyMembers and not self.is_member_kind(compRes.kind):
+                if compRes.string.isAvailabilityNotAccessible() or (onlyMembers and not self.is_member_kind(compRes.kind)):
                     continue
                 add, representation, insertion = self.parse_res(compRes, prefix)
                 if add:
@@ -240,6 +240,7 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         v.end_edit(e)
         v.set_read_only(True)
         show_error_marks(view)
+        update_statusbar(view)
         if show:
             view.window().run_command("show_panel", {"panel": "output.clang"})
         elif self.hide_clang_output:

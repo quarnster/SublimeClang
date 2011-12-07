@@ -1276,6 +1276,9 @@ class CompletionString(ClangObject):
         res = _clang_getCompletionAvailability(self.obj)
         return availabilityKinds[res]
 
+    def isAvailabilityNotAccessible(self):
+        return _clang_getCompletionAvailability(self.obj) == 3
+
     def __repr__(self):
         return " | ".join([str(a) for a in self]) \
                + " || Priority: " + str(self.priority) \
@@ -1284,7 +1287,8 @@ class CompletionString(ClangObject):
 availabilityKinds = {
             0: CompletionChunk.Kind("Available"),
             1: CompletionChunk.Kind("Deprecated"),
-            2: CompletionChunk.Kind("NotAvailable")}
+            2: CompletionChunk.Kind("NotAvailable"),
+            3: CompletionChunk.Kind("NotAccessible")}
 
 class CodeCompletionResult(Structure):
     _fields_ = [('cursorKind', c_int), ('completionString', c_object_p)]
