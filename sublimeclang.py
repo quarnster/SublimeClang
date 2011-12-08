@@ -143,6 +143,54 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
                 kind == cindex.CursorKind.OBJC_CLASS_METHOD_DECL or \
                 kind == cindex.CursorKind.OBJC_INSTANCE_METHOD_DECL
 
+    def get_result_typedtext(self, result):
+        for chunk in result.string:
+            if chunk.isKindTypedText():
+                return chunk.spelling.lower()
+
+    def search_results(self, prefix, results, start, end, findStart):
+        l = len(results)
+        prefix = prefix.lower()
+        while start < end:
+            mid = (start+end)/2
+            res1 = self.get_result_typedtext(results[mid])
+            cmp1 = res1.startswith(prefix)
+
+            cmp2 = False
+            if mid+1 < l:
+                res2 = self.get_result_typedtext(results[mid+1])
+                cmp2 = res2.startswith(prefix)
+
+            if findStart:
+                if cmp2 and not cmp1:
+                    # found the start position
+                    return mid+1
+                elif cmp1 and mid == 0:
+                    # the list starts with the item we're searching for
+                    return mid
+                elif res1 < prefix:
+                    start = mid+1
+                else:
+                    end = mid
+            else:
+                if cmp1 and not cmp2:
+                    #found the end position
+                    return mid
+                elif res1.startswith(prefix) or res1 < prefix:
+                    start = mid+1
+                else:
+                    end = mid
+        return -1
+
+    def find_prefix_range(self, prefix, results):
+        if len(prefix) == 0:
+            return (0, len(results)-1)
+        start = self.search_results(prefix, results, 0, len(results)-1, True)
+        end = -1
+        if start != -1:
+            end = self.search_results(prefix, results, 0, len(results)-1, False)
+        return (start,end)
+
     def on_query_completions(self, view, prefix, locations):
         if not self.is_supported_language(view):
             return []
@@ -160,6 +208,7 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
             res = tu.codeComplete(view.file_name(), row + 1, col + 1, unsaved_files, 3)
         finally:
             self.compilation_lock.release()
+        res.sort()
         ret = []
         if res != None:
             #for diag in res.diagnostics:
@@ -170,15 +219,17 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
             #        if chunk.isKindCurrentParameter():
             #            return [(chunk.spelling, "${1:%s}" % chunk.spelling)]
             #    return []
-            onlyMembers = self.is_member_completion(view, locations[0])
-
-            for compRes in res.results:
-                if compRes.string.isAvailabilityNotAccessible() or (onlyMembers and not self.is_member_kind(compRes.kind)):
-                    continue
-                add, representation, insertion = self.parse_res(compRes, prefix)
-                if add:
-                    #print compRes.kind, compRes.string
-                    ret.append((representation, insertion))
+            onlyMembers = self.is_member_completion(view, locations[0]-len(prefix))
+            s,e = self.find_prefix_range(prefix, res.results)
+            if not (s == -1 or e == -1):
+                for idx in range(s,e+1):
+                    compRes = res.results[idx]
+                    if compRes.string.isAvailabilityNotAccessible() or (onlyMembers and not self.is_member_kind(compRes.kind)):
+                        continue
+                    add, representation, insertion = self.parse_res(compRes, prefix)
+                    if add:
+                        #print compRes.kind, compRes.string
+                        ret.append((representation, insertion))
         return sorted(ret)
 
     def complete(self):
