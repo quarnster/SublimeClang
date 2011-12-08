@@ -148,10 +148,11 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
             if chunk.isKindTypedText():
                 return chunk.spelling.lower()
 
-    def search_results(self, prefix, results, start, end, findStart):
+    def search_results(self, prefix, results, start, findStart):
         l = len(results)
+        end = l
         prefix = prefix.lower()
-        while start < end:
+        while start <= end:
             mid = (start+end)/2
             res1 = self.get_result_typedtext(results[mid])
             cmp1 = res1.startswith(prefix)
@@ -171,7 +172,7 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
                 elif res1 < prefix:
                     start = mid+1
                 else:
-                    end = mid
+                    end = mid-1
             else:
                 if cmp1 and not cmp2:
                     #found the end position
@@ -179,16 +180,17 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
                 elif res1.startswith(prefix) or res1 < prefix:
                     start = mid+1
                 else:
-                    end = mid
+                    end = mid-1
         return -1
 
     def find_prefix_range(self, prefix, results):
         if len(prefix) == 0:
             return (0, len(results)-1)
-        start = self.search_results(prefix, results, 0, len(results)-1, True)
+        start = self.search_results(prefix, results, 0, True)
         end = -1
         if start != -1:
-            end = self.search_results(prefix, results, 0, len(results)-1, False)
+            end = self.search_results(prefix, results, 0, False)
+        print (start, end)
         return (start,end)
 
     def on_query_completions(self, view, prefix, locations):
