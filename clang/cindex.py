@@ -1328,6 +1328,9 @@ class CodeCompletionResults(ClangObject):
     def __del__(self):
         CodeCompletionResults_dispose(self)
 
+    def sort(self):
+        CodeCompletionResults_sort(self.results.results, len(self.results))
+
     @property
     def results(self):
         return self.ptr.contents
@@ -1769,6 +1772,9 @@ File_time.restype = c_uint
 
 CodeCompletionResults_dispose = lib.clang_disposeCodeCompleteResults
 CodeCompletionResults_dispose.argtypes = [CodeCompletionResults]
+
+CodeCompletionResults_sort = lib.clang_sortCodeCompletionResults
+CodeCompletionResults_sort.argtypes = [POINTER(CodeCompletionResult), c_int]
 
 _clang_codeCompleteGetNumDiagnostics = lib.clang_codeCompleteGetNumDiagnostics
 _clang_codeCompleteGetNumDiagnostics.argtypes = [CodeCompletionResults]
