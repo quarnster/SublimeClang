@@ -150,7 +150,7 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
 
     def search_results(self, prefix, results, start, findStart):
         l = len(results)
-        end = l
+        end = l-1
         prefix = prefix.lower()
         while start <= end:
             mid = (start+end)/2
@@ -190,7 +190,6 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         end = -1
         if start != -1:
             end = self.search_results(prefix, results, 0, False)
-        print (start, end)
         return (start,end)
 
     def on_query_completions(self, view, prefix, locations):
