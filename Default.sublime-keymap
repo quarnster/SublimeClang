@@ -1,0 +1,12 @@
+[
+  {
+    "command": "clang_goto_def",
+    "context":
+    [{
+        "key": "clang_supported_language"
+    }],
+    "keys": [
+      "ctrl+d", "ctrl+d"
+    ]
+  }
+]

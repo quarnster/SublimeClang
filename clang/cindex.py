@@ -842,6 +842,13 @@ class Cursor(Structure):
         """
         return Cursor_is_def(self)
 
+    @staticmethod
+    def get(tu, filename, row, col):
+        obj = _clang_getFile(tu, filename)
+        f = File(obj)
+        sl = _clang_getLocation(tu, f, row, col)
+        return Cursor_get(tu, sl)
+
     def get_definition(self):
         """
         If the cursor is a reference to a declaration or a declaration of
@@ -851,6 +858,9 @@ class Cursor(Structure):
         # TODO: Should probably check that this is either a reference or
         # declaration prior to issuing the lookup.
         return Cursor_def(self)
+
+    def get_reference(self):
+        return Cursor_ref(self)
 
     def get_usr(self):
         """Return the Unified Symbol Resultion (USR) for the entity referenced
@@ -1577,6 +1587,11 @@ SourceLocation_loc.argtypes = [SourceLocation, POINTER(c_object_p),
                                POINTER(c_uint), POINTER(c_uint),
                                POINTER(c_uint)]
 
+_clang_getLocation = lib.clang_getLocation
+_clang_getLocation.argtypes = [TranslationUnit, File, c_uint, c_uint]
+_clang_getLocation.restype = SourceLocation
+
+
 # Source Range Functions
 SourceRange_getRange = lib.clang_getRange
 SourceRange_getRange.argtypes = [SourceLocation, SourceLocation]
@@ -1767,6 +1782,11 @@ File_name.restype = _CXString
 File_time = lib.clang_getFileTime
 File_time.argtypes = [File]
 File_time.restype = c_uint
+
+_clang_getFile = lib.clang_getFile
+_clang_getFile.argtypes = [TranslationUnit, c_char_p]
+_clang_getFile.restype = c_object_p
+
 
 # Code completion
 

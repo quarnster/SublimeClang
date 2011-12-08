@@ -28,9 +28,55 @@ import re
 import threading
 from errormarkers import clear_error_marks, add_error_mark, show_error_marks, update_statusbar
 
+language_regex = re.compile("(?<=source\.)[\w+#]+")
 translationUnits = {}
 index = None
 
+def get_language(view):
+    caret = view.sel()[0].a
+    language = language_regex.search(view.scope_name(caret))
+    if language == None:
+        return None
+    return language.group(0)
+
+def get_translation_unit(filename):
+    global translationUnits
+    global index
+    if index == None:
+        index = cindex.Index.create()
+    tu = None
+    if filename not in translationUnits:
+        s = sublime.load_settings("clang.sublime-settings")
+        opts = []
+        if s.has("options"):
+            opts = s.get("options")
+        if s.get("add_language_option", True):
+            language = get_language(sublime.active_window().active_view())
+            if language == "objc":
+                opts.append("-ObjC")
+            elif language == "objc++":
+                opts.append("-ObjC++")
+            else:
+                opts.append("-x")
+                opts.append(language)
+        opts.append(filename)
+        tu = index.parse(None, opts)
+        if tu != None:
+            translationUnits[filename] = tu
+    else:
+        tu = translationUnits[filename]
+    return tu
+
+class ClangGotoDef(sublime_plugin.TextCommand):
+
+    def run(self, edit):
+        view = sublime.active_window().active_view()
+        tu = get_translation_unit(view.file_name())
+        row, col = view.rowcol(view.sel()[0].a)
+        cursor = cindex.Cursor.get(tu, view.file_name(), row+1, col+1)
+        d = cursor.get_reference()
+        if not d is None:
+            view.window().open_file("%s:%d:%d" % (d.location.file.name, d.location.line, d.location.column), sublime.ENCODED_POSITION)
 
 class SublimeClangAutoComplete(sublime_plugin.EventListener):
     def __init__(self):
@@ -41,7 +87,6 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         self.auto_complete_active = False
         self.recompile_timer = None
         self.compilation_lock = threading.Lock()
-        self.language_regex = re.compile("(?<=source\.)[\w+#]+")
         self.member_regex = re.compile("[a-zA-Z]+[0-9_\(\)]*((\.)|(->))$")
         self.not_code_regex = re.compile("(string.)|(comment.)")
 
@@ -58,7 +103,6 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         self.dont_complete_startswith = s.get("dont_complete_startswith", ['operator', '~'])
         self.recompile_delay = s.get("recompile_delay", 1000)
         self.hide_clang_output = s.get("hide_output_when_empty", False)
-        self.add_language_option = s.get("add_language_option", True)
 
     def parse_res(self, compRes, prefix):
         #print compRes.kind, compRes.string
@@ -87,43 +131,9 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
                     insertion = "%s%s" % (insertion, chunk.spelling)
         return (True, "%s - %s" % (representation, returnType), insertion)
 
-    def get_translation_unit(self, filename):
-        global translationUnits
-        global index
-        if index == None:
-            index = cindex.Index.create()
-        tu = None
-        if filename not in translationUnits:
-            s = sublime.load_settings("clang.sublime-settings")
-            opts = []
-            if s.has("options"):
-                opts = s.get("options")
-            if self.add_language_option:
-                language = self.get_language(sublime.active_window().active_view())
-                if language == "objc":
-                    opts.append("-ObjC")
-                elif language == "objc++":
-                    opts.append("-ObjC++")
-                else:
-                    opts.append("-x")
-                    opts.append(language)
-            opts.append(filename)
-            tu = index.parse(None, opts)
-            if tu != None:
-                translationUnits[filename] = tu
-        else:
-            tu = translationUnits[filename]
-        return tu
-
-    def get_language(self, view):
-        caret = view.sel()[0].a
-        language = self.language_regex.search(view.scope_name(caret))
-        if language == None:
-            return None
-        return language.group(0)
 
     def is_supported_language(self, view):
-        language = self.get_language(view)
+        language = get_language(view)
         if language == None or (language != "c++" and language != "c" and language != "objc" and language != "objc++"):
             return False
         return True
@@ -132,7 +142,7 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         line = view.substr(Region(view.line(caret).a, caret))
         if self.member_regex.search(line) != None:
             return True
-        elif self.get_language(view).startswith("objc"):
+        elif get_language(view).startswith("objc"):
             return re.search("[ \t]*\[[\w]+ $", line) != None
         return False
 
@@ -196,7 +206,7 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         if not self.is_supported_language(view):
             return []
 
-        tu = self.get_translation_unit(view.file_name())
+        tu = get_translation_unit(view.file_name())
         if tu == None:
             return []
         row, col = view.rowcol(locations[0] - len(prefix))  # Getting strange results form clang if I don't remove prefix
@@ -256,7 +266,7 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
 
     def display_compilation_results(self):
         view = self.view
-        tu = self.get_translation_unit(view.file_name())
+        tu = get_translation_unit(view.file_name())
         errString = ""
         show = False
         clear_error_marks()  # clear visual error marks
@@ -307,7 +317,7 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
     def recompile(self):
         view = self.view
         unsaved_files = [(view.file_name(), view.substr(Region(0, view.size())))]
-        tu = self.get_translation_unit(view.file_name())
+        tu = get_translation_unit(view.file_name())
         if tu == None:
             return
         if self.compilation_lock.locked():
@@ -333,3 +343,10 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         if self.recompile_delay > 0:
             self.view = view
             self.restart_recompile_timer(self.recompile_delay/1000.0)
+
+    def on_query_context(self, view, key, operator, operand, match_all):
+        if key != "clang_supported_language":
+            return None
+        if view == None:
+            view = sublime.active_window().active_view()
+        return self.is_supported_language(view)
