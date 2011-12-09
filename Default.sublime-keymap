@@ -8,5 +8,16 @@
     "keys": [
       "ctrl+d", "ctrl+d"
     ]
+  },
+  {
+    "command": "clang_go_back",
+    "context":
+    [{
+        "key": "clang_supported_language"
+    }],
+    "keys": [
+      "ctrl+d", "ctrl+b"
+    ]
   }
+
 ]

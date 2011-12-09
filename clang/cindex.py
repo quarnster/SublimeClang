@@ -845,6 +845,8 @@ class Cursor(Structure):
     @staticmethod
     def get(tu, filename, row, col):
         obj = _clang_getFile(tu, filename)
+        if not obj:
+            return None
         f = File(obj)
         sl = _clang_getLocation(tu, f, row, col)
         return Cursor_get(tu, sl)
