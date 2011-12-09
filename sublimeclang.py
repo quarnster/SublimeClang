@@ -26,7 +26,7 @@ from sublime import Region
 import sublime
 import re
 import threading
-from errormarkers import clear_error_marks, add_error_mark, show_error_marks, update_statusbar
+from errormarkers import clear_error_marks, add_error_mark, show_error_marks, update_statusbar, erase_error_marks
 
 language_regex = re.compile("(?<=source\.)[\w+#]+")
 translationUnits = {}
@@ -60,22 +60,30 @@ def get_translation_unit(filename):
                 opts.append("-x")
                 opts.append(language)
         opts.append(filename)
-        tu = index.parse(None, opts)
+        tu = index.parse(None, opts, [], s.get("index_parse_options", 0x1))
         if tu != None:
             translationUnits[filename] = tu
     else:
         tu = translationUnits[filename]
     return tu
 
+navigation_stack = []
+
+class ClangGoBack(sublime_plugin.TextCommand):
+    def run(self, edit):
+        if len(navigation_stack) > 0:
+            self.view.window().open_file(navigation_stack.pop(), sublime.ENCODED_POSITION)
+
 class ClangGotoDef(sublime_plugin.TextCommand):
 
     def run(self, edit):
-        view = sublime.active_window().active_view()
+        view = self.view
         tu = get_translation_unit(view.file_name())
         row, col = view.rowcol(view.sel()[0].a)
         cursor = cindex.Cursor.get(tu, view.file_name(), row+1, col+1)
         d = cursor.get_reference()
         if not d is None:
+            navigation_stack.append("%s:%d:%d" % (view.file_name(), row+1, col+1))
             view.window().open_file("%s:%d:%d" % (d.location.file.name, d.location.line, d.location.column), sublime.ENCODED_POSITION)
 
 class SublimeClangAutoComplete(sublime_plugin.EventListener):
@@ -270,6 +278,7 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         errString = ""
         show = False
         clear_error_marks()  # clear visual error marks
+        erase_error_marks(view)
         if tu == None:
             return
         if len(tu.diagnostics):
@@ -289,7 +298,7 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
                     errString = "%s%s\n" % (errString, fix)
                 """
                 add_error_mark(
-                    diag.severityName, filename, f.line - 1, diag.spelling)  # clear visual error marks
+                    diag.severityName, filename, f.line - 1, diag.spelling)  # add visual error marks
             show = True
         v = view.window().get_output_panel("clang")
         v.settings().set("result_file_regex", "^(.+):([0-9]+),([0-9]+)")
