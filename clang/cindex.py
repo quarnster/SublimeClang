@@ -851,6 +851,12 @@ class Cursor(Structure):
         sl = _clang_getLocation(tu, f, row, col)
         return Cursor_get(tu, sl)
 
+    def get_included_file(self):
+        obj = _clang_getIncludedFile(self)
+        if not obj:
+            return None
+        return File(obj)
+
     def get_definition(self):
         """
         If the cursor is a reference to a declaration or a declaration of
@@ -863,6 +869,12 @@ class Cursor(Structure):
 
     def get_reference(self):
         return Cursor_ref(self)
+
+    def get_semantic_parent(self):
+        return Cursor_semanticParent(self)
+
+    def get_lexical_parent(self):
+        return Cursor_lexicalParent(self)
 
     def get_usr(self):
         """Return the Unified Symbol Resultion (USR) for the entity referenced
@@ -1683,6 +1695,14 @@ Cursor_ref.argtypes = [Cursor]
 Cursor_ref.restype = Cursor
 Cursor_ref.errcheck = Cursor.from_result
 
+Cursor_semanticParent = lib.clang_getCursorSemanticParent
+Cursor_semanticParent.argtypes = [Cursor]
+Cursor_semanticParent.restype = Cursor
+
+Cursor_lexicalParent = lib.clang_getCursorLexicalParent
+Cursor_lexicalParent.argtypes = [Cursor]
+Cursor_lexicalParent.restype = Cursor
+
 Cursor_type = lib.clang_getCursorType
 Cursor_type.argtypes = [Cursor]
 Cursor_type.restype = Type
@@ -1789,6 +1809,9 @@ _clang_getFile = lib.clang_getFile
 _clang_getFile.argtypes = [TranslationUnit, c_char_p]
 _clang_getFile.restype = c_object_p
 
+_clang_getIncludedFile = lib.clang_getIncludedFile
+_clang_getIncludedFile.argtypes = [Cursor]
+_clang_getIncludedFile.restype = c_object_p
 
 # Code completion
 

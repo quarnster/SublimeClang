@@ -82,9 +82,20 @@ class ClangGotoDef(sublime_plugin.TextCommand):
         row, col = view.rowcol(view.sel()[0].a)
         cursor = cindex.Cursor.get(tu, view.file_name(), row+1, col+1)
         d = cursor.get_reference()
+        success = False
         if not d is None:
-            navigation_stack.append("%s:%d:%d" % (view.file_name(), row+1, col+1))
             view.window().open_file("%s:%d:%d" % (d.location.file.name, d.location.line, d.location.column), sublime.ENCODED_POSITION)
+            success = True
+        elif cursor.kind == cindex.CursorKind.INCLUSION_DIRECTIVE:
+            f = cursor.get_included_file()
+            if not f is None:
+                view.window().open_file(f.name)
+                success = True
+        if success:
+            navigation_stack.append("%s:%d:%d" % (view.file_name(), row+1, col+1))
+        else:
+            sublime.status_message("No parent to go to!")
+
 
 class SublimeClangAutoComplete(sublime_plugin.EventListener):
     def __init__(self):
