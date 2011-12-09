@@ -876,6 +876,9 @@ class Cursor(Structure):
     def get_lexical_parent(self):
         return Cursor_lexicalParent(self)
 
+    def get_canonical_cursor(self):
+        return Cursor_get_canonical(self)
+
     def get_usr(self):
         """Return the Unified Symbol Resultion (USR) for the entity referenced
         by the given cursor (or None).
@@ -1702,6 +1705,11 @@ Cursor_semanticParent.restype = Cursor
 Cursor_lexicalParent = lib.clang_getCursorLexicalParent
 Cursor_lexicalParent.argtypes = [Cursor]
 Cursor_lexicalParent.restype = Cursor
+
+Cursor_get_canonical = lib.clang_getCanonicalCursor
+Cursor_get_canonical.argtypes = [Cursor]
+Cursor_get_canonical.restype = Cursor
+Cursor_get_canonical.errcheck = Cursor.from_result
 
 Cursor_type = lib.clang_getCursorType
 Cursor_type.argtypes = [Cursor]

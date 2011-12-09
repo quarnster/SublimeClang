@@ -75,16 +75,20 @@ class ClangGoBack(sublime_plugin.TextCommand):
             self.view.window().open_file(navigation_stack.pop(), sublime.ENCODED_POSITION)
 
 class ClangGotoDef(sublime_plugin.TextCommand):
-
     def run(self, edit):
         view = self.view
         tu = get_translation_unit(view.file_name())
         row, col = view.rowcol(view.sel()[0].a)
         cursor = cindex.Cursor.get(tu, view.file_name(), row+1, col+1)
-        d = cursor.get_reference()
+        ref = cursor.get_reference()
         success = False
-        if not d is None:
-            view.window().open_file("%s:%d:%d" % (d.location.file.name, d.location.line, d.location.column), sublime.ENCODED_POSITION)
+        if cursor == ref:
+            can = cursor.get_canonical_cursor()
+            if not can is None and can != cursor:
+                success = True
+                view.window().open_file("%s:%d:%d" % (can.location.file.name, can.location.line, can.location.column), sublime.ENCODED_POSITION)
+        elif not ref is None:
+            view.window().open_file("%s:%d:%d" % (ref.location.file.name, ref.location.line, ref.location.column), sublime.ENCODED_POSITION)
             success = True
         elif cursor.kind == cindex.CursorKind.INCLUSION_DIRECTIVE:
             f = cursor.get_included_file()
