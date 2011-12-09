@@ -69,25 +69,42 @@ def get_translation_unit(filename):
 
 navigation_stack = []
 
+class ClangGoBackEventListener(sublime_plugin.EventListener):
+    def on_close(self, view):
+        # If the view we just closed was last in the navigation_stack,
+        # consider it "popped" from the stack
+        fn = view.file_name()
+        while True:
+            if len(navigation_stack) == 0 or not navigation_stack[len(navigation_stack)-1][1].startswith(fn):
+                break
+            navigation_stack.pop()
+
+
 class ClangGoBack(sublime_plugin.TextCommand):
     def run(self, edit):
         if len(navigation_stack) > 0:
-            self.view.window().open_file(navigation_stack.pop(), sublime.ENCODED_POSITION)
+            self.view.window().open_file(navigation_stack.pop()[0], sublime.ENCODED_POSITION)
+
 
 class ClangGotoDef(sublime_plugin.TextCommand):
-    def open(self, cursor):
-        self.view.window().open_file("%s:%d:%d" % (cursor.location.file.name, cursor.location.line, cursor.location.column), sublime.ENCODED_POSITION)
+    def format_cursor(self, cursor):
+        return "%s:%d:%d" % (cursor.location.file.name, cursor.location.line, cursor.location.column)
+
+    def format_current_file(self):
+        row, col = self.view.rowcol(self.view.sel()[0].a)
+        return "%s:%d:%d" % (self.view.file_name(), row+1, col+1)
+
+    def open(self, target):
+        navigation_stack.append((self.format_current_file(), target))
+        self.view.window().open_file(target, sublime.ENCODED_POSITION)
 
     def quickpanel_on_done(self, idx):
         if idx == -1:
             return
-        row, col = self.view.rowcol(self.view.sel()[0].a)
-        navigation_stack.append("%s:%d:%d" % (self.view.file_name(), row+1, col+1))
-        self.open(self.o[idx])
-
+        self.open(self.format_cursor(self.o[idx]))
 
     def quickpanel_format(self, cursor):
-        return ["%s::%s" % (cursor.get_semantic_parent().spelling, cursor.displayname), "%s:%d:%d" % (cursor.location.file.name, cursor.location.line, cursor.location.column)]
+        return ["%s::%s" % (cursor.get_semantic_parent().spelling, cursor.displayname), self.format_cursor(cursor)]
 
     def run(self, edit):
         view = self.view
@@ -96,16 +113,17 @@ class ClangGotoDef(sublime_plugin.TextCommand):
         cursor = cindex.Cursor.get(tu, view.file_name(), row+1, col+1)
         ref = cursor.get_reference()
         success = False
+        target = ""
 
         if not ref is None and cursor == ref:
             can = cursor.get_canonical_cursor()
             if not can is None and can != cursor:
                 success = True
-                self.open(can)
+                target = self.format_cursor(can)
             else:
                 o = cursor.get_overridden()
                 if len(o) == 1:
-                    self.open(o[0])
+                    target = self.format_cursor(o[0])
                     success = True
                 elif len(o) > 1:
                     self.o = o
@@ -114,15 +132,15 @@ class ClangGotoDef(sublime_plugin.TextCommand):
                         opts.append(self.quickpanel_format(o[i]))
                     view.window().show_quick_panel(opts, self.quickpanel_on_done)
         elif not ref is None:
-            self.open(ref)
+            target = self.format_cursor(ref)
             success = True
         elif cursor.kind == cindex.CursorKind.INCLUSION_DIRECTIVE:
             f = cursor.get_included_file()
             if not f is None:
-                view.window().open_file(f.name)
+                target = f.name
                 success = True
         if success:
-            navigation_stack.append("%s:%d:%d" % (view.file_name(), row+1, col+1))
+            self.open(target)
         else:
             sublime.status_message("No parent to go to!")
 
@@ -296,6 +314,7 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         if self.auto_complete_active:
             self.auto_complete_active = False
             self.view.window().run_command("auto_complete")
+
 
     class CompilationThread(threading.Thread):
         def __init__(self, parent, tu, unsaved_files):
