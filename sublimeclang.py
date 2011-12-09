@@ -87,6 +87,13 @@ class ClangGoBack(sublime_plugin.TextCommand):
 
 
 class ClangGotoDef(sublime_plugin.TextCommand):
+    def dump(self, cursor):
+        if cursor is None:
+            print "None"
+        else:
+            print cursor.kind, cursor.displayname, cursor.spelling
+            print self.format_cursor(cursor)
+
     def format_cursor(self, cursor):
         return "%s:%d:%d" % (cursor.location.file.name, cursor.location.line, cursor.location.column)
 
@@ -112,19 +119,19 @@ class ClangGotoDef(sublime_plugin.TextCommand):
         row, col = view.rowcol(view.sel()[0].a)
         cursor = cindex.Cursor.get(tu, view.file_name(), row+1, col+1)
         ref = cursor.get_reference()
-        success = False
         target = ""
+        d = cursor.get_definition()
 
-        if not ref is None and cursor == ref:
+        if not d is None and cursor != d:
+            target = self.format_cursor(d)
+        elif not ref is None and cursor == ref:
             can = cursor.get_canonical_cursor()
             if not can is None and can != cursor:
-                success = True
                 target = self.format_cursor(can)
             else:
                 o = cursor.get_overridden()
                 if len(o) == 1:
                     target = self.format_cursor(o[0])
-                    success = True
                 elif len(o) > 1:
                     self.o = o
                     opts = []
@@ -133,13 +140,11 @@ class ClangGotoDef(sublime_plugin.TextCommand):
                     view.window().show_quick_panel(opts, self.quickpanel_on_done)
         elif not ref is None:
             target = self.format_cursor(ref)
-            success = True
         elif cursor.kind == cindex.CursorKind.INCLUSION_DIRECTIVE:
             f = cursor.get_included_file()
             if not f is None:
                 target = f.name
-                success = True
-        if success:
+        if len(target) > 0:
             self.open(target)
         else:
             sublime.status_message("No parent to go to!")
