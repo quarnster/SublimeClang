@@ -82,7 +82,7 @@ class ClangGotoDef(sublime_plugin.TextCommand):
         cursor = cindex.Cursor.get(tu, view.file_name(), row+1, col+1)
         ref = cursor.get_reference()
         success = False
-        if cursor == ref:
+        if not ref is None and cursor == ref:
             can = cursor.get_canonical_cursor()
             if not can is None and can != cursor:
                 success = True
