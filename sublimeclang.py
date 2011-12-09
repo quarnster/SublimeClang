@@ -75,6 +75,20 @@ class ClangGoBack(sublime_plugin.TextCommand):
             self.view.window().open_file(navigation_stack.pop(), sublime.ENCODED_POSITION)
 
 class ClangGotoDef(sublime_plugin.TextCommand):
+    def open(self, cursor):
+        self.view.window().open_file("%s:%d:%d" % (cursor.location.file.name, cursor.location.line, cursor.location.column), sublime.ENCODED_POSITION)
+
+    def quickpanel_on_done(self, idx):
+        if idx == -1:
+            return
+        row, col = self.view.rowcol(self.view.sel()[0].a)
+        navigation_stack.append("%s:%d:%d" % (self.view.file_name(), row+1, col+1))
+        self.open(self.o[idx])
+
+
+    def quickpanel_format(self, cursor):
+        return ["%s::%s" % (cursor.get_semantic_parent().spelling, cursor.displayname), "%s:%d:%d" % (cursor.location.file.name, cursor.location.line, cursor.location.column)]
+
     def run(self, edit):
         view = self.view
         tu = get_translation_unit(view.file_name())
@@ -82,13 +96,25 @@ class ClangGotoDef(sublime_plugin.TextCommand):
         cursor = cindex.Cursor.get(tu, view.file_name(), row+1, col+1)
         ref = cursor.get_reference()
         success = False
+
         if not ref is None and cursor == ref:
             can = cursor.get_canonical_cursor()
             if not can is None and can != cursor:
                 success = True
-                view.window().open_file("%s:%d:%d" % (can.location.file.name, can.location.line, can.location.column), sublime.ENCODED_POSITION)
+                self.open(can)
+            else:
+                o = cursor.get_overridden()
+                if len(o) == 1:
+                    self.open(o[0])
+                    success = True
+                elif len(o) > 1:
+                    self.o = o
+                    opts = []
+                    for i in range(len(o)):
+                        opts.append(self.quickpanel_format(o[i]))
+                    view.window().show_quick_panel(opts, self.quickpanel_on_done)
         elif not ref is None:
-            view.window().open_file("%s:%d:%d" % (ref.location.file.name, ref.location.line, ref.location.column), sublime.ENCODED_POSITION)
+            self.open(ref)
             success = True
         elif cursor.kind == cindex.CursorKind.INCLUSION_DIRECTIVE:
             f = cursor.get_included_file()

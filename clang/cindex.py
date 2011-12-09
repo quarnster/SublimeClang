@@ -857,6 +857,27 @@ class Cursor(Structure):
             return None
         return File(obj)
 
+    def get_overridden(self):
+        class OverriddenIter:
+            def __init__(self, cursor):
+                a = Cursor()
+                self.obj = pointer(a)
+                self.num = c_int(0)
+                Cursor_getOverridden(cursor, byref(self.obj), byref(self.num))
+
+            def __del__(self):
+                if self.num.value != 0:
+                    Cursor_disposeOverridden(self.obj)
+
+            def __len__(self):
+                return self.num.value
+
+            def __getitem__(self, key):
+                if key >= self.num:
+                    raise IndexError
+                return self.obj[key]
+        return OverriddenIter(self)
+
     def get_definition(self):
         """
         If the cursor is a reference to a declaration or a declaration of
@@ -878,6 +899,9 @@ class Cursor(Structure):
 
     def get_canonical_cursor(self):
         return Cursor_get_canonical(self)
+
+    def get_linkage(self):
+        return Cursor_get_linkage(self)
 
     def get_usr(self):
         """Return the Unified Symbol Resultion (USR) for the entity referenced
@@ -1711,6 +1735,10 @@ Cursor_get_canonical.argtypes = [Cursor]
 Cursor_get_canonical.restype = Cursor
 Cursor_get_canonical.errcheck = Cursor.from_result
 
+Cursor_get_linkage = lib.clang_getCursorLinkage
+Cursor_get_linkage.argtypes = [Cursor]
+Cursor_get_linkage.restype = c_uint
+
 Cursor_type = lib.clang_getCursorType
 Cursor_type.argtypes = [Cursor]
 Cursor_type.restype = Type
@@ -1720,6 +1748,12 @@ Cursor_visit_callback = CFUNCTYPE(c_int, Cursor, Cursor, py_object)
 Cursor_visit = lib.clang_visitChildren
 Cursor_visit.argtypes = [Cursor, Cursor_visit_callback, py_object]
 Cursor_visit.restype = c_uint
+
+Cursor_getOverridden = lib.clang_getOverriddenCursors
+Cursor_getOverridden.argtypes = [Cursor, POINTER(POINTER(Cursor)), POINTER(c_int)]
+
+Cursor_disposeOverridden = lib.clang_disposeOverriddenCursors
+Cursor_disposeOverridden.argtypes = [POINTER(Cursor)]
 
 # Type Functions
 Type_get_canonical = lib.clang_getCanonicalType
