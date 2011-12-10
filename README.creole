@@ -2,10 +2,10 @@
 Clang plugin for Sublime Text 2 providing auto complete suggestions for C/C++/ObjC/ObjC++. It'll also optionally parse the code as it's typed and show errors and warnings.
 
 === Installation ===
-    1) Go to your packages directory and type:
-            git clone https://github.com/quarnster/SublimeClang SublimeClang
-    2) Back in the editor, open up the command palette by pressing cmd+shift+P or ctrl+shift+P
-    3) Type SublimeClang and open up the settings file you want to modify with any include directories or other options you want to provide to clang. You might have to tweak the User configuration rather than the default.
+    # Go to your packages directory and type:
+    ##        git clone https://github.com/quarnster/SublimeClang SublimeClang
+    # Back in the editor, open up the command palette by pressing cmd+shift+P or ctrl+shift+P
+    # Type SublimeClang and open up the settings file you want to modify with any include directories or other options you want to provide to clang. You might have to tweak the User configuration rather than the default.
 
 === Usage ===
 After installation, suggestions from clang should be provided when triggering the autocomplete operation in Sublime Text 2. It'll not disable the built in completion.
@@ -19,6 +19,7 @@ There's also the following key-bindings (tweak Default.sublime-keymaps to change
       |ctrl+d,ctrl+c|Clear the cache. Will force all files to be reparsed when needed|
 
 === License ===
+{{{
 
 This plugin is using the zlib license
 
@@ -42,11 +43,13 @@ freely, subject to the following restrictions:
 
    3. This notice may not be removed or altered from any source
    distribution.
+}}}
 
 ---------------------------------------------------------
 
 And in addition to this, clang itself is using the following license:
 
+{{{
 University of Illinois/NCSA
 Open Source License
 
@@ -87,3 +90,4 @@ CONTRIBUTORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS WITH THE
 SOFTWARE.
+}}}
