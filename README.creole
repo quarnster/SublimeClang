@@ -21,14 +21,14 @@ If you modify a file that clang can compile and if there are any errors or warni
 There's also the following key-bindings (tweak Default.sublime-keymaps to change):
 
       |ctrl+d,ctrl+d|Go to the parent reference of whatever is under the current cursor position|
-      |ctrl+d,crtl+b|Go back to where you were before hitting ctrl+d,ctrl+d|
+      |ctrl+d,ctrl+i|Go to the implementation|
+      |ctrl+d,crtl+b|Go back to where you were before hitting ctrl+d,ctrl+d or ctrl+d,ctrl+i|
       |ctrl+d,ctrl+c|Clear the cache. Will force all files to be reparsed when needed|
 
 === License ===
-{{{
-
 This plugin is using the zlib license
 
+{{{
 Copyright (c) 2011 Fredrik Ehnbom
 
 This software is provided 'as-is', without any express or implied

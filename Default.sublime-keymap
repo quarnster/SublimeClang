@@ -5,6 +5,11 @@
     "keys": ["ctrl+d", "ctrl+d"]
   },
   {
+    "command": "clang_goto_implementation",
+    "context": [{"key": "clang_supported_language"}],
+    "keys": ["ctrl+d", "ctrl+i"]
+  },
+  {
     "command": "clang_go_back",
     "context": [{"key": "clang_supported_language"}],
     "keys": ["ctrl+d", "ctrl+b"]
