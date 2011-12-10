@@ -1,23 +1,17 @@
 [
   {
     "command": "clang_goto_def",
-    "context":
-    [{
-        "key": "clang_supported_language"
-    }],
-    "keys": [
-      "ctrl+d", "ctrl+d"
-    ]
+    "context": [{"key": "clang_supported_language"}],
+    "keys": ["ctrl+d", "ctrl+d"]
   },
   {
     "command": "clang_go_back",
-    "context":
-    [{
-        "key": "clang_supported_language"
-    }],
-    "keys": [
-      "ctrl+d", "ctrl+b"
-    ]
+    "context": [{"key": "clang_supported_language"}],
+    "keys": ["ctrl+d", "ctrl+b"]
+  },
+  {
+    "command": "clang_clear_cache",
+    "context": [{"key": "clang_supported_language"}],
+    "keys": ["ctrl+d", "ctrl+c"]
   }
-
 ]
