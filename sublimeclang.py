@@ -149,6 +149,11 @@ class ClangGotoDef(sublime_plugin.TextCommand):
         else:
             sublime.status_message("No parent to go to!")
 
+class ClangClearCache(sublime_plugin.TextCommand):
+    def run(self, edit):
+        global translationUnits
+        translationUnits.clear()
+        sublime.status_message("Cache cleared!")
 
 class SublimeClangAutoComplete(sublime_plugin.EventListener):
     def __init__(self):
