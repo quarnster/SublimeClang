@@ -24,6 +24,7 @@ from clang import cindex
 import sublime_plugin
 from sublime import Region
 import sublime
+import os
 import re
 import threading
 from errormarkers import clear_error_marks, add_error_mark, show_error_marks, update_statusbar, erase_error_marks
@@ -86,32 +87,67 @@ class ClangGoBack(sublime_plugin.TextCommand):
             self.view.window().open_file(navigation_stack.pop()[0], sublime.ENCODED_POSITION)
 
 
-class ClangGotoDef(sublime_plugin.TextCommand):
-    def dump(self, cursor):
-        if cursor is None:
-            print "None"
+def format_cursor(cursor):
+    return "%s:%d:%d" % (cursor.location.file.name, cursor.location.line, cursor.location.column)
+
+def format_current_file(view):
+    row, col = view.rowcol(view.sel()[0].a)
+    return "%s:%d:%d" % (view.file_name(), row+1, col+1)
+
+def dump_cursor(cursor):
+    if cursor is None:
+        print "None"
+    else:
+        print cursor.kind, cursor.displayname, cursor.spelling
+        print format_cursor(cursor)
+
+
+def open(view, target):
+    navigation_stack.append((format_current_file(view), target))
+    view.window().open_file(target, sublime.ENCODED_POSITION)
+
+class ClangGotoImplementation(sublime_plugin.TextCommand):
+    def run(self, edit):
+        view = self.view
+        tu = get_translation_unit(view.file_name())
+        row, col = view.rowcol(view.sel()[0].a)
+        cursor = cindex.Cursor.get(tu, view.file_name(), row+1, col+1)
+        d = cursor.get_definition()
+        target = ""
+        if not d is None and cursor != d:
+            target = format_cursor(d)
+        elif d is None:
+            if cursor.kind == cindex.CursorKind.DECL_REF_EXPR:
+                cursor = cursor.get_reference()
+            if cursor.kind == cindex.CursorKind.CXX_METHOD or cursor.kind == cindex.CursorKind.FUNCTION_DECL:
+                f = cursor.location.file.name
+                if f.endswith(".h"):
+                    endings = ["cpp", "c"]
+                    for ending in endings:
+                        f = "%s.%s" % (f[:-2], ending)
+                        if os.access(f, os.R_OK):
+                            tu = get_translation_unit(f)
+                            cursor2 = cindex.Cursor.get(tu, cursor.location.file.name, cursor.location.line, cursor.location.column)
+                            if not cursor2 is None:
+                                d = cursor2.get_definition()
+                                if not d is None and cursor2 != d:
+                                    target = format_cursor(d)
+                                    break
+        if len(target) > 0:
+            open(self.view, target)
         else:
-            print cursor.kind, cursor.displayname, cursor.spelling
-            print self.format_cursor(cursor)
+            sublime.status_message("Don't know where the implementation is!")
 
-    def format_cursor(self, cursor):
-        return "%s:%d:%d" % (cursor.location.file.name, cursor.location.line, cursor.location.column)
 
-    def format_current_file(self):
-        row, col = self.view.rowcol(self.view.sel()[0].a)
-        return "%s:%d:%d" % (self.view.file_name(), row+1, col+1)
-
-    def open(self, target):
-        navigation_stack.append((self.format_current_file(), target))
-        self.view.window().open_file(target, sublime.ENCODED_POSITION)
+class ClangGotoDef(sublime_plugin.TextCommand):
 
     def quickpanel_on_done(self, idx):
         if idx == -1:
             return
-        self.open(self.format_cursor(self.o[idx]))
+        open(self.view, format_cursor(self.o[idx]))
 
     def quickpanel_format(self, cursor):
-        return ["%s::%s" % (cursor.get_semantic_parent().spelling, cursor.displayname), self.format_cursor(cursor)]
+        return ["%s::%s" % (cursor.get_semantic_parent().spelling, cursor.displayname), format_cursor(cursor)]
 
     def run(self, edit):
         view = self.view
@@ -120,18 +156,15 @@ class ClangGotoDef(sublime_plugin.TextCommand):
         cursor = cindex.Cursor.get(tu, view.file_name(), row+1, col+1)
         ref = cursor.get_reference()
         target = ""
-        d = cursor.get_definition()
 
-        if not d is None and cursor != d:
-            target = self.format_cursor(d)
-        elif not ref is None and cursor == ref:
+        if not ref is None and cursor == ref:
             can = cursor.get_canonical_cursor()
             if not can is None and can != cursor:
-                target = self.format_cursor(can)
+                target = format_cursor(can)
             else:
                 o = cursor.get_overridden()
                 if len(o) == 1:
-                    target = self.format_cursor(o[0])
+                    target = format_cursor(o[0])
                 elif len(o) > 1:
                     self.o = o
                     opts = []
@@ -139,13 +172,13 @@ class ClangGotoDef(sublime_plugin.TextCommand):
                         opts.append(self.quickpanel_format(o[i]))
                     view.window().show_quick_panel(opts, self.quickpanel_on_done)
         elif not ref is None:
-            target = self.format_cursor(ref)
+            target = format_cursor(ref)
         elif cursor.kind == cindex.CursorKind.INCLUSION_DIRECTIVE:
             f = cursor.get_included_file()
             if not f is None:
                 target = f.name
         if len(target) > 0:
-            self.open(target)
+            open(self.view, target)
         else:
             sublime.status_message("No parent to go to!")
 

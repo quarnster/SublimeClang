@@ -12,5 +12,9 @@
         {
             "file": "${packages}/User/clang.sublime-settings"
         }
+    },
+    {
+        "caption": "SublimeClang: Clear cache",
+        "command": "clang_clear_cache"
     }
 ]
