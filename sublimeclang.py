@@ -47,7 +47,7 @@ def get_translation_unit(filename):
         index = cindex.Index.create()
     tu = None
     if filename not in translationUnits:
-        s = sublime.load_settings("clang.sublime-settings")
+        s = sublime.load_settings("SublimeClang.sublime-settings")
         opts = []
         if s.has("options"):
             opts = s.get("options")
@@ -68,7 +68,9 @@ def get_translation_unit(filename):
         tu = translationUnits[filename]
     return tu
 
+
 navigation_stack = []
+
 
 class ClangGoBackEventListener(sublime_plugin.EventListener):
     def on_close(self, view):
@@ -106,6 +108,7 @@ def open(view, target):
     navigation_stack.append((format_current_file(view), target))
     view.window().open_file(target, sublime.ENCODED_POSITION)
 
+
 class ClangGotoImplementation(sublime_plugin.TextCommand):
     def run(self, edit):
         view = self.view
@@ -140,7 +143,6 @@ class ClangGotoImplementation(sublime_plugin.TextCommand):
 
 
 class ClangGotoDef(sublime_plugin.TextCommand):
-
     def quickpanel_on_done(self, idx):
         if idx == -1:
             return
@@ -182,15 +184,17 @@ class ClangGotoDef(sublime_plugin.TextCommand):
         else:
             sublime.status_message("No parent to go to!")
 
+
 class ClangClearCache(sublime_plugin.TextCommand):
     def run(self, edit):
         global translationUnits
         translationUnits.clear()
         sublime.status_message("Cache cleared!")
 
+
 class SublimeClangAutoComplete(sublime_plugin.EventListener):
     def __init__(self):
-        s = sublime.load_settings("clang.sublime-settings")
+        s = sublime.load_settings("SublimeClang.sublime-settings")
         s.clear_on_change("options")
         s.add_on_change("options", self.load_settings)
         self.load_settings(s)
@@ -203,12 +207,15 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
     def load_settings(self, s=None):
         global translationUnits
         translationUnits.clear()
+        oldSettings = sublime.load_settings("clang.sublime-settings")
+        if oldSettings.get("popup_delay") != None:
+            sublime.error_message("SublimeClang's configuration file name was changed from 'clang.sublime-settings' to 'SublimeClang.sublime-settings'. Please move your settings over to this new file and delete the old one.")
         if s == None:
-            s = sublime.load_settings("clang.sublime-settings")
+            s = sublime.load_settings("SublimeClang.sublime-settings")
         if s.get("popupDelay") != None:
-            sublime.error_message("SublimeClang changed the 'popupDelay' setting to 'popup_delay, please edit your clang.sublime-settings to match this")
+            sublime.error_message("SublimeClang changed the 'popupDelay' setting to 'popup_delay, please edit your SublimeClang.sublime-settings to match this")
         if s.get("recompileDelay") != None:
-            sublime.error_message("SublimeClang changed the 'recompileDelay' setting to 'recompile_delay, please edit your clang.sublime-settings to match this")
+            sublime.error_message("SublimeClang changed the 'recompileDelay' setting to 'recompile_delay, please edit your SublimeClang.sublime-settings to match this")
         self.popup_delay = s.get("popup_delay", 500)
         self.dont_complete_startswith = s.get("dont_complete_startswith", ['operator', '~'])
         self.recompile_delay = s.get("recompile_delay", 1000)

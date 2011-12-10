@@ -27,7 +27,7 @@ def add_error_mark(severity, filename, line, message):
 def show_error_marks(view):
     '''Adds error marks to view.'''
     erase_error_marks(view)
-    if not sublime.load_settings("clang.sublime-settings").get("show_visual_error_marks", True):
+    if not sublime.load_settings("SublimeClang.sublime-settings").get("show_visual_error_marks", True):
         return
     fill_outlines = False
     gutter_mark = 'dot'

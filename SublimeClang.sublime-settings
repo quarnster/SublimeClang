@@ -1,0 +1,43 @@
+{
+    // Delay in ms until autocompletion pops up after . or :: or ->
+    // Set to 0 to disable
+    "popup_delay": 100,
+
+    // Delay in ms until recompiling the file after the buffer is modified
+    // Set to 0 to disable
+    "recompile_delay": 1000,
+
+    // Whether or not to hide the clang output panel when it's empty
+    "hide_output_when_empty": false,
+
+    // When set to true, will display visual error markers. recompile_delay
+    // must be set to > 0
+    "show_visual_error_marks": true,
+
+    // This is the bitmask sent to index.parse.
+    // For example, to be able to go to the definition of
+    // preprocessed macros, set it to 1.
+    //
+    // See http://clang.llvm.org/doxygen/group__CINDEX__TRANSLATION__UNIT.html#gab1e4965c1ebe8e41d71e90203a723fe9
+    // and http://clang.llvm.org/doxygen/Index_8h_source.html
+    // for more details
+    "index_parse_options": 1,
+
+    // Don't show stuff in the autocomplete list when the name starts with the following
+    "dont_complete_startswith":
+    [
+        "~",
+        "operator"
+    ],
+
+    // If set to true it'll add for example "-x c++" to the options for c++ files
+    "add_language_option": true,
+
+    // Any options you want to give to clang
+    "options":
+    [
+        "-Wall",
+        "-I/path/to/sources/1",
+        "-I/path/to/sources/2"
+    ]
+}
