@@ -25,6 +25,12 @@
     // for more details
     "index_parse_options": 13,
 
+    // If set to false, the main thread will lock while parsing
+    // the file, but commands will work the first time they are
+    // executed rather than the first time after warm up has
+    // finished
+    "warm_up_in_separate_thread": true,
+
     // Don't show stuff in the autocomplete list when the name starts with the following
     "dont_complete_startswith":
     [

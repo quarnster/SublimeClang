@@ -189,7 +189,8 @@ def warm_up_cache(view, filename = None):
 def get_translation_unit(view, filename = None, blocking = False):
     if filename == None:
         filename = view.file_name()
-    if not blocking:
+    s = sublime.load_settings("SublimeClang.sublime-settings")
+    if s.get("warm_up_in_separate_thread", True) and not blocking:
         stat = warm_up_cache(view, filename)
         if stat == TranslationUnitCache.STATUS_NOT_IN_CACHE:
             return None
