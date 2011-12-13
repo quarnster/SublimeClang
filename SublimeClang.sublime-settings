@@ -16,12 +16,14 @@
 
     // This is the bitmask sent to index.parse.
     // For example, to be able to go to the definition of
-    // preprocessed macros, set it to 1.
+    // preprocessed macros, set it to 1, for using an implicit
+    // precompiled header set it to 4 and for caching completion
+    // results, set it to 8. Or all together 1+4+8=13.
     //
     // See http://clang.llvm.org/doxygen/group__CINDEX__TRANSLATION__UNIT.html#gab1e4965c1ebe8e41d71e90203a723fe9
     // and http://clang.llvm.org/doxygen/Index_8h_source.html
     // for more details
-    "index_parse_options": 1,
+    "index_parse_options": 13,
 
     // Don't show stuff in the autocomplete list when the name starts with the following
     "dont_complete_startswith":

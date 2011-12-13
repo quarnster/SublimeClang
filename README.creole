@@ -24,6 +24,7 @@ There's also the following key-bindings (tweak Default.sublime-keymaps to change
       |ctrl+d,ctrl+i|Go to the implementation|
       |ctrl+d,ctrl+b|Go back to where you were before hitting ctrl+d,ctrl+d or ctrl+d,ctrl+i|
       |ctrl+d,ctrl+c|Clear the cache. Will force all files to be reparsed when needed|
+      |ctrl+d,ctrl+w|Manually warm up the cache|
 
 === License ===
 This plugin is using the zlib license
