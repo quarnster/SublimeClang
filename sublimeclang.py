@@ -47,17 +47,21 @@ def get_language(view):
         return None
     return language.group(0)
 
+def get_settings():
+    return sublime.load_settings("SublimeClang.sublime-settings")
 
 
 class TranslationUnitCache:
-    STATUS_PARSING = 1
-    STATUS_REPARSING = 2
-    STATUS_READY = 3
+    STATUS_PARSING      = 1
+    STATUS_REPARSING    = 2
+    STATUS_READY        = 3
     STATUS_NOT_IN_CACHE = 4
 
-    TASK_PARSE = 1
-    TASK_REPARSE = 2
-    TASK_CLEAR = 3
+    TASK_PARSE          = 1
+    TASK_REPARSE        = 2
+    TASK_CLEAR          = 3
+    TASK_REMOVE         = 4
+
     class LockedVariable:
         def __init__(self, var):
             self.var = var
@@ -91,31 +95,44 @@ class TranslationUnitCache:
             return TranslationUnitCache.STATUS_REPARSING
         elif a:
             return TranslationUnitCache.STATUS_READY
-        else:
-            if not b:
-                return TranslationUnitCache.STATUS_NOT_IN_CACHE
+        elif b:
             return TranslationUnitCache.STATUS_PARSING
+        else:
+            return TranslationUnitCache.STATUS_NOT_IN_CACHE
 
     def worker(self):
         while True:
             task, data = self.tasks.get()
-            if task == TranslationUnitCache.TASK_PARSE:
-                filename, opts, on_done = data
-                tu = self.get_translation_unit(filename, opts)
-                l = self.parsingList.lock()
-                l.remove(filename)
-                self.parsingList.unlock()
-                sublime.set_timeout(on_done, 0)
-            elif task == TranslationUnitCache.TASK_REPARSE:
-                filename, unsaved_files, on_done = data
-                self._reparse(filename, unsaved_files)
-                l = self.parsingList.lock()
-                l.remove(filename)
-                self.parsingList.unlock()
-                sublime.set_timeout(on_done, 0)
-            elif task == TranslationUnitCache.TASK_CLEAR:
-                self.translationUnits.lock().clear()
-                self.translationUnits.unlock()
+            try:
+                if task == TranslationUnitCache.TASK_PARSE:
+                    filename, opts, on_done = data
+                    tu = self.get_translation_unit(filename, opts)
+                    l = self.parsingList.lock()
+                    try:
+                        l.remove(filename)
+                    finally:
+                        self.parsingList.unlock()
+                    sublime.set_timeout(on_done, 0)
+                elif task == TranslationUnitCache.TASK_REPARSE:
+                    filename, unsaved_files, on_done = data
+                    self._reparse(filename, unsaved_files)
+                    l = self.parsingList.lock()
+                    try:
+                        l.remove(filename)
+                    finally:
+                        self.parsingList.unlock()
+                    sublime.set_timeout(on_done, 0)
+                elif task == TranslationUnitCache.TASK_CLEAR:
+                    self.translationUnits.lock().clear()
+                    self.translationUnits.unlock()
+                elif task == TranslationUnitCache.TASK_REMOVE:
+                    tus = self.translationUnits.lock()
+                    try:
+                        del tus[data]
+                    finally:
+                        self.translationUnits.unlock()
+            except:
+                pass
             self.tasks.task_done()
 
     def _reparse(self, filename, unsaved_files = []):
@@ -139,7 +156,7 @@ class TranslationUnitCache:
         self.parsingList.unlock()
 
     def get_opts(self, view):
-        s = sublime.load_settings("SublimeClang.sublime-settings")
+        s = get_settings()
         opts = []
         if s.has("options"):
             opts = s.get("options")
@@ -177,6 +194,9 @@ class TranslationUnitCache:
             self.translationUnits.unlock()
         return tu
 
+    def remove(self, filename):
+        self.tasks.put((TranslationUnitCache.TASK_REMOVE, filename))
+
     def clear(self):
         self.tasks.put((TranslationUnitCache.TASK_CLEAR, None))
 
@@ -197,7 +217,7 @@ def warm_up_cache(view, filename = None):
 def get_translation_unit(view, filename = None, blocking = False):
     if filename == None:
         filename = view.file_name()
-    s = sublime.load_settings("SublimeClang.sublime-settings")
+    s = get_settings()
     if s.get("warm_up_in_separate_thread", True) and not blocking:
         stat = warm_up_cache(view, filename)
         if stat == TranslationUnitCache.STATUS_NOT_IN_CACHE:
@@ -222,6 +242,9 @@ class ClangWarmupCache(sublime_plugin.TextCommand):
 
 class ClangGoBackEventListener(sublime_plugin.EventListener):
     def on_close(self, view):
+        s = get_settings()
+        if not s.get("pop_on_close", True):
+            return
         # If the view we just closed was last in the navigation_stack,
         # consider it "popped" from the stack
         fn = view.file_name()
@@ -348,7 +371,7 @@ class ClangClearCache(sublime_plugin.TextCommand):
 
 class SublimeClangAutoComplete(sublime_plugin.EventListener):
     def __init__(self):
-        s = sublime.load_settings("SublimeClang.sublime-settings")
+        s = get_settings()
         s.clear_on_change("options")
         s.add_on_change("options", self.load_settings)
         self.load_settings(s)
@@ -363,7 +386,7 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         if oldSettings.get("popup_delay") != None:
             sublime.error_message("SublimeClang's configuration file name was changed from 'clang.sublime-settings' to 'SublimeClang.sublime-settings'. Please move your settings over to this new file and delete the old one.")
         if s == None:
-            s = sublime.load_settings("SublimeClang.sublime-settings")
+            s = get_settings()
         if s.get("popupDelay") != None:
             sublime.error_message("SublimeClang changed the 'popupDelay' setting to 'popup_delay, please edit your SublimeClang.sublime-settings to match this")
         if s.get("recompileDelay") != None:
@@ -372,6 +395,8 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         self.dont_complete_startswith = s.get("dont_complete_startswith", ['operator', '~'])
         self.recompile_delay = s.get("recompile_delay", 1000)
         self.hide_clang_output = s.get("hide_output_when_empty", False)
+        self.cache_on_load = s.get("cache_on_load", True)
+        self.remove_on_close = s.get("remove_on_close", True)
 
     def parse_res(self, compRes, prefix):
         #print compRes.kind, compRes.string
@@ -588,6 +613,14 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         if self.recompile_delay > 0:
             self.view = view
             self.restart_recompile_timer(self.recompile_delay/1000.0)
+
+    def on_load(self, view):
+        if self.cache_on_load and self.is_supported_language(view):
+            warm_up_cache(view)
+
+    def on_close(self, view):
+        if self.remove_on_close and self.is_supported_language(view):
+            tuCache.remove(view.file_name())
 
     def on_query_context(self, view, key, operator, operand, match_all):
         if key != "clang_supported_language":
