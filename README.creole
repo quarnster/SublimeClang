@@ -1,6 +1,18 @@
 === Description ===
 Clang plugin for Sublime Text 2 providing auto complete suggestions for C/C++/ObjC/ObjC++. It'll also optionally parse the code as it's typed and show errors and warnings.
 
+
+=== Pre-requisites (Linux Only)===
+  # [[http://sublimetext.userecho.com/topic/85126-ctypes-cant-be-imported-in-linux/|ctypes can't be imported]] in the Linux version of Sublime Text 2 right now. This can however be worked around (solution provided by [[http://www.sublimetext.com/forum/viewtopic.php?f=5&t=3958&start=10#p18782|mnus]]):
+  ## Install python2.6 via apt-get or synpactic.
+  ## Backup python26.zip in sublime2's lib directory (just for safe measure). I did mv "python26.zip backup.python26.zip"
+  ## Symlink /usr/lib/python2.6/ to sublime2's lib directory.
+  # The Linux libclang.so is not part of the plugin by default:
+  ## [[http://www.llvm.org/releases/download.html#3.0|Download]] and compile clang.
+    *** You can probably get away with installing clang from the ubuntu repos (note that this plugin relies on features from clang 3.0) or
+    *** Downloading a binary that matches your distribution
+  ## Copy libclang.so from the installed location into /.config/sublime-text-2/Packages/SublimeClang/
+
 === Installation ===
     # The easiest way to install SublimeClang is via the excellent Package Control Plugin
     ## See http://wbond.net/sublime_packages/package_control#Installation

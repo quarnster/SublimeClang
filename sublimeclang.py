@@ -20,6 +20,14 @@ freely, subject to the following restrictions:
    3. This notice may not be removed or altered from any source
    distribution.
 """
+try:
+    import ctypes
+except:
+    sublime.error_message("""\
+Unfortunately ctypes can't be imported, so SublimeClang will not work.
+
+There is a work around for this to get it to work, please see http://www.github.com/quarnster/SublimeClang for more details. """)
+
 from clang import cindex
 import sublime_plugin
 from sublime import Region
