@@ -31,6 +31,18 @@
     // finished
     "warm_up_in_separate_thread": true,
 
+    // If set to true will warm up the cache for supported files
+    // when they are opened
+    "cache_on_load": true,
+
+    // If set to true will remove the file from the cache when
+    // it is closed
+    "remove_on_close": true,
+
+    // If set to true will pop the file from the navigation stack
+    // (automatic ctrl+d,ctrl+b) when the file is closed
+    "pop_on_close": true,
+
     // Don't show stuff in the autocomplete list when the name starts with the following
     "dont_complete_startswith":
     [
