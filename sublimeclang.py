@@ -35,6 +35,7 @@ import sublime
 import os
 import re
 import threading
+import time
 import Queue
 from errormarkers import clear_error_marks, add_error_mark, show_error_marks, update_statusbar, erase_error_marks
 
@@ -74,15 +75,26 @@ class TranslationUnitCache:
         def unlock(self):
             self.l.release()
 
+    def getCpuCount(self):
+        cpus = 1
+        try:
+            import multiprocessing
+            cpus = multiprocessing.cpu_count()
+        except:
+            pass
+        return cpus
+
     def __init__(self):
         self.translationUnits = TranslationUnitCache.LockedVariable({})
         self.parsingList = TranslationUnitCache.LockedVariable([])
+        self.busyList = TranslationUnitCache.LockedVariable([])
         self.index_parse_options = 13
         self.tasks = Queue.Queue()
         self.index = None
-        t = threading.Thread(target=self.worker)
-        t.daemon = True
-        t.start()
+        for i in range(self.getCpuCount()):
+            t = threading.Thread(target=self.worker)
+            t.daemon = True
+            t.start()
 
     def get_status(self, filename):
         tu = self.translationUnits.lock()
@@ -100,12 +112,38 @@ class TranslationUnitCache:
         else:
             return TranslationUnitCache.STATUS_NOT_IN_CACHE
 
+    def check_busy(self, filename, task, data):
+        bl = self.busyList.lock()
+        test = filename in bl
+        self.busyList.unlock()
+
+        if test:
+            # Another thread is already doing something with
+            # this file, so try again later
+            if self.tasks.empty():
+                try:
+                    time.sleep(1)
+                except:
+                    pass
+            self.tasks.task_done()
+            self.tasks.put((task, data))
+            return True
+        return False
+
     def worker(self):
+        try:
+            # Just so we give time for the editor itself to start
+            # up before we start doing work
+            time.sleep(5)
+        except:
+            pass
         while True:
             task, data = self.tasks.get()
             try:
                 if task == TranslationUnitCache.TASK_PARSE:
                     filename, opts, on_done = data
+                    if self.check_busy(filename, task, data):
+                        continue
                     tu = self.get_translation_unit(filename, opts)
                     l = self.parsingList.lock()
                     try:
@@ -115,6 +153,8 @@ class TranslationUnitCache:
                     sublime.set_timeout(on_done, 0)
                 elif task == TranslationUnitCache.TASK_REPARSE:
                     filename, unsaved_files, on_done = data
+                    if self.check_busy(filename, task, data):
+                        continue
                     self._reparse(filename, unsaved_files)
                     l = self.parsingList.lock()
                     try:
@@ -126,6 +166,8 @@ class TranslationUnitCache:
                     self.translationUnits.lock().clear()
                     self.translationUnits.unlock()
                 elif task == TranslationUnitCache.TASK_REMOVE:
+                    if self.check_busy(filename, task, data):
+                        continue
                     tus = self.translationUnits.lock()
                     try:
                         del tus[data]
