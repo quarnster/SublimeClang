@@ -18,5 +18,10 @@
     "command": "clang_clear_cache",
     "context": [{"key": "clang_supported_language"}],
     "keys": ["ctrl+d", "ctrl+c"]
+  },
+  {
+    "command": "clang_warmup_cache",
+    "context": [{"key": "clang_supported_language"}],
+    "keys": ["ctrl+d", "ctrl+w"]
   }
 ]
