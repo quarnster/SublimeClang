@@ -168,7 +168,11 @@ class TranslationUnitCache:
                         continue
                     tu = self.get_translation_unit(filename, opts, unsaved_files)
                     if tu != None:
-                        tu.reparse(unsaved_files)
+                        tu.lock()
+                        try:
+                            tu.var.reparse(unsaved_files)
+                        finally:
+                            tu.unlock()
                     l = self.parsingList.lock()
                     try:
                         l.remove(filename)
@@ -191,7 +195,8 @@ class TranslationUnitCache:
             except:
                 import traceback
                 traceback.print_exc()
-            self.tasks.task_done()
+            finally:
+                self.tasks.task_done()
 
     def reparse(self, view, filename, unsaved_files = [], on_done = None):
         pl = self.parsingList.lock()
@@ -241,7 +246,7 @@ class TranslationUnitCache:
                 # so reparse to heat up the cache
                 tu.reparse(unsaved_files)
                 tus = self.translationUnits.lock()
-                tus[filename] = tu
+                tus[filename] = tu = TranslationUnitCache.LockedVariable(tu)
                 self.translationUnits.unlock()
         else:
             tu = tus[filename]
@@ -340,31 +345,40 @@ class ClangGotoImplementation(sublime_plugin.TextCommand):
         tu = get_translation_unit(view)
         if tu == None:
             return
-        row, col = view.rowcol(view.sel()[0].a)
-        cursor = cindex.Cursor.get(tu, view.file_name(), row+1, col+1)
-        d = cursor.get_definition()
+        tu.lock()
         target = ""
-        if not d is None and cursor != d:
-            target = format_cursor(d)
-        elif d is None:
-            if cursor.kind == cindex.CursorKind.DECL_REF_EXPR:
-                cursor = cursor.get_reference()
-            if cursor.kind == cindex.CursorKind.CXX_METHOD or cursor.kind == cindex.CursorKind.FUNCTION_DECL:
-                f = cursor.location.file.name
-                if f.endswith(".h"):
-                    endings = ["cpp", "c"]
-                    for ending in endings:
-                        f = "%s.%s" % (f[:-2], ending)
-                        if os.access(f, os.R_OK):
-                            tu = get_translation_unit(view, f, True)
-                            if tu == None:
-                                continue
-                            cursor2 = cindex.Cursor.get(tu, cursor.location.file.name, cursor.location.line, cursor.location.column)
-                            if not cursor2 is None:
-                                d = cursor2.get_definition()
-                                if not d is None and cursor2 != d:
-                                    target = format_cursor(d)
-                                    break
+
+        try:
+            row, col = view.rowcol(view.sel()[0].a)
+            cursor = cindex.Cursor.get(tu.var, view.file_name(), row+1, col+1)
+            d = cursor.get_definition()
+            if not d is None and cursor != d:
+                target = format_cursor(d)
+            elif d is None:
+                if cursor.kind == cindex.CursorKind.DECL_REF_EXPR:
+                    cursor = cursor.get_reference()
+                if cursor.kind == cindex.CursorKind.CXX_METHOD or cursor.kind == cindex.CursorKind.FUNCTION_DECL:
+                    f = cursor.location.file.name
+                    if f.endswith(".h"):
+                        endings = ["cpp", "c"]
+                        for ending in endings:
+                            f = "%s.%s" % (f[:-2], ending)
+                            if os.access(f, os.R_OK):
+                                tu2 = get_translation_unit(view, f, True)
+                                if tu2 == None:
+                                    continue
+                                tu2.lock()
+                                try:
+                                    cursor2 = cindex.Cursor.get(tu2.var, cursor.location.file.name, cursor.location.line, cursor.location.column)
+                                    if not cursor2 is None:
+                                        d = cursor2.get_definition()
+                                        if not d is None and cursor2 != d:
+                                            target = format_cursor(d)
+                                            break
+                                finally:
+                                    tu2.unlock()
+        finally:
+            tu.unlock()
         if len(target) > 0:
             open(self.view, target)
         else:
@@ -385,31 +399,36 @@ class ClangGotoDef(sublime_plugin.TextCommand):
         tu = get_translation_unit(view)
         if tu == None:
             return
-        row, col = view.rowcol(view.sel()[0].a)
-        cursor = cindex.Cursor.get(tu, view.file_name(), row+1, col+1)
-        ref = cursor.get_reference()
+        tu.lock()
         target = ""
+        try:
+            row, col = view.rowcol(view.sel()[0].a)
+            cursor = cindex.Cursor.get(tu.var, view.file_name(), row+1, col+1)
+            ref = cursor.get_reference()
+            target = ""
 
-        if not ref is None and cursor == ref:
-            can = cursor.get_canonical_cursor()
-            if not can is None and can != cursor:
-                target = format_cursor(can)
-            else:
-                o = cursor.get_overridden()
-                if len(o) == 1:
-                    target = format_cursor(o[0])
-                elif len(o) > 1:
-                    self.o = o
-                    opts = []
-                    for i in range(len(o)):
-                        opts.append(self.quickpanel_format(o[i]))
-                    view.window().show_quick_panel(opts, self.quickpanel_on_done)
-        elif not ref is None:
-            target = format_cursor(ref)
-        elif cursor.kind == cindex.CursorKind.INCLUSION_DIRECTIVE:
-            f = cursor.get_included_file()
-            if not f is None:
-                target = f.name
+            if not ref is None and cursor == ref:
+                can = cursor.get_canonical_cursor()
+                if not can is None and can != cursor:
+                    target = format_cursor(can)
+                else:
+                    o = cursor.get_overridden()
+                    if len(o) == 1:
+                        target = format_cursor(o[0])
+                    elif len(o) > 1:
+                        self.o = o
+                        opts = []
+                        for i in range(len(o)):
+                            opts.append(self.quickpanel_format(o[i]))
+                        view.window().show_quick_panel(opts, self.quickpanel_on_done)
+            elif not ref is None:
+                target = format_cursor(ref)
+            elif cursor.kind == cindex.CursorKind.INCLUSION_DIRECTIVE:
+                f = cursor.get_included_file()
+                if not f is None:
+                    target = f.name
+        finally:
+            tu.unlock()
         if len(target) > 0:
             open(self.view, target)
         else:
@@ -562,7 +581,12 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         if view.is_dirty():
             unsaved_files.append((view.file_name(), view.substr(Region(0, view.size()))))
 
-        res = tu.codeComplete(view.file_name(), row + 1, col + 1, unsaved_files, 3)
+        tu.lock()
+        res = None
+        try:
+            res = tu.var.codeComplete(view.file_name(), row + 1, col + 1, unsaved_files, 3)
+        finally:
+            tu.unlock()
         ret = []
         if res != None:
             res.sort()
@@ -601,25 +625,29 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         erase_error_marks(view)
         if tu == None:
             return
-        if len(tu.diagnostics):
-            errString = ""
-            for diag in tu.diagnostics:
-                f = diag.location
-                filename = ""
-                if f.file != None:
-                    filename = f.file.name
+        tu.lock()
+        try:
+            if len(tu.var.diagnostics):
+                errString = ""
+                for diag in tu.var.diagnostics:
+                    f = diag.location
+                    filename = ""
+                    if f.file != None:
+                        filename = f.file.name
 
-                err = "%s:%d,%d - %s - %s" % (filename, f.line, f.column, diag.severityName, diag.spelling)
-                errString = "%s%s\n" % (errString, err)
-                """
-                for range in diag.ranges:
-                    errString = "%s%s\n" % (errString, range)
-                for fix in diag.fixits:
-                    errString = "%s%s\n" % (errString, fix)
-                """
-                add_error_mark(
-                    diag.severityName, filename, f.line - 1, diag.spelling)  # add visual error marks
-            show = True
+                    err = "%s:%d,%d - %s - %s" % (filename, f.line, f.column, diag.severityName, diag.spelling)
+                    errString = "%s%s\n" % (errString, err)
+                    """
+                    for range in diag.ranges:
+                        errString = "%s%s\n" % (errString, range)
+                    for fix in diag.fixits:
+                        errString = "%s%s\n" % (errString, fix)
+                    """
+                    add_error_mark(
+                        diag.severityName, filename, f.line - 1, diag.spelling)  # add visual error marks
+                show = True
+        finally:
+            tu.unlock()
         v = view.window().get_output_panel("clang")
         v.settings().set("result_file_regex", "^(.+):([0-9]+),([0-9]+)")
         view.window().get_output_panel("clang")
