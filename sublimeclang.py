@@ -125,7 +125,6 @@ class TranslationUnitCache:
                     time.sleep(1)
                 except:
                     pass
-            self.tasks.task_done()
             self.tasks.put((task, data))
             return True
         else:
@@ -154,44 +153,54 @@ class TranslationUnitCache:
                     filename, opts, on_done = data
                     if self.add_busy(filename, task, data):
                         continue
-                    tu = self.get_translation_unit(filename, opts)
-                    l = self.parsingList.lock()
                     try:
-                        l.remove(filename)
+                        tu = self.get_translation_unit(filename, opts)
                     finally:
-                        self.parsingList.unlock()
-                    self.remove_busy(filename)
+                        l = self.parsingList.lock()
+                        try:
+                            l.remove(filename)
+                        finally:
+                            self.parsingList.unlock()
+                            self.remove_busy(filename)
                     sublime.set_timeout(on_done, 0)
                 elif task == TranslationUnitCache.TASK_REPARSE:
                     filename, opts, unsaved_files, on_done = data
                     if self.add_busy(filename, task, data):
                         continue
-                    tu = self.get_translation_unit(filename, opts, unsaved_files)
-                    if tu != None:
-                        tu.lock()
-                        try:
-                            tu.var.reparse(unsaved_files)
-                        finally:
-                            tu.unlock()
-                    l = self.parsingList.lock()
                     try:
-                        l.remove(filename)
+                        tu = self.get_translation_unit(filename, opts, unsaved_files)
+                        if tu != None:
+                            tu.lock()
+                            try:
+                                tu.var.reparse(unsaved_files)
+                            finally:
+                                tu.unlock()
                     finally:
-                        self.parsingList.unlock()
-                    self.remove_busy(filename)
+                        l = self.parsingList.lock()
+                        try:
+                            l.remove(filename)
+                        finally:
+                            self.parsingList.unlock()
+                            self.remove_busy(filename)
                     sublime.set_timeout(on_done, 0)
                 elif task == TranslationUnitCache.TASK_CLEAR:
-                    self.translationUnits.lock().clear()
-                    self.translationUnits.unlock()
-                elif task == TranslationUnitCache.TASK_REMOVE:
-                    if self.add_busy(filename, task, data):
-                        continue
                     tus = self.translationUnits.lock()
                     try:
-                        del tus[data]
+                        tus.clear()
                     finally:
                         self.translationUnits.unlock()
-                    self.remove_busy(filename)
+                elif task == TranslationUnitCache.TASK_REMOVE:
+                    if self.add_busy(data, task, data):
+                        continue
+                    try:
+                        tus = self.translationUnits.lock()
+                        try:
+                            if data in tus:
+                                del tus[data]
+                        finally:
+                            self.translationUnits.unlock()
+                    finally:
+                        self.remove_busy(data)
             except:
                 import traceback
                 traceback.print_exc()
