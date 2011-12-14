@@ -448,8 +448,8 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         s.clear_on_change("options")
         s.add_on_change("options", self.load_settings)
         self.load_settings(s)
-        self.auto_complete_active = False
         self.recompile_timer = None
+        self.complete_timer = None
         self.member_regex = re.compile("[a-zA-Z]+[0-9_\(\)]*((\.)|(->))$")
         self.not_code_regex = re.compile("(string.)|(comment.)")
 
@@ -611,10 +611,22 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
                         ret.append((representation, insertion))
         return sorted(ret)
 
+    def restart_complete_timer(self, view):
+        if self.complete_timer != None:
+            self.complete_timer.cancel()
+            self.complete_timer = None
+        caret = view.sel()[0].a
+        if self.not_code_regex.search(view.scope_name(caret)) == None:
+            line = view.substr(Region(view.word(caret).a, caret))
+            if (self.is_member_completion(view, caret) or line.endswith("::")):
+                stat = warm_up_cache(view)
+                if not (stat == TranslationUnitCache.STATUS_NOT_IN_CACHE or stat == TranslationUnitCache.STATUS_PARSING):
+                    self.view = view
+                    self.complete_timer = threading.Timer(self.popup_delay/1000.0, sublime.set_timeout, [self.complete, 0])
+                    self.complete_timer.start()
+
     def complete(self):
-        if self.auto_complete_active:
-            self.auto_complete_active = False
-            self.view.window().run_command("auto_complete")
+        self.view.window().run_command("auto_complete")
 
     def display_compilation_results(self):
         view = self.view
@@ -681,16 +693,7 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
             return
 
         if self.popup_delay > 0 :
-            caret = view.sel()[0].a
-            if self.not_code_regex.search(view.scope_name(caret)) == None:
-                self.auto_complete_active = False
-                line = view.substr(Region(view.word(caret).a, caret))
-                if (self.is_member_completion(view, caret) or line.endswith("::")):
-                    stat = warm_up_cache(view)
-                    if not (stat == TranslationUnitCache.STATUS_NOT_IN_CACHE or stat == TranslationUnitCache.STATUS_PARSING):
-                        self.auto_complete_active = True
-                        self.view = view
-                        sublime.set_timeout(self.complete, self.popup_delay)
+            self.restart_complete_timer(view)
 
         if self.recompile_delay > 0:
             self.view = view
