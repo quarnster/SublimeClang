@@ -1,6 +1,8 @@
 === Description ===
 Clang plugin for Sublime Text 2 providing auto complete suggestions for C/C++/ObjC/ObjC++. It'll also optionally parse the code as it's typed and show errors and warnings.
 
+=== Known issues ===
+Please go [[https://github.com/quarnster/SublimeClang/issues?sort=created&direction=desc&state=open|here]] to see the currently known issues or to file a new issue.
 
 === Prerequisites (Linux Only)===
   # [[http://sublimetext.userecho.com/topic/85126-ctypes-cant-be-imported-in-linux/|ctypes can't be imported]] in the Linux version of Sublime Text 2 right now. This can however be worked around (solution provided by [[http://www.sublimetext.com/forum/viewtopic.php?f=5&t=3958&start=10#p18782|mnus]]):
