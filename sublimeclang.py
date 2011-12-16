@@ -21,12 +21,14 @@ freely, subject to the following restrictions:
    distribution.
 """
 try:
+    import sublime
     import ctypes
 except:
     sublime.error_message("""\
 Unfortunately ctypes can't be imported, so SublimeClang will not work.
 
-There is a work around for this to get it to work, please see http://www.github.com/quarnster/SublimeClang for more details. """)
+There is a work around for this to get it to work, \
+please see http://www.github.com/quarnster/SublimeClang for more details. """)
 
 from clang import cindex
 import sublime_plugin
@@ -37,9 +39,11 @@ import re
 import threading
 import time
 import Queue
-from errormarkers import clear_error_marks, add_error_mark, show_error_marks, update_statusbar, erase_error_marks
+from errormarkers import clear_error_marks, add_error_mark, show_error_marks,
+                         update_statusbar, erase_error_marks
 
 language_regex = re.compile("(?<=source\.)[\w+#]+")
+
 
 def get_language(view):
     caret = view.sel()[0].a
@@ -47,6 +51,7 @@ def get_language(view):
     if language == None:
         return None
     return language.group(0)
+
 
 def get_settings():
     return sublime.load_settings("SublimeClang.sublime-settings")
@@ -57,11 +62,6 @@ class TranslationUnitCache:
     STATUS_REPARSING    = 2
     STATUS_READY        = 3
     STATUS_NOT_IN_CACHE = 4
-
-    TASK_PARSE          = 1
-    TASK_REPARSE        = 2
-    TASK_CLEAR          = 3
-    TASK_REMOVE         = 4
 
     class LockedVariable:
         def __init__(self, var):
@@ -139,6 +139,62 @@ class TranslationUnitCache:
         finally:
             self.busyList.unlock()
 
+    def task_parse(self, data):
+        filename, opts, on_done = data
+        if self.add_busy(filename, self.task_parse, data):
+            return
+        try:
+            self.get_translation_unit(filename, opts)
+        finally:
+            l = self.parsingList.lock()
+            try:
+                l.remove(filename)
+            finally:
+                self.parsingList.unlock()
+                self.remove_busy(filename)
+        sublime.set_timeout(on_done, 0)
+
+    def task_reparse(self, data):
+        filename, opts, unsaved_files, on_done = data
+        if self.add_busy(filename, self.task_reparse, data):
+            return
+        try:
+            tu = self.get_translation_unit(filename, opts, unsaved_files)
+            if tu != None:
+                tu.lock()
+                try:
+                    tu.var.reparse(unsaved_files)
+                finally:
+                    tu.unlock()
+        finally:
+            l = self.parsingList.lock()
+            try:
+                l.remove(filename)
+            finally:
+                self.parsingList.unlock()
+                self.remove_busy(filename)
+        sublime.set_timeout(on_done, 0)
+
+    def task_clear(self, data):
+        tus = self.translationUnits.lock()
+        try:
+            tus.clear()
+        finally:
+            self.translationUnits.unlock()
+
+    def task_remove(self, data):
+        if self.add_busy(data, self.task_remove, data):
+            return
+        try:
+            tus = self.translationUnits.lock()
+            try:
+                if data in tus:
+                    del tus[data]
+            finally:
+                self.translationUnits.unlock()
+        finally:
+            self.remove_busy(data)
+
     def worker(self):
         try:
             # Just so we give time for the editor itself to start
@@ -149,69 +205,22 @@ class TranslationUnitCache:
         while True:
             task, data = self.tasks.get()
             try:
-                if task == TranslationUnitCache.TASK_PARSE:
-                    filename, opts, on_done = data
-                    if self.add_busy(filename, task, data):
-                        continue
-                    try:
-                        tu = self.get_translation_unit(filename, opts)
-                    finally:
-                        l = self.parsingList.lock()
-                        try:
-                            l.remove(filename)
-                        finally:
-                            self.parsingList.unlock()
-                            self.remove_busy(filename)
-                    sublime.set_timeout(on_done, 0)
-                elif task == TranslationUnitCache.TASK_REPARSE:
-                    filename, opts, unsaved_files, on_done = data
-                    if self.add_busy(filename, task, data):
-                        continue
-                    try:
-                        tu = self.get_translation_unit(filename, opts, unsaved_files)
-                        if tu != None:
-                            tu.lock()
-                            try:
-                                tu.var.reparse(unsaved_files)
-                            finally:
-                                tu.unlock()
-                    finally:
-                        l = self.parsingList.lock()
-                        try:
-                            l.remove(filename)
-                        finally:
-                            self.parsingList.unlock()
-                            self.remove_busy(filename)
-                    sublime.set_timeout(on_done, 0)
-                elif task == TranslationUnitCache.TASK_CLEAR:
-                    tus = self.translationUnits.lock()
-                    try:
-                        tus.clear()
-                    finally:
-                        self.translationUnits.unlock()
-                elif task == TranslationUnitCache.TASK_REMOVE:
-                    if self.add_busy(data, task, data):
-                        continue
-                    try:
-                        tus = self.translationUnits.lock()
-                        try:
-                            if data in tus:
-                                del tus[data]
-                        finally:
-                            self.translationUnits.unlock()
-                    finally:
-                        self.remove_busy(data)
+                task(data)
             except:
                 import traceback
                 traceback.print_exc()
             finally:
                 self.tasks.task_done()
 
-    def reparse(self, view, filename, unsaved_files = [], on_done = None):
+    def reparse(self, view, filename, unsaved_files=[], on_done=None):
         pl = self.parsingList.lock()
         if filename not in pl:
             pl.append(filename)
-            self.tasks.put((TranslationUnitCache.TASK_REPARSE, (filename, self.get_opts(view), unsaved_files, on_done)))
+            self.tasks.put
+            ((
+                self.task_reparse,
+                (filename, self.get_opts(view), unsaved_files, on_done)
+            ))
         self.parsingList.unlock()
 
     def add(self, view, filename, on_done):
@@ -219,7 +228,11 @@ class TranslationUnitCache:
         pl = self.parsingList.lock()
         if filename not in tu and filename not in pl:
             pl.append(filename)
-            self.tasks.put((TranslationUnitCache.TASK_PARSE, (filename, self.get_opts(view), on_done)))
+            self.tasks.put
+            ((
+                self.task_parse,
+                (filename, self.get_opts(view), on_done)
+            ))
         self.translationUnits.unlock()
         self.parsingList.unlock()
 
@@ -240,7 +253,7 @@ class TranslationUnitCache:
         self.index_parse_options = s.get("index_parse_options", 13)
         return opts
 
-    def get_translation_unit(self, filename, opts = [], unsaved_files = []):
+    def get_translation_unit(self, filename, opts=[], unsaved_files=[]):
         if self.index == None:
             self.index = cindex.Index.create()
         tu = None
@@ -249,7 +262,8 @@ class TranslationUnitCache:
             self.translationUnits.unlock()
 
             opts.append(filename)
-            tu = self.index.parse(None, opts, unsaved_files, self.index_parse_options)
+            tu = self.index.parse(None, opts, unsaved_files,
+                                  self.index_parse_options)
             if tu != None:
                 # Apparently the options aren't used in the first parse,
                 # so reparse to heat up the cache
@@ -263,16 +277,17 @@ class TranslationUnitCache:
         return tu
 
     def remove(self, filename):
-        self.tasks.put((TranslationUnitCache.TASK_REMOVE, filename))
+        self.tasks.put((self.task_remove, filename))
 
     def clear(self):
-        self.tasks.put((TranslationUnitCache.TASK_CLEAR, None))
+        self.tasks.put((self.task_clear, None))
 
 
 def cache_warmed_up():
     sublime.status_message("Cache warmed up")
 
-def warm_up_cache(view, filename = None):
+
+def warm_up_cache(view, filename=None):
     if filename == None:
         filename = view.file_name()
     stat = tuCache.get_status(filename)
@@ -282,7 +297,7 @@ def warm_up_cache(view, filename = None):
     return stat
 
 
-def get_translation_unit(view, filename = None, blocking = False):
+def get_translation_unit(view, filename=None, blocking=False):
     if filename == None:
         filename = view.file_name()
     s = get_settings()
@@ -299,7 +314,6 @@ tuCache = TranslationUnitCache()
 navigation_stack = []
 
 
-
 class ClangWarmupCache(sublime_plugin.TextCommand):
     def run(self, edit):
         stat = warm_up_cache(self.view)
@@ -307,6 +321,7 @@ class ClangWarmupCache(sublime_plugin.TextCommand):
             sublime.status_message("Cache is already warming up")
         elif stat != TranslationUnitCache.STATUS_NOT_IN_CACHE:
             sublime.status_message("Cache is already warmed up")
+
 
 class ClangGoBackEventListener(sublime_plugin.EventListener):
     def on_close(self, view):
@@ -317,7 +332,9 @@ class ClangGoBackEventListener(sublime_plugin.EventListener):
         # consider it "popped" from the stack
         fn = view.file_name()
         while True:
-            if len(navigation_stack) == 0 or not navigation_stack[len(navigation_stack)-1][1].startswith(fn):
+            if len(navigation_stack) == 0 or
+                    not navigation_stack[
+                        len(navigation_stack) - 1][1].startswith(fn):
                 break
             navigation_stack.pop()
 
@@ -325,15 +342,21 @@ class ClangGoBackEventListener(sublime_plugin.EventListener):
 class ClangGoBack(sublime_plugin.TextCommand):
     def run(self, edit):
         if len(navigation_stack) > 0:
-            self.view.window().open_file(navigation_stack.pop()[0], sublime.ENCODED_POSITION)
+            self.view.window().open_file
+            (
+                navigation_stack.pop()[0], sublime.ENCODED_POSITION
+            )
 
 
 def format_cursor(cursor):
-    return "%s:%d:%d" % (cursor.location.file.name, cursor.location.line, cursor.location.column)
+    return "%s:%d:%d" % (cursor.location.file.name, cursor.location.line,
+                         cursor.location.column)
+
 
 def format_current_file(view):
     row, col = view.rowcol(view.sel()[0].a)
-    return "%s:%d:%d" % (view.file_name(), row+1, col+1)
+    return "%s:%d:%d" % (view.file_name(), row + 1, col + 1)
+
 
 def dump_cursor(cursor):
     if cursor is None:
@@ -359,14 +382,16 @@ class ClangGotoImplementation(sublime_plugin.TextCommand):
 
         try:
             row, col = view.rowcol(view.sel()[0].a)
-            cursor = cindex.Cursor.get(tu.var, view.file_name(), row+1, col+1)
+            cursor = cindex.Cursor.get(tu.var, view.file_name(),
+                                       row + 1, col + 1)
             d = cursor.get_definition()
             if not d is None and cursor != d:
                 target = format_cursor(d)
             elif d is None:
                 if cursor.kind == cindex.CursorKind.DECL_REF_EXPR:
                     cursor = cursor.get_reference()
-                if cursor.kind == cindex.CursorKind.CXX_METHOD or cursor.kind == cindex.CursorKind.FUNCTION_DECL:
+                if cursor.kind == cindex.CursorKind.CXX_METHOD or
+                        cursor.kind == cindex.CursorKind.FUNCTION_DECL:
                     f = cursor.location.file.name
                     if f.endswith(".h"):
                         endings = ["cpp", "c"]
@@ -378,7 +403,10 @@ class ClangGotoImplementation(sublime_plugin.TextCommand):
                                     continue
                                 tu2.lock()
                                 try:
-                                    cursor2 = cindex.Cursor.get(tu2.var, cursor.location.file.name, cursor.location.line, cursor.location.column)
+                                    cursor2 = cindex.Cursor.get(
+                                            tu2.var, cursor.location.file.name,
+                                            cursor.location.line,
+                                            cursor.location.column)
                                     if not cursor2 is None:
                                         d = cursor2.get_definition()
                                         if not d is None and cursor2 != d:
@@ -401,7 +429,8 @@ class ClangGotoDef(sublime_plugin.TextCommand):
         open(self.view, format_cursor(self.o[idx]))
 
     def quickpanel_format(self, cursor):
-        return ["%s::%s" % (cursor.get_semantic_parent().spelling, cursor.displayname), format_cursor(cursor)]
+        return ["%s::%s" % (cursor.get_semantic_parent().spelling,
+                            cursor.displayname), format_cursor(cursor)]
 
     def run(self, edit):
         view = self.view
@@ -412,7 +441,8 @@ class ClangGotoDef(sublime_plugin.TextCommand):
         target = ""
         try:
             row, col = view.rowcol(view.sel()[0].a)
-            cursor = cindex.Cursor.get(tu.var, view.file_name(), row+1, col+1)
+            cursor = cindex.Cursor.get(tu.var, view.file_name(),
+                                       row + 1, col + 1)
             ref = cursor.get_reference()
             target = ""
 
@@ -429,7 +459,8 @@ class ClangGotoDef(sublime_plugin.TextCommand):
                         opts = []
                         for i in range(len(o)):
                             opts.append(self.quickpanel_format(o[i]))
-                        view.window().show_quick_panel(opts, self.quickpanel_on_done)
+                        view.window().show_quick_panel(opts,
+                                                       self.quickpanel_on_done)
             elif not ref is None:
                 target = format_cursor(ref)
             elif cursor.kind == cindex.CursorKind.INCLUSION_DIRECTIVE:
@@ -466,15 +497,26 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         tuCache.clear()
         oldSettings = sublime.load_settings("clang.sublime-settings")
         if oldSettings.get("popup_delay") != None:
-            sublime.error_message("SublimeClang's configuration file name was changed from 'clang.sublime-settings' to 'SublimeClang.sublime-settings'. Please move your settings over to this new file and delete the old one.")
+            sublime.error_message(
+                "SublimeClang's configuration file name was changed from \
+                'clang.sublime-settings' to 'SublimeClang.sublime-settings'. \
+                Please move your settings over to this new file and delete \
+                the old one.")
         if s == None:
             s = get_settings()
         if s.get("popupDelay") != None:
-            sublime.error_message("SublimeClang changed the 'popupDelay' setting to 'popup_delay, please edit your SublimeClang.sublime-settings to match this")
+            sublime.error_message(
+                "SublimeClang changed the 'popupDelay' setting to \
+                'popup_delay, please edit your \
+                SublimeClang.sublime-settings to match this")
         if s.get("recompileDelay") != None:
-            sublime.error_message("SublimeClang changed the 'recompileDelay' setting to 'recompile_delay, please edit your SublimeClang.sublime-settings to match this")
+            sublime.error_message(
+                "SublimeClang changed the 'recompileDelay' setting to \
+                'recompile_delay, please edit your \
+                SublimeClang.sublime-settings to match this")
         self.popup_delay = s.get("popup_delay", 500)
-        self.dont_complete_startswith = s.get("dont_complete_startswith", ['operator', '~'])
+        self.dont_complete_startswith = s.get("dont_complete_startswith",
+                                              ['operator', '~'])
         self.recompile_delay = s.get("recompile_delay", 1000)
         self.hide_clang_output = s.get("hide_output_when_empty", False)
         self.cache_on_load = s.get("cache_on_load", True)
@@ -502,15 +544,18 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
             if start and not chunk.isKindInformative():
                 if chunk.isKindPlaceHolder():
                     placeHolderCount = placeHolderCount + 1
-                    insertion = "%s${%d:%s}" % (insertion, placeHolderCount, chunk.spelling)
+                    insertion = "%s${%d:%s}" % (insertion, placeHolderCount,
+                                                chunk.spelling)
                 else:
                     insertion = "%s%s" % (insertion, chunk.spelling)
         return (True, "%s - %s" % (representation, returnType), insertion)
 
-
     def is_supported_language(self, view):
         language = get_language(view)
-        if language == None or (language != "c++" and language != "c" and language != "objc" and language != "objc++"):
+        if language == None or (language != "c++" and
+                                language != "c" and
+                                language != "objc" and
+                                language != "objc++"):
             return False
         return True
 
@@ -536,47 +581,47 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
 
     def search_results(self, prefix, results, start, findStart):
         l = len(results)
-        end = l-1
+        end = l - 1
         prefix = prefix.lower()
         while start <= end:
-            mid = (start+end)/2
+            mid = (start + end) / 2
             res1 = self.get_result_typedtext(results[mid])
             cmp1 = res1.startswith(prefix)
 
             cmp2 = False
-            if mid+1 < l:
-                res2 = self.get_result_typedtext(results[mid+1])
+            if mid + 1 < l:
+                res2 = self.get_result_typedtext(results[mid + 1])
                 cmp2 = res2.startswith(prefix)
 
             if findStart:
                 if cmp2 and not cmp1:
                     # found the start position
-                    return mid+1
+                    return mid + 1
                 elif cmp1 and mid == 0:
                     # the list starts with the item we're searching for
                     return mid
                 elif res1 < prefix:
-                    start = mid+1
+                    start = mid + 1
                 else:
-                    end = mid-1
+                    end = mid - 1
             else:
                 if cmp1 and not cmp2:
                     #found the end position
                     return mid
                 elif res1.startswith(prefix) or res1 < prefix:
-                    start = mid+1
+                    start = mid + 1
                 else:
-                    end = mid-1
+                    end = mid - 1
         return -1
 
     def find_prefix_range(self, prefix, results):
         if len(prefix) == 0:
-            return (0, len(results)-1)
+            return (0, len(results) - 1)
         start = self.search_results(prefix, results, 0, True)
         end = -1
         if start != -1:
             end = self.search_results(prefix, results, 0, False)
-        return (start,end)
+        return (start, end)
 
     def on_query_completions(self, view, prefix, locations):
         if not self.is_supported_language(view):
@@ -585,15 +630,18 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         tu = get_translation_unit(view)
         if tu == None:
             return []
-        row, col = view.rowcol(locations[0] - len(prefix))  # Getting strange results form clang if I don't remove prefix
+        # Getting strange results form clang if I don't remove prefix
+        row, col = view.rowcol(locations[0] - len(prefix))
         unsaved_files = []
         if view.is_dirty():
-            unsaved_files.append((view.file_name(), view.substr(Region(0, view.size()))))
+            unsaved_files.append((view.file_name(),
+                                  view.substr(Region(0, view.size()))))
 
         tu.lock()
         res = None
         try:
-            res = tu.var.codeComplete(view.file_name(), row + 1, col + 1, unsaved_files, 3)
+            res = tu.var.codeComplete(view.file_name(), row + 1, col + 1,
+                                      unsaved_files, 3)
         finally:
             tu.unlock()
         ret = []
@@ -607,14 +655,18 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
             #        if chunk.isKindCurrentParameter():
             #            return [(chunk.spelling, "${1:%s}" % chunk.spelling)]
             #    return []
-            onlyMembers = self.is_member_completion(view, locations[0]-len(prefix))
-            s,e = self.find_prefix_range(prefix, res.results)
+            onlyMembers = self.is_member_completion(view,
+                                                    locations[0] - len(prefix))
+            s, e = self.find_prefix_range(prefix, res.results)
             if not (s == -1 or e == -1):
-                for idx in range(s,e+1):
+                for idx in range(s, e + 1):
                     compRes = res.results[idx]
-                    if compRes.string.isAvailabilityNotAccessible() or (onlyMembers and not self.is_member_kind(compRes.kind)):
+                    if compRes.string.isAvailabilityNotAccessible() or (
+                             onlyMembers and
+                             not self.is_member_kind(compRes.kind)):
                         continue
-                    add, representation, insertion = self.parse_res(compRes, prefix)
+                    add, representation, insertion = self.parse_res(
+                                    compRes, prefix)
                     if add:
                         #print compRes.kind, compRes.string
                         ret.append((representation, insertion))
@@ -629,9 +681,13 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
             line = view.substr(Region(view.word(caret).a, caret))
             if (self.is_member_completion(view, caret) or line.endswith("::")):
                 stat = warm_up_cache(view)
-                if not (stat == TranslationUnitCache.STATUS_NOT_IN_CACHE or stat == TranslationUnitCache.STATUS_PARSING):
+                if not (stat == TranslationUnitCache.STATUS_NOT_IN_CACHE or
+                        stat == TranslationUnitCache.STATUS_PARSING):
                     self.view = view
-                    self.complete_timer = threading.Timer(self.popup_delay/1000.0, sublime.set_timeout, [self.complete, 0])
+                    self.complete_timer = threading.Timer(
+                            self.popup_delay / 1000.0,
+                            sublime.set_timeout,
+                            [self.complete, 0])
                     self.complete_timer.start()
 
     def complete(self):
@@ -656,7 +712,9 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
                     if f.file != None:
                         filename = f.file.name
 
-                    err = "%s:%d,%d - %s - %s" % (filename, f.line, f.column, diag.severityName, diag.spelling)
+                    err = "%s:%d,%d - %s - %s" % (filename, f.line, f.column,
+                                                  diag.severityName,
+                                                  diag.spelling)
                     errString = "%s%s\n" % (errString, err)
                     """
                     for range in diag.ranges:
@@ -665,7 +723,7 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
                         errString = "%s%s\n" % (errString, fix)
                     """
                     add_error_mark(
-                        diag.severityName, filename, f.line - 1, diag.spelling)  # add visual error marks
+                        diag.severityName, filename, f.line - 1, diag.spelling)
                 show = True
         finally:
             tu.unlock()
@@ -689,24 +747,28 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
     def restart_recompile_timer(self, timeout):
         if self.recompile_timer != None:
             self.recompile_timer.cancel()
-        self.recompile_timer = threading.Timer(timeout, sublime.set_timeout, [self.recompile, 0])
+        self.recompile_timer = threading.Timer(timeout, sublime.set_timeout,
+                                               [self.recompile, 0])
         self.recompile_timer.start()
 
     def recompile(self):
         view = self.view
-        unsaved_files = [(view.file_name(), view.substr(Region(0, view.size())))]
-        tuCache.reparse(view, view.file_name(), unsaved_files, self.display_compilation_results)
+        unsaved_files = [(view.file_name(),
+                          view.substr(Region(0, view.size())))]
+        tuCache.reparse(view, view.file_name(), unsaved_files,
+                        self.display_compilation_results)
 
     def on_modified(self, view):
-        if (self.popup_delay <= 0 and self.reparse_delay <= 0) or not self.is_supported_language(view):
+        if (self.popup_delay <= 0 and self.reparse_delay <= 0) or
+                not self.is_supported_language(view):
             return
 
-        if self.popup_delay > 0 :
+        if self.popup_delay > 0:
             self.restart_complete_timer(view)
 
         if self.recompile_delay > 0:
             self.view = view
-            self.restart_recompile_timer(self.recompile_delay/1000.0)
+            self.restart_recompile_timer(self.recompile_delay / 1000.0)
 
     def on_load(self, view):
         if self.cache_on_load and self.is_supported_language(view):
