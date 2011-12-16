@@ -57,7 +57,7 @@
     "options":
     [
         "-Wall",
-        "-I/usr/include/c++/4.2.1/tr1/",
+         "-I/usr/lib/gcc/i686-apple-darwin10/4.2.1/include/",
         "-I/path/to/sources/1",
         "-I/path/to/sources/2"
     ]
