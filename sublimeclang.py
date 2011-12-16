@@ -39,7 +39,7 @@ import re
 import threading
 import time
 import Queue
-from errormarkers import clear_error_marks, add_error_mark, show_error_marks,
+from errormarkers import clear_error_marks, add_error_mark, show_error_marks, \
                          update_statusbar, erase_error_marks
 
 language_regex = re.compile("(?<=source\.)[\w+#]+")
@@ -216,11 +216,9 @@ class TranslationUnitCache:
         pl = self.parsingList.lock()
         if filename not in pl:
             pl.append(filename)
-            self.tasks.put
-            ((
+            self.tasks.put((
                 self.task_reparse,
-                (filename, self.get_opts(view), unsaved_files, on_done)
-            ))
+                (filename, self.get_opts(view), unsaved_files, on_done)))
         self.parsingList.unlock()
 
     def add(self, view, filename, on_done):
@@ -228,11 +226,9 @@ class TranslationUnitCache:
         pl = self.parsingList.lock()
         if filename not in tu and filename not in pl:
             pl.append(filename)
-            self.tasks.put
-            ((
+            self.tasks.put((
                 self.task_parse,
-                (filename, self.get_opts(view), on_done)
-            ))
+                (filename, self.get_opts(view), on_done)))
         self.translationUnits.unlock()
         self.parsingList.unlock()
 
@@ -332,7 +328,7 @@ class ClangGoBackEventListener(sublime_plugin.EventListener):
         # consider it "popped" from the stack
         fn = view.file_name()
         while True:
-            if len(navigation_stack) == 0 or
+            if len(navigation_stack) == 0 or \
                     not navigation_stack[
                         len(navigation_stack) - 1][1].startswith(fn):
                 break
@@ -342,10 +338,8 @@ class ClangGoBackEventListener(sublime_plugin.EventListener):
 class ClangGoBack(sublime_plugin.TextCommand):
     def run(self, edit):
         if len(navigation_stack) > 0:
-            self.view.window().open_file
-            (
-                navigation_stack.pop()[0], sublime.ENCODED_POSITION
-            )
+            self.view.window().open_file(
+                navigation_stack.pop()[0], sublime.ENCODED_POSITION)
 
 
 def format_cursor(cursor):
@@ -390,7 +384,7 @@ class ClangGotoImplementation(sublime_plugin.TextCommand):
             elif d is None:
                 if cursor.kind == cindex.CursorKind.DECL_REF_EXPR:
                     cursor = cursor.get_reference()
-                if cursor.kind == cindex.CursorKind.CXX_METHOD or
+                if cursor.kind == cindex.CursorKind.CXX_METHOD or \
                         cursor.kind == cindex.CursorKind.FUNCTION_DECL:
                     f = cursor.location.file.name
                     if f.endswith(".h"):
@@ -759,7 +753,7 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
                         self.display_compilation_results)
 
     def on_modified(self, view):
-        if (self.popup_delay <= 0 and self.reparse_delay <= 0) or
+        if (self.popup_delay <= 0 and self.reparse_delay <= 0) or \
                 not self.is_supported_language(view):
             return
 
