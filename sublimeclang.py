@@ -476,6 +476,78 @@ class ClangClearCache(sublime_plugin.TextCommand):
         sublime.status_message("Cache cleared!")
 
 
+class ClangReparse(sublime_plugin.TextCommand):
+    def reparse_done(self):
+        sublime.status_message("reparse done")
+        display_compilation_results(self.view)
+
+    def run(self, edit):
+        view = self.view
+        unsaved_files = [(view.file_name(),
+                          view.substr(Region(0, view.size())))]
+        tuCache.reparse(view, view.file_name(), unsaved_files,
+                        self.reparse_done)
+        sublime.status_message("reparsing")
+
+
+def display_compilation_results(view):
+    tu = get_translation_unit(view)
+    errString = ""
+    show = False
+    clear_error_marks()  # clear visual error marks
+    erase_error_marks(view)
+    if tu == None:
+        return
+    tu.lock()
+    try:
+        if len(tu.var.diagnostics):
+            errString = ""
+            for diag in tu.var.diagnostics:
+                f = diag.location
+                filename = ""
+                if f.file != None:
+                    filename = f.file.name
+
+                err = "%s:%d,%d - %s - %s" % (filename, f.line, f.column,
+                                              diag.severityName,
+                                              diag.spelling)
+                if diag.severity == cindex.Diagnostic.Fatal and \
+                        "not found" in diag.spelling:
+                    err = "%s\nDid you configure the include path used by clang properly?\n" \
+                          "See http://github.com/quarnster/SublimeClang for more details on "\
+                          "how to configure SublimeClang." % (err)
+                errString = "%s%s\n" % (errString, err)
+                """
+                for range in diag.ranges:
+                    errString = "%s%s\n" % (errString, range)
+                for fix in diag.fixits:
+                    errString = "%s%s\n" % (errString, fix)
+                """
+                add_error_mark(
+                    diag.severityName, filename, f.line - 1, diag.spelling)
+            show = True
+    finally:
+        tu.unlock()
+    window = view.window()
+    if not window is None:
+        v = view.window().get_output_panel("clang")
+        v.settings().set("result_file_regex", "^(.+):([0-9]+),([0-9]+)")
+        view.window().get_output_panel("clang")
+        v.set_read_only(False)
+        v.set_scratch(True)
+        v.set_name("sublimeclang.%s" % view.file_name())
+        e = v.begin_edit()
+        v.insert(e, 0, errString)
+        v.end_edit(e)
+        v.set_read_only(True)
+    show_error_marks(view)
+    update_statusbar(view)
+    if show:
+        view.window().run_command("show_panel", {"panel": "output.clang"})
+    elif get_settings().get("hide_output_when_empty", False):
+        view.window().run_command("hide_panel", {"panel": "output.clang"})
+
+
 class SublimeClangAutoComplete(sublime_plugin.EventListener):
     def __init__(self):
         s = get_settings()
@@ -512,7 +584,6 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         self.dont_complete_startswith = s.get("dont_complete_startswith",
                                               ['operator', '~'])
         self.recompile_delay = s.get("recompile_delay", 1000)
-        self.hide_clang_output = s.get("hide_output_when_empty", False)
         self.cache_on_load = s.get("cache_on_load", True)
         self.remove_on_close = s.get("remove_on_close", True)
 
@@ -688,61 +759,8 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
     def complete(self):
         self.view.window().run_command("auto_complete")
 
-    def display_compilation_results(self):
-        view = self.view
-        tu = get_translation_unit(view)
-        errString = ""
-        show = False
-        clear_error_marks()  # clear visual error marks
-        erase_error_marks(view)
-        if tu == None:
-            return
-        tu.lock()
-        try:
-            if len(tu.var.diagnostics):
-                errString = ""
-                for diag in tu.var.diagnostics:
-                    f = diag.location
-                    filename = ""
-                    if f.file != None:
-                        filename = f.file.name
-
-                    err = "%s:%d,%d - %s - %s" % (filename, f.line, f.column,
-                                                  diag.severityName,
-                                                  diag.spelling)
-                    if diag.severity == cindex.Diagnostic.Fatal and \
-                            "not found" in diag.spelling:
-                        err = "%s\nDid you configure the include path used by clang properly?\n" \
-                              "See http://github.com/quarnster/SublimeClang for more details on "\
-                              "how to configure SublimeClang." % (err)
-                    errString = "%s%s\n" % (errString, err)
-                    """
-                    for range in diag.ranges:
-                        errString = "%s%s\n" % (errString, range)
-                    for fix in diag.fixits:
-                        errString = "%s%s\n" % (errString, fix)
-                    """
-                    add_error_mark(
-                        diag.severityName, filename, f.line - 1, diag.spelling)
-                show = True
-        finally:
-            tu.unlock()
-        v = view.window().get_output_panel("clang")
-        v.settings().set("result_file_regex", "^(.+):([0-9]+),([0-9]+)")
-        view.window().get_output_panel("clang")
-        v.set_read_only(False)
-        v.set_scratch(True)
-        v.set_name("sublimeclang.%s" % view.file_name())
-        e = v.begin_edit()
-        v.insert(e, 0, errString)
-        v.end_edit(e)
-        v.set_read_only(True)
-        show_error_marks(view)
-        update_statusbar(view)
-        if show:
-            view.window().run_command("show_panel", {"panel": "output.clang"})
-        elif self.hide_clang_output:
-            view.window().run_command("hide_panel", {"panel": "output.clang"})
+    def reparse_done(self):
+        display_compilation_results(self.view)
 
     def restart_recompile_timer(self, timeout):
         if self.recompile_timer != None:
@@ -756,7 +774,7 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         unsaved_files = [(view.file_name(),
                           view.substr(Region(0, view.size())))]
         tuCache.reparse(view, view.file_name(), unsaved_files,
-                        self.display_compilation_results)
+                        self.reparse_done)
 
     def on_modified(self, view):
         if (self.popup_delay <= 0 and self.reparse_delay <= 0) or \
