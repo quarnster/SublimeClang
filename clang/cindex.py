@@ -75,7 +75,21 @@ def get_cindex_library():
     elif name == 'Windows':
         return cdll.LoadLibrary('libclang.dll')
     else:
-        return cdll.LoadLibrary('libclang.so')
+        try:
+            return cdll.LoadLibrary('libclang.so')
+        except:
+            import traceback
+            import sublime
+            traceback.print_exc()
+            sublime.error_message("""\
+It looks like libclang.so couldn't be loaded. On Linux you have to \
+compile it yourself, or install it via your package manager. \
+Please note that this plugin uses features from clang 3.0 so \
+make sure that is the version you have installed.
+
+Once installed, you need to copy libclang.so into the root of this \
+plugin. See http://github.com/quarnster/SublimeClang for more details.
+""")
 
 # ctypes doesn't implicitly convert c_void_p to the appropriate wrapper
 # object. This is a problem, because it means that from_parameter will see an

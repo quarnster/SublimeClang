@@ -710,6 +710,11 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
                     err = "%s:%d,%d - %s - %s" % (filename, f.line, f.column,
                                                   diag.severityName,
                                                   diag.spelling)
+                    if diag.severity == cindex.Diagnostic.Fatal and \
+                            "not found" in diag.spelling:
+                        err = "%s\nDid you configure the include path used by clang properly?\n" \
+                              "See http://github.com/quarnster/SublimeClang for more details on "\
+                              "how to configure SublimeClang." % (err)
                     errString = "%s%s\n" % (errString, err)
                     """
                     for range in diag.ranges:
