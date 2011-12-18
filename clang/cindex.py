@@ -63,6 +63,33 @@ call is efficient.
 # o implement additional SourceLocation, SourceRange, and File methods.
 
 from ctypes import *
+import sublime
+
+def hack(func):
+    # If there's a sublime.error_message before a window is open
+    # on Windows 7, it appears the main editor window
+    # is never opened...
+    import sublime
+    class hackClass:
+        def __init__(self, func):
+            self.func = func
+            self.try_now()
+
+        def try_now(self):
+            if sublime.active_window() == None:
+                sublime.set_timeout(self.try_now, 500)
+            else:
+                self.func()
+    hackClass(func)
+
+def win64bitError():
+    import sublime
+    sublime.error_message("""\
+SublimeClang currently does not work with the \
+64 bit executable of Sublime Text 2. Don't worry \
+though it works just fine with the 32 bit executable on \
+64 bit Windows, so please install the 32 bit version of \
+Sublime Text 2 if you want to use this plugin""")
 
 def get_cindex_library():
     # FIXME: It's probably not the case that the library is actually found in
@@ -73,13 +100,16 @@ def get_cindex_library():
     if name == 'Darwin':
         return cdll.LoadLibrary('libclang.dylib')
     elif name == 'Windows':
+        import platform
+        bits,linkage = platform.architecture()
+        if bits == "64bit":
+            hack(win64bitError)
         return cdll.LoadLibrary('libclang.dll')
     else:
         try:
             return cdll.LoadLibrary('libclang.so')
         except:
             import traceback
-            import sublime
             traceback.print_exc()
             sublime.error_message("""\
 It looks like libclang.so couldn't be loaded. On Linux you have to \
