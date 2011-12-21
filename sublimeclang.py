@@ -213,13 +213,16 @@ class TranslationUnitCache:
                 self.tasks.task_done()
 
     def reparse(self, view, filename, unsaved_files=[], on_done=None):
+        ret = False
         pl = self.parsingList.lock()
         if filename not in pl:
+            ret = True
             pl.append(filename)
             self.tasks.put((
                 self.task_reparse,
                 (filename, self.get_opts(view), unsaved_files, on_done)))
         self.parsingList.unlock()
+        return ret
 
     def add(self, view, filename, on_done):
         tu = self.translationUnits.lock()
@@ -773,8 +776,10 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         view = self.view
         unsaved_files = [(view.file_name(),
                           view.substr(Region(0, view.size())))]
-        tuCache.reparse(view, view.file_name(), unsaved_files,
-                        self.reparse_done)
+        if not tuCache.reparse(view, view.file_name(), unsaved_files,
+                        self.reparse_done):
+            # Already parsing so retry in a bit
+            self.restart_recompile_timer(1)
 
     def on_modified(self, view):
         if (self.popup_delay <= 0 and self.reparse_delay <= 0) or \
