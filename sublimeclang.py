@@ -616,7 +616,7 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
                                                 chunk.spelling)
                 else:
                     insertion = "%s%s" % (insertion, chunk.spelling)
-        return (True, "%s - %s" % (representation, returnType), insertion)
+        return (True, "%s\t%s" % (representation, returnType), insertion)
 
     def is_supported_language(self, view):
         language = get_language(view)
