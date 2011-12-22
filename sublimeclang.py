@@ -237,9 +237,7 @@ class TranslationUnitCache:
 
     def get_opts(self, view):
         s = get_settings()
-        opts = []
-        if s.has("options"):
-            opts = s.get("options")
+        opts = s.get("options", ["-Wall"])
         if s.get("add_language_option", True):
             language = get_language(view)
             if language == "objc":
