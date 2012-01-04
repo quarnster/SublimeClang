@@ -397,7 +397,7 @@ class ClangGotoImplementation(sublime_plugin.TextCommand):
                         cursor.kind == cindex.CursorKind.FUNCTION_DECL:
                     f = cursor.location.file.name
                     if f.endswith(".h"):
-                        endings = ["cpp", "c", "cc"]
+                        endings = ["cpp", "c", "cc", "m", "mm"]
                         for ending in endings:
                             f = "%s.%s" % (f[:f.rfind(".")], ending)
                             if os.access(f, os.R_OK):
