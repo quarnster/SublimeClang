@@ -391,7 +391,7 @@ class ClangGotoImplementation(sublime_plugin.TextCommand):
                     if f.endswith(".h"):
                         endings = ["cpp", "c"]
                         for ending in endings:
-                            f = "%s.%s" % (f[:-2], ending)
+                            f = "%s.%s" % (f[:f.rfind(".")], ending)
                             if os.access(f, os.R_OK):
                                 tu2 = get_translation_unit(view, f, True)
                                 if tu2 == None:
