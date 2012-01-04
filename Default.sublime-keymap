@@ -28,5 +28,10 @@
     "command": "clang_reparse",
     "context": [{"key": "clang_supported_language"}],
     "keys": ["ctrl+d", "ctrl+r"]
+  },
+  {
+    "command": "clang_toggle_complete_enabled",
+    "context": [{"key": "clang_supported_language"}],
+    "keys": ["ctrl+d", "ctrl+t"]
   }
 ]

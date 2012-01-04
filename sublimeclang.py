@@ -309,6 +309,14 @@ def get_translation_unit(view, filename=None, blocking=False):
 
 tuCache = TranslationUnitCache()
 navigation_stack = []
+clang_complete_enabled = True
+
+
+class ClangToggleCompleteEnabled(sublime_plugin.TextCommand):
+    def run(self, edit):
+        global clang_complete_enabled
+        clang_complete_enabled = not clang_complete_enabled
+        sublime.status_message("Clang complete is %s" % ("On" if clang_complete_enabled else "Off"))
 
 
 class ClangWarmupCache(sublime_plugin.TextCommand):
@@ -691,7 +699,8 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         return (start, end)
 
     def on_query_completions(self, view, prefix, locations):
-        if not self.is_supported_language(view):
+        global clang_complete_enabled
+        if not self.is_supported_language(view) or not clang_complete_enabled:
             return []
 
         tu = get_translation_unit(view)
@@ -758,7 +767,9 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
                     self.complete_timer.start()
 
     def complete(self):
-        self.view.window().run_command("auto_complete")
+        global clang_complete_enabled
+        if clang_complete_enabled:
+            self.view.window().run_command("auto_complete")
 
     def reparse_done(self):
         display_compilation_results(self.view)
