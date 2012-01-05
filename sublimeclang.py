@@ -391,7 +391,8 @@ class ClangGotoImplementation(sublime_plugin.TextCommand):
             if not d is None and cursor != d:
                 target = format_cursor(d)
             elif d is None:
-                if cursor.kind == cindex.CursorKind.DECL_REF_EXPR:
+                if cursor.kind == cindex.CursorKind.DECL_REF_EXPR or \
+                        cursor.kind == cindex.CursorKind.MEMBER_REF_EXPR:
                     cursor = cursor.get_reference()
                 if cursor.kind == cindex.CursorKind.CXX_METHOD or \
                         cursor.kind == cindex.CursorKind.FUNCTION_DECL:
