@@ -30,6 +30,16 @@ Unfortunately ctypes can't be imported, so SublimeClang will not work.
 There is a work around for this to get it to work, \
 please see http://www.github.com/quarnster/SublimeClang for more details. """)
 
+try:
+    import os
+    import sys
+    p = os.path.dirname(os.path.abspath(__file__))
+    # Just so that libclang is found
+    if p not in sys.path:
+        sys.path.append(p)
+except:
+    pass
+
 from clang import cindex
 import sublime_plugin
 from sublime import Region
