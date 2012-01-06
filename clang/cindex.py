@@ -107,11 +107,18 @@ def get_cindex_library():
         return cdll.LoadLibrary('libclang.dll')
     else:
         try:
-            return cdll.LoadLibrary('libclang.so')
+            # Try loading with absolute path first
+            import os
+            path = os.path.dirname(os.path.abspath(__file__))
+            return cdll.LoadLibrary('%s/../libclang.so' % path)
         except:
-            import traceback
-            traceback.print_exc()
-            sublime.error_message("""\
+            try:
+                # See if there's one in the system path
+                return cdll.LoadLibrary("libclang.so")
+            except:
+                import traceback
+                traceback.print_exc()
+                sublime.error_message("""\
 It looks like libclang.so couldn't be loaded. On Linux you have to \
 compile it yourself, or install it via your package manager. \
 Please note that this plugin uses features from clang 3.0 so \
