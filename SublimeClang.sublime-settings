@@ -61,6 +61,10 @@
         "-I/usr/lib/clang/2.1/include/",
         "-I/usr/lib/gcc/i686-apple-darwin10/4.2.1/include/",
         "-I/usr/lib/gcc/i686-apple-darwin11/4.2.1/include/",
+        // If you code for iOS, you want to have something like the following here:
+        //"-isysroot",
+        //"/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator4.3.sdk",
+        //"-D__IPHONE_OS_VERSION_MIN_REQUIRED=40300",
         "-IC:/MinGW/include",
         "-I/path/to/sources/1",
         "-I/path/to/sources/2"
