@@ -13,7 +13,7 @@ Please go [[https://github.com/quarnster/SublimeClang/issues?sort=created&direct
   ## [[http://www.llvm.org/releases/download.html#3.0|Download]] and compile clang.
     *** You can probably get away with installing clang from the ubuntu repos (note that this plugin relies on features from clang 3.0) or
     *** Downloading a binary that matches your distribution
-  ## Copy libclang.so from the installed location into /.config/sublime-text-2/Packages/SublimeClang/
+  ## Make sure libclang.so is in your path. /usr/lib is probably a good choice to copy it to.
 
 === Installation ===
     # The easiest way to install SublimeClang is via the excellent Package Control Plugin
