@@ -9,9 +9,11 @@ ERROR = "error"
 WARNING = "warning"
 clang_view = None
 
+
 def set_clang_view(view):
     global clang_view
     clang_view = view
+
 
 def highlight_panel_row():
     v = clang_view
@@ -20,10 +22,11 @@ def highlight_panel_row():
     str = "%s:%d" % (view.file_name(), (row + 1))
     r = v.find(str, 0)
     if r == None:
-	v.erase_regions('highlightText')
+        v.erase_regions('highlightText')
     else:
         regions = [v.full_line(r)]
         v.add_regions('highlightText', regions, 'string', 'dot', sublime.DRAW_OUTLINED)
+
 
 def clear_error_marks():
     global ERRORS, WARNINGS
