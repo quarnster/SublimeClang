@@ -1,6 +1,7 @@
 import sublime
 import sublime_plugin
 from collections import defaultdict
+from common import get_settings
 
 ERRORS = {}
 WARNINGS = {}
@@ -24,11 +25,12 @@ def highlight_panel_row():
     row, col = view.rowcol(view.sel()[0].a)
     str = "%s:%d" % (view.file_name(), (row + 1))
     r = v.find(str, 0)
+    panel_marker = get_settings().get("marker_output_panel_scope", "invalid")
     if r == None:
         v.erase_regions('highlightText')
     else:
         regions = [v.full_line(r)]
-        v.add_regions('highlightText', regions, 'string', 'dot', sublime.DRAW_OUTLINED)
+        v.add_regions('highlightText', regions, panel_marker, 'dot', sublime.DRAW_OUTLINED)
 
 
 def clear_error_marks():
@@ -55,6 +57,9 @@ def show_error_marks(view):
     gutter_mark = 'dot'
     outlines = {'warning': [], 'illegal': []}
     fn = view.file_name()
+    markers = {'warning':  get_settings().get("marker_warning_scope", "comment"),
+                'illegal': get_settings().get("marker_error_scope", "invalid")
+                }
 
     for line in ERRORS[fn].keys():
         outlines['illegal'].append(view.full_line(view.text_point(line, 0)))
@@ -66,7 +71,7 @@ def show_error_marks(view):
             args = [
                 'sublimeclang-outlines-{0}'.format(lint_type),
                 outlines[lint_type],
-                'invalid.{0}'.format(lint_type),
+                markers[lint_type],
                 gutter_mark
             ]
             if not fill_outlines:
@@ -132,4 +137,3 @@ class SublimeClangStatusbarUpdater(sublime_plugin.EventListener):
     def on_load(self, view):
         if self.has_errors(view):
             show_error_marks(view)
-
