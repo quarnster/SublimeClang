@@ -41,6 +41,7 @@ import time
 import Queue
 from errormarkers import clear_error_marks, add_error_mark, show_error_marks, \
                          update_statusbar, erase_error_marks, set_clang_view
+from common import get_settings
 
 language_regex = re.compile("(?<=source\.)[\w+#]+")
 
@@ -51,10 +52,6 @@ def get_language(view):
     if language == None:
         return None
     return language.group(0)
-
-
-def get_settings():
-    return sublime.load_settings("SublimeClang.sublime-settings")
 
 
 class TranslationUnitCache:

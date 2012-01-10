@@ -43,6 +43,15 @@
     // (automatic ctrl+d,ctrl+b) when the file is closed
     "pop_on_close": true,
 
+    // Scope used for markers in the clang output panel
+    "marker_output_panel_scope": "invalid",
+
+    // Scope used for warning markers
+    "marker_warning_scope": "comment",
+
+    // Scope used for error markers
+    "marker_error_scope": "invalid",
+
     // Don't show stuff in the autocomplete list when the name starts with the following
     "dont_complete_startswith":
     [
