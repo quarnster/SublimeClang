@@ -7,7 +7,23 @@ WARNINGS = {}
 
 ERROR = "error"
 WARNING = "warning"
+clang_view = None
 
+def set_clang_view(view):
+    global clang_view
+    clang_view = view
+
+def highlight_panel_row():
+    v = clang_view
+    view = sublime.active_window().active_view()
+    row, col = view.rowcol(view.sel()[0].a)
+    str = "%s:%d" % (view.file_name(), (row + 1))
+    r = v.find(str, 0)
+    if r == None:
+	v.erase_regions('highlightText')
+    else:
+        regions = [v.full_line(r)]
+        v.add_regions('highlightText', regions, 'string', 'dot', sublime.DRAW_OUTLINED)
 
 def clear_error_marks():
     global ERRORS, WARNINGS
@@ -97,6 +113,7 @@ class SublimeClangStatusbarUpdater(sublime_plugin.EventListener):
         if lastSelectedLineNo != self.lastSelectedLineNo:
             self.lastSelectedLineNo = lastSelectedLineNo
             update_statusbar(view)
+            highlight_panel_row()
 
     def has_errors(self, view):
         fn = view.file_name()
