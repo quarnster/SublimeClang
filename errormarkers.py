@@ -10,6 +10,9 @@ WARNING = "warning"
 clang_view = None
 
 
+# Apparently get_output_panel clears the output view so we'll have
+# to do this for now.
+# See http://www.sublimetext.com/forum/viewtopic.php?f=6&t=2044
 def set_clang_view(view):
     global clang_view
     clang_view = view
