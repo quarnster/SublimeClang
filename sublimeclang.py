@@ -543,7 +543,7 @@ def display_compilation_results(view):
         v = view.window().get_output_panel("clang")
         v.settings().set("result_file_regex", "^(.+):([0-9]+),([0-9]+)")
         view.window().get_output_panel("clang")
-	set_clang_view(v)
+        set_clang_view(v)
         v.set_read_only(False)
         v.set_scratch(True)
         v.set_name("sublimeclang.%s" % view.file_name())
