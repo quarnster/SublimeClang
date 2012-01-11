@@ -23,6 +23,11 @@
     // Whether or not to hide the clang output panel when it's empty
     "hide_output_when_empty": false,
 
+    // Whether or not to automatically show the output panel.
+    // If set to false, the default key-binding ctrl+d,ctrl+p
+    // will show it
+    "show_output_panel": true,
+
     // When set to true, will display visual error markers. recompile_delay
     // must be set to > 0
     "show_visual_error_marks": true,

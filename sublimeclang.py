@@ -530,7 +530,7 @@ def display_compilation_results(view):
                 """
                 add_error_mark(
                     diag.severityName, filename, f.line - 1, diag.spelling)
-            show = True
+            show = get_setting("show_output_panel", True)
     finally:
         tu.unlock()
     window = view.window()
@@ -786,7 +786,7 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
             self.restart_recompile_timer(1)
 
     def on_modified(self, view):
-        if (self.popup_delay <= 0 and self.reparse_delay <= 0) or \
+        if (self.popup_delay <= 0 and self.recompile_delay <= 0) or \
                 not self.is_supported_language(view):
             return
 
