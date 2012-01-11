@@ -794,6 +794,11 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
             # Already parsing so retry in a bit
             self.restart_recompile_timer(1)
 
+    def on_activated(self, view):
+        if self.is_supported_language(view) and get_setting("reparse_on_activated"):
+            self.view = view
+            self.recompile()
+
     def on_modified(self, view):
         if (self.popup_delay <= 0 and self.recompile_delay <= 0) or \
                 not self.is_supported_language(view):
