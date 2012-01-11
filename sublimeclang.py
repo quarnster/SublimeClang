@@ -41,7 +41,7 @@ import time
 import Queue
 from errormarkers import clear_error_marks, add_error_mark, show_error_marks, \
                          update_statusbar, erase_error_marks, set_clang_view
-from common import get_settings
+from common import get_setting, get_settings
 
 language_regex = re.compile("(?<=source\.)[\w+#]+")
 
@@ -233,14 +233,9 @@ class TranslationUnitCache:
         self.parsingList.unlock()
 
     def get_opts(self, view):
-        opts = []
-        s = get_settings()
-        if view.settings().has("sublimeclang_options"):
-            opts = view.settings().get("sublimeclang_options")
-            view.settings().add_on_change("sublimeclang_options", self.clear)
-        else:
-            opts = s.get("options", ["-Wall"])
-        if s.get("add_language_option", True):
+        view.settings().add_on_change("sublimeclang_options", self.clear)
+        opts = get_setting("options")
+        if get_setting("add_language_option", True):
             language = get_language(view)
             if language == "objc":
                 opts.append("-ObjC")
@@ -249,7 +244,7 @@ class TranslationUnitCache:
             else:
                 opts.append("-x")
                 opts.append(language)
-        self.index_parse_options = s.get("index_parse_options", 13)
+        self.index_parse_options = get_setting("index_parse_options", 13)
         return opts
 
     def get_translation_unit(self, filename, opts=[], unsaved_files=[]):
@@ -299,8 +294,7 @@ def warm_up_cache(view, filename=None):
 def get_translation_unit(view, filename=None, blocking=False):
     if filename == None:
         filename = view.file_name()
-    s = get_settings()
-    if s.get("warm_up_in_separate_thread", True) and not blocking:
+    if get_setting("warm_up_in_separate_thread", True) and not blocking:
         stat = warm_up_cache(view, filename)
         if stat == TranslationUnitCache.STATUS_NOT_IN_CACHE:
             return None
@@ -332,8 +326,7 @@ class ClangWarmupCache(sublime_plugin.TextCommand):
 
 class ClangGoBackEventListener(sublime_plugin.EventListener):
     def on_close(self, view):
-        s = get_settings()
-        if not s.get("pop_on_close", True):
+        if not get_setting("pop_on_close", True):
             return
         # If the view we just closed was last in the navigation_stack,
         # consider it "popped" from the stack
@@ -557,7 +550,7 @@ def display_compilation_results(view):
     update_statusbar(view)
     if show:
         view.window().run_command("show_panel", {"panel": "output.clang"})
-    elif get_settings().get("hide_output_when_empty", False):
+    elif get_setting("hide_output_when_empty", False):
         view.window().run_command("hide_panel", {"panel": "output.clang"})
 
 
@@ -566,13 +559,13 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         s = get_settings()
         s.clear_on_change("options")
         s.add_on_change("options", self.load_settings)
-        self.load_settings(s)
+        self.load_settings()
         self.recompile_timer = None
         self.complete_timer = None
         self.member_regex = re.compile("(([a-zA-Z_]+[0-9_]*)|([\)\]])+)((\.)|(->))$")
         self.not_code_regex = re.compile("(string.)|(comment.)")
 
-    def load_settings(self, s=None):
+    def load_settings(self):
         tuCache.clear()
         oldSettings = sublime.load_settings("clang.sublime-settings")
         if oldSettings.get("popup_delay") != None:
@@ -581,24 +574,22 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
                 'clang.sublime-settings' to 'SublimeClang.sublime-settings'. \
                 Please move your settings over to this new file and delete \
                 the old one.")
-        if s == None:
-            s = get_settings()
-        if s.get("popupDelay") != None:
+        if get_setting("popupDelay") != None:
             sublime.error_message(
                 "SublimeClang changed the 'popupDelay' setting to \
                 'popup_delay, please edit your \
                 SublimeClang.sublime-settings to match this")
-        if s.get("recompileDelay") != None:
+        if get_setting("recompileDelay") != None:
             sublime.error_message(
                 "SublimeClang changed the 'recompileDelay' setting to \
                 'recompile_delay, please edit your \
                 SublimeClang.sublime-settings to match this")
-        self.popup_delay = s.get("popup_delay", 500)
-        self.dont_complete_startswith = s.get("dont_complete_startswith",
+        self.popup_delay = get_setting("popup_delay", 500)
+        self.dont_complete_startswith = get_setting("dont_complete_startswith",
                                               ['operator', '~'])
-        self.recompile_delay = s.get("recompile_delay", 1000)
-        self.cache_on_load = s.get("cache_on_load", True)
-        self.remove_on_close = s.get("remove_on_close", True)
+        self.recompile_delay = get_setting("recompile_delay", 1000)
+        self.cache_on_load = get_setting("cache_on_load", True)
+        self.remove_on_close = get_setting("remove_on_close", True)
 
     def parse_res(self, compRes, prefix):
         #print compRes.kind, compRes.string

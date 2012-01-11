@@ -1,7 +1,7 @@
 import sublime
 import sublime_plugin
 from collections import defaultdict
-from common import get_settings
+from common import get_setting
 
 ERRORS = {}
 WARNINGS = {}
@@ -20,12 +20,14 @@ def set_clang_view(view):
 
 
 def highlight_panel_row():
+    if clang_view is None:
+        return
     v = clang_view
     view = sublime.active_window().active_view()
     row, col = view.rowcol(view.sel()[0].a)
     str = "%s:%d" % (view.file_name(), (row + 1))
     r = v.find(str, 0)
-    panel_marker = get_settings().get("marker_output_panel_scope", "invalid")
+    panel_marker = get_setting("marker_output_panel_scope", "invalid")
     if r == None:
         v.erase_regions('highlightText')
     else:
@@ -51,14 +53,14 @@ def add_error_mark(severity, filename, line, message):
 def show_error_marks(view):
     '''Adds error marks to view.'''
     erase_error_marks(view)
-    if not sublime.load_settings("SublimeClang.sublime-settings").get("show_visual_error_marks", True):
+    if not get_setting("show_visual_error_marks", True):
         return
     fill_outlines = False
     gutter_mark = 'dot'
     outlines = {'warning': [], 'illegal': []}
     fn = view.file_name()
-    markers = {'warning':  get_settings().get("marker_warning_scope", "comment"),
-                'illegal': get_settings().get("marker_error_scope", "invalid")
+    markers = {'warning':  get_setting("marker_warning_scope", "comment"),
+                'illegal': get_setting("marker_error_scope", "invalid")
                 }
 
     for line in ERRORS[fn].keys():
