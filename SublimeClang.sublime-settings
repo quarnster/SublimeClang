@@ -63,6 +63,29 @@
     "add_language_option": true,
 
     // Any options you want to give to clang
+    // This can also be specified as project specific options. Choose the menu item
+    // Project->Edit Project, and then add something like the following to the
+    // "settings" section:
+    //
+    //     "sublimeclang_options":
+    //     [
+    //         "-I/project/specific/path/1",
+    //         "-I/project/specific/path/2"
+    //     ]
+    //
+    // If your project does not have a settings section it would look like this:
+    //
+    // "settings":
+    // {
+    //     "sublimeclang_options":
+    //     [
+    //         "-I/project/specific/path/1",
+    //         "-I/project/specific/path/2"
+    //     ]
+    // }
+    //
+    // If "sublimeclang_options" exists in your project settings, it'll override
+    // rather than add to the "options" defined in SublimeClang.sublime-settings.
     "options":
     [
         "-Wall",

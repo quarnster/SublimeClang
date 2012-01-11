@@ -233,8 +233,13 @@ class TranslationUnitCache:
         self.parsingList.unlock()
 
     def get_opts(self, view):
+        opts = []
         s = get_settings()
-        opts = s.get("options", ["-Wall"])
+        if view.settings().has("sublimeclang_options"):
+            opts = view.settings().get("sublimeclang_options")
+            view.settings().add_on_change("sublimeclang_options", self.clear)
+        else:
+            opts = s.get("options", ["-Wall"])
         if s.get("add_language_option", True):
             language = get_language(view)
             if language == "objc":
