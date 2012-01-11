@@ -37,5 +37,15 @@
   {
     "command": "show_panel", "args": {"panel": "output.clang", "toggle": true},
     "keys": ["ctrl+d", "ctrl+p"]
+  },
+    {
+    "command": "clang_previous",
+    "context": [{"key": "clang_supported_language"}],
+    "keys": ["ctrl+shift+d", "ctrl+shift+e"]
+  },
+  {
+    "command": "clang_next",
+    "context": [{"key": "clang_supported_language"}],
+    "keys": ["ctrl+d", "ctrl+e"]
   }
 ]
