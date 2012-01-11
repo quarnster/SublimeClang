@@ -96,11 +96,11 @@ def update_statusbar(view):
     lineno = last_selected_lineno(view)
 
     if fn in ERRORS and lineno in ERRORS[fn]:
-        view.set_status('SublimeClang', '; '.join(ERRORS[fn][lineno]))
+        view.set_status('SublimeClang_line', "Error: %s" % '; '.join(ERRORS[fn][lineno]))
     elif fn in WARNINGS and lineno in WARNINGS[fn]:
-        view.set_status('SublimeClang', '; '.join(WARNINGS[fn][lineno]))
+        view.set_status('SublimeClang_line', "Warning: %s" % '; '.join(WARNINGS[fn][lineno]))
     else:
-        view.erase_status('SublimeClang')
+        view.erase_status('SublimeClang_line')
 
 
 class SublimeClangStatusbarUpdater(sublime_plugin.EventListener):
