@@ -33,5 +33,9 @@
     "command": "clang_toggle_complete_enabled",
     "context": [{"key": "clang_supported_language"}],
     "keys": ["ctrl+d", "ctrl+t"]
+  },
+  {
+    "command": "show_panel", "args": {"panel": "output.clang", "toggle": true},
+    "keys": ["ctrl+d", "ctrl+p"]
   }
 ]
