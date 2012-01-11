@@ -64,6 +64,10 @@
     // (automatic ctrl+d,ctrl+b) when the file is closed
     "pop_on_close": true,
 
+    // When set to true a reparse command will be triggered
+    // when a view is activated
+    "reparse_on_activated": true,
+
     // Scope used for markers in the clang output panel
     "marker_output_panel_scope": "invalid",
 
