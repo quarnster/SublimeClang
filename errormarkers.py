@@ -11,6 +11,50 @@ WARNING = "warning"
 clang_view = None
 
 
+class ClangNext(sublime_plugin.TextCommand):
+    def run(self, edit):
+        v = self.view
+        fn = v.file_name()
+        line, column = v.rowcol(v.sel()[0].a)
+        gotoline = -1
+        if fn in ERRORS:
+            for errLine in ERRORS[fn]:
+                if errLine > line:
+                    gotoline = errLine
+                    break
+        if fn in WARNINGS:
+            for warnLine in WARNINGS[fn]:
+                if warnLine > line:
+                    if gotoline == -1 or warnLine < gotoline:
+                        gotoline = warnLine
+                    break
+        if gotoline != -1:
+            v.window().open_file("%s:%d" % (fn, gotoline + 1), sublime.ENCODED_POSITION)
+        else:
+            sublime.status_message("No more errors or warnings!")
+
+
+class ClangPrevious(sublime_plugin.TextCommand):
+    def run(self, edit):
+        v = self.view
+        fn = v.file_name()
+        line, column = v.rowcol(v.sel()[0].a)
+        gotoline = -1
+        if fn in ERRORS:
+            for errLine in ERRORS[fn]:
+                if errLine < line:
+                    gotoline = errLine
+        if fn in WARNINGS:
+            for warnLine in WARNINGS[fn]:
+                if warnLine < line:
+                    if gotoline == -1 or warnLine > gotoline:
+                        gotoline = warnLine
+        if gotoline != -1:
+            v.window().open_file("%s:%d" % (fn, gotoline + 1), sublime.ENCODED_POSITION)
+        else:
+            sublime.status_message("No more errors or warnings!")
+
+
 # Apparently get_output_panel clears the output view so we'll have
 # to do this for now.
 # See http://www.sublimetext.com/forum/viewtopic.php?f=6&t=2044
