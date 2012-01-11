@@ -28,6 +28,9 @@
     // will show it
     "show_output_panel": true,
 
+    // Whether or not to show the clang parser status in the status bar
+    "show_status": true,
+
     // When set to true, will display visual error markers. recompile_delay
     // must be set to > 0
     "show_visual_error_marks": true,
