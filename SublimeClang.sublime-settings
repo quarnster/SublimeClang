@@ -1,4 +1,17 @@
 {
+
+    // All options in here can also be specified in your project settings
+    // with a prepended "sublimeclang_" for example if you have
+    //
+    // "settings":
+    // {
+    //     "sublimeclang_show_visual_error_marks": false
+    // }
+    //
+    // in your project settings, this will override the settings specified
+    // in this file and in your user settings.
+
+
     // Delay in ms until autocompletion pops up after . or :: or ->
     // Set to 0 to disable
     "popup_delay": 100,
