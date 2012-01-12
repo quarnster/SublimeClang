@@ -18,7 +18,7 @@
 
     // Delay in ms until recompiling the file after the buffer is modified
     // Set to 0 to disable
-    "recompile_delay": 1000,
+    "recompile_delay": 0,
 
     // Whether or not to hide the clang output panel when it's empty
     "hide_output_when_empty": false,
@@ -67,6 +67,10 @@
     // When set to true a reparse command will be triggered
     // when a view is activated
     "reparse_on_activated": true,
+
+    // When set to true a reparse command will be triggered
+    // when a view is saved
+    "reparse_on_save": true,
 
     // Scope used for markers in the clang output panel
     "marker_output_panel_scope": "invalid",

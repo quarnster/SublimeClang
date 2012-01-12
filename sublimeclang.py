@@ -487,8 +487,10 @@ class ClangReparse(sublime_plugin.TextCommand):
 
     def run(self, edit):
         view = self.view
-        unsaved_files = [(view.file_name(),
-                          view.substr(Region(0, view.size())))]
+        unsaved_files = []
+        if view.is_dirty():
+            unsaved_files.append((view.file_name(),
+                          view.substr(Region(0, view.size()))))
         tuCache.reparse(view, view.file_name(), unsaved_files,
                         self.reparse_done)
         sublime.status_message("reparsing")
@@ -786,8 +788,10 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
 
     def recompile(self):
         view = self.view
-        unsaved_files = [(view.file_name(),
-                          view.substr(Region(0, view.size())))]
+        unsaved_files = []
+        if view.is_dirty():
+            unsaved_files.append((view.file_name(),
+                                  view.substr(Region(0, view.size()))))
         if not tuCache.reparse(view, view.file_name(), unsaved_files,
                         self.reparse_done):
             # Already parsing so retry in a bit
@@ -795,6 +799,11 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
 
     def on_activated(self, view):
         if self.is_supported_language(view) and get_setting("reparse_on_activated"):
+            self.view = view
+            self.recompile()
+
+    def on_save(self, view):
+        if self.is_supported_language(view) and get_setting("reparse_on_save"):
             self.view = view
             self.recompile()
 
