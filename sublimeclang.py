@@ -505,8 +505,8 @@ def display_compilation_results(view):
     if tu == None:
         return
     tu.lock()
-    diagnosticLevel = -1
-    diagnosticName = ""
+    errorCount = 0
+    warningCount = 0
     try:
         if len(tu.var.diagnostics):
             errString = ""
@@ -525,9 +525,10 @@ def display_compilation_results(view):
                           "See http://github.com/quarnster/SublimeClang for more details on "\
                           "how to configure SublimeClang." % (err)
                 errString = "%s%s\n" % (errString, err)
-                if diag.severity > diagnosticLevel:
-                    diagnosticLevel = diag.severity
-                    diagnosticName = diag.severityName
+                if diag.severity == cindex.Diagnostic.Warning:
+                    warningCount += 1
+                elif diag.severity >= cindex.Diagnostic.Error:
+                    errorCount += 1
                 """
                 for range in diag.ranges:
                     errString = "%s%s\n" % (errString, range)
@@ -539,8 +540,14 @@ def display_compilation_results(view):
             show = get_setting("show_output_panel", True)
     finally:
         tu.unlock()
-    if diagnosticLevel != -1 and get_setting("show_status"):
-        view.set_status("SublimeClang", "Clang Status: %s" % diagnosticName)
+    if (errorCount > 0 or warningCount > 0) and get_setting("show_status"):
+        statusString = "Clang Status: "
+        if errorCount > 0:
+            statusString = "%s%d Error%s" % (statusString, errorCount, "s" if errorCount != 1 else "")
+        if warningCount > 0:
+            statusString = "%s%s%d Warning%s" % (statusString, ", " if errorCount > 0 else "",
+                                                 warningCount, "s" if warningCount != 1 else "")
+        view.set_status("SublimeClang", statusString)
     else:
         view.erase_status("SublimeClang")
     window = view.window()
