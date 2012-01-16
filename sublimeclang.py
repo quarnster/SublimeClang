@@ -809,7 +809,7 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
             self.view = view
             self.recompile()
 
-    def on_save(self, view):
+    def on_post_save(self, view):
         if self.is_supported_language(view) and get_setting("reparse_on_save"):
             self.view = view
             self.recompile()
