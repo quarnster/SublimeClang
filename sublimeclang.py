@@ -54,6 +54,16 @@ def get_language(view):
     return language.group(0)
 
 
+def is_supported_language(view):
+    language = get_language(view)
+    if language == None or (language != "c++" and
+                            language != "c" and
+                            language != "objc" and
+                            language != "objc++"):
+        return False
+    return True
+
+
 class TranslationUnitCache:
     STATUS_PARSING      = 1
     STATUS_REPARSING    = 2
@@ -344,6 +354,9 @@ class ClangGoBack(sublime_plugin.TextCommand):
             self.view.window().open_file(
                 navigation_stack.pop()[0], sublime.ENCODED_POSITION)
 
+    def is_enabled(self):
+        return is_supported_language(sublime.active_window().active_view()) and len(navigation_stack) > 0
+
 
 def format_cursor(cursor):
     return "%s:%d:%d" % (cursor.location.file.name, cursor.location.line,
@@ -419,6 +432,9 @@ class ClangGotoImplementation(sublime_plugin.TextCommand):
         else:
             sublime.status_message("Don't know where the implementation is!")
 
+    def is_enabled(self):
+        return is_supported_language(sublime.active_window().active_view())
+
 
 class ClangGotoDef(sublime_plugin.TextCommand):
     def quickpanel_on_done(self, idx):
@@ -471,6 +487,9 @@ class ClangGotoDef(sublime_plugin.TextCommand):
             open(self.view, target)
         else:
             sublime.status_message("No parent to go to!")
+
+    def is_enabled(self):
+        return is_supported_language(sublime.active_window().active_view())
 
 
 class ClangClearCache(sublime_plugin.TextCommand):
@@ -636,15 +655,6 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
                     insertion = "%s%s" % (insertion, chunk.spelling)
         return (True, "%s\t%s" % (representation, returnType), insertion)
 
-    def is_supported_language(self, view):
-        language = get_language(view)
-        if language == None or (language != "c++" and
-                                language != "c" and
-                                language != "objc" and
-                                language != "objc++"):
-            return False
-        return True
-
     def is_member_completion(self, view, caret):
         line = view.substr(Region(view.line(caret).a, caret))
         if self.member_regex.search(line) != None:
@@ -712,7 +722,7 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
 
     def on_query_completions(self, view, prefix, locations):
         global clang_complete_enabled
-        if not self.is_supported_language(view) or not clang_complete_enabled:
+        if not is_supported_language(view) or not clang_complete_enabled:
             return []
 
         tu = get_translation_unit(view)
@@ -805,18 +815,18 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
             self.restart_recompile_timer(1)
 
     def on_activated(self, view):
-        if self.is_supported_language(view) and get_setting("reparse_on_activated"):
+        if is_supported_language(view) and get_setting("reparse_on_activated"):
             self.view = view
             self.recompile()
 
     def on_post_save(self, view):
-        if self.is_supported_language(view) and get_setting("reparse_on_save"):
+        if is_supported_language(view) and get_setting("reparse_on_save"):
             self.view = view
             self.recompile()
 
     def on_modified(self, view):
         if (self.popup_delay <= 0 and self.recompile_delay <= 0) or \
-                not self.is_supported_language(view):
+                not is_supported_language(view):
             return
 
         if self.popup_delay > 0:
@@ -827,11 +837,11 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
             self.restart_recompile_timer(self.recompile_delay / 1000.0)
 
     def on_load(self, view):
-        if self.cache_on_load and self.is_supported_language(view):
+        if self.cache_on_load and is_supported_language(view):
             warm_up_cache(view)
 
     def on_close(self, view):
-        if self.remove_on_close and self.is_supported_language(view):
+        if self.remove_on_close and is_supported_language(view):
             tuCache.remove(view.file_name())
 
     def on_query_context(self, view, key, operator, operand, match_all):
@@ -839,4 +849,4 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
             return None
         if view == None:
             view = sublime.active_window().active_view()
-        return self.is_supported_language(view)
+        return is_supported_language(view)
