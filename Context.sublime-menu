@@ -1,0 +1,7 @@
+[
+    { "caption": "-", "id": "sublimeclang" },
+    { "command": "clang_goto_def", "caption": "Go to Definition" },
+    { "command": "clang_goto_implementation", "caption": "Go to Implementation" },
+    { "command": "clang_go_back", "caption": "Go Back"}
+
+]
