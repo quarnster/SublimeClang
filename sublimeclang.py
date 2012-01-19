@@ -1,5 +1,5 @@
 """
-Copyright (c) 2011 Fredrik Ehnbom
+Copyright (c) 2011-2012 Fredrik Ehnbom
 
 This software is provided 'as-is', without any express or implied
 warranty. In no event will the authors be held liable for any damages
@@ -340,6 +340,8 @@ class ClangGoBackEventListener(sublime_plugin.EventListener):
         # If the view we just closed was last in the navigation_stack,
         # consider it "popped" from the stack
         fn = view.file_name()
+        if fn == None:
+            return
         while True:
             if len(navigation_stack) == 0 or \
                     not navigation_stack[

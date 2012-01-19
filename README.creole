@@ -49,7 +49,7 @@ There's also the following key-bindings (tweak Default.sublime-keymaps to change
 This plugin is using the zlib license
 
 {{{
-Copyright (c) 2011 Fredrik Ehnbom
+Copyright (c) 2011-2012 Fredrik Ehnbom
 
 This software is provided 'as-is', without any express or implied
 warranty. In no event will the authors be held liable for any damages
