@@ -70,7 +70,7 @@ def highlight_panel_row():
     view = sublime.active_window().active_view()
     row, col = view.rowcol(view.sel()[0].a)
     str = "%s:%d" % (view.file_name(), (row + 1))
-    r = v.find(str, 0)
+    r = v.find(str.replace('\\','\\\\'), 0)
     panel_marker = get_setting("marker_output_panel_scope", "invalid")
     if r == None:
         v.erase_regions('highlightText')
