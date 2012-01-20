@@ -586,10 +586,11 @@ def display_compilation_results(view):
         v.set_read_only(True)
     show_error_marks(view)
     update_statusbar(view)
-    if show:
-        view.window().run_command("show_panel", {"panel": "output.clang"})
-    elif get_setting("hide_output_when_empty", False):
-        view.window().run_command("hide_panel", {"panel": "output.clang"})
+    if not window is None:
+        if show:
+            window.run_command("show_panel", {"panel": "output.clang"})
+        elif get_setting("hide_output_when_empty", False):
+            window.run_command("hide_panel", {"panel": "output.clang"})
 
 
 class SublimeClangAutoComplete(sublime_plugin.EventListener):
