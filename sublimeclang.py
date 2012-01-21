@@ -399,6 +399,16 @@ class ClangGotoImplementation(sublime_plugin.TextCommand):
             d = cursor.get_definition()
             if not d is None and cursor != d:
                 target = format_cursor(d)
+            elif not d is None and cursor == d and \
+                    (cursor.kind == cindex.CursorKind.VAR_DECL or \
+                    cursor.kind == cindex.CursorKind.PARM_DECL or \
+                    cursor.kind == cindex.CursorKind.FIELD_DECL):
+                for child in cursor.get_children():
+                    if child.kind == cindex.CursorKind.TYPE_REF:
+                        d = child.get_definition()
+                        if not d is None:
+                            target = format_cursor(d)
+                        break;
             elif d is None:
                 if cursor.kind == cindex.CursorKind.DECL_REF_EXPR or \
                         cursor.kind == cindex.CursorKind.MEMBER_REF_EXPR:
@@ -477,6 +487,15 @@ class ClangGotoDef(sublime_plugin.TextCommand):
                             opts.append(self.quickpanel_format(o[i]))
                         view.window().show_quick_panel(opts,
                                                        self.quickpanel_on_done)
+                    elif (cursor.kind == cindex.CursorKind.VAR_DECL or \
+                            cursor.kind == cindex.CursorKind.PARM_DECL or \
+                            cursor.kind == cindex.CursorKind.FIELD_DECL):
+                        for child in cursor.get_children():
+                            if child.kind == cindex.CursorKind.TYPE_REF:
+                                d = child.get_definition()
+                                if not d is None:
+                                    target = format_cursor(d)
+                                break;
             elif not ref is None:
                 target = format_cursor(ref)
             elif cursor.kind == cindex.CursorKind.INCLUSION_DIRECTIVE:
