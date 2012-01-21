@@ -409,6 +409,12 @@ class ClangGotoImplementation(sublime_plugin.TextCommand):
                         if not d is None:
                             target = format_cursor(d)
                         break;
+            elif cursor.kind == cindex.CursorKind.CLASS_DECL:
+                for child in cursor.get_children():
+                    if child.kind == cindex.CursorKind.CXX_BASE_SPECIFIER:
+                        d = child.get_definition()
+                        if not d is None:
+                            target = format_cursor(d)
             elif d is None:
                 if cursor.kind == cindex.CursorKind.DECL_REF_EXPR or \
                         cursor.kind == cindex.CursorKind.MEMBER_REF_EXPR:
@@ -496,6 +502,12 @@ class ClangGotoDef(sublime_plugin.TextCommand):
                                 if not d is None:
                                     target = format_cursor(d)
                                 break;
+                    elif cursor.kind == cindex.CursorKind.CLASS_DECL:
+                        for child in cursor.get_children():
+                            if child.kind == cindex.CursorKind.CXX_BASE_SPECIFIER:
+                                d = child.get_definition()
+                                if not d is None:
+                                    target = format_cursor(d)
             elif not ref is None:
                 target = format_cursor(ref)
             elif cursor.kind == cindex.CursorKind.INCLUSION_DIRECTIVE:
