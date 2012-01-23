@@ -64,32 +64,13 @@ call is efficient.
 
 from ctypes import *
 import sublime
+import platform
 
-def hack(func):
-    # If there's a sublime.error_message before a window is open
-    # on Windows 7, it appears the main editor window
-    # is never opened...
-    import sublime
-    class hackClass:
-        def __init__(self, func):
-            self.func = func
-            self.try_now()
-
-        def try_now(self):
-            if sublime.active_window() == None:
-                sublime.set_timeout(self.try_now, 500)
-            else:
-                self.func()
-    hackClass(func)
-
-def win64bitError():
-    import sublime
-    sublime.error_message("""\
-SublimeClang currently does not work with the \
-64 bit executable of Sublime Text 2. Don't worry \
-though it works just fine with the 32 bit executable on \
-64 bit Windows, so please install the 32 bit version of \
-Sublime Text 2 if you want to use this plugin""")
+isWin64 = False
+if platform.system() == 'Windows':
+    bits,linkage = platform.architecture()
+    if bits=="64bit":
+        isWin64 = True
 
 def get_cindex_library():
     # FIXME: It's probably not the case that the library is actually found in
@@ -100,10 +81,8 @@ def get_cindex_library():
     if name == 'Darwin':
         return cdll.LoadLibrary('libclang.dylib')
     elif name == 'Windows':
-        import platform
-        bits,linkage = platform.architecture()
-        if bits == "64bit":
-            hack(win64bitError)
+        if isWin64:
+            return cdll.LoadLibrary("libclang_x64.dll")
         return cdll.LoadLibrary('libclang.dll')
     else:
         try:
@@ -133,6 +112,7 @@ plugin. See http://github.com/quarnster/SublimeClang for more details.
 # integer and pass the wrong value on platforms where int != void*. Work around
 # this by marshalling object arguments as void**.
 c_object_p = POINTER(c_void_p)
+
 
 lib = get_cindex_library()
 
@@ -1031,8 +1011,17 @@ class Cursor(Structure):
         def visitor(child, parent, children):
             # FIXME: Document this assertion in API.
             # FIXME: There should just be an isNull method.
-            assert child != Cursor_null()
-            children.append(child)
+            if isWin64:
+                _child = Cursor()
+                #_fields_ = [("_kind_id", c_int), ("xdata", c_int), ("data", c_void_p * 3)]
+
+                _child._kind_id = child[0]._kind_id #dealing with pointers on Win64
+                _child.xdata = child[0].xdata
+                _child.data = child[0].data
+                children.append(_child)
+            else:
+                assert child != Cursor_null()
+                children.append(child)
             return 1 # continue
         children = []
         Cursor_visit(self, Cursor_visit_callback(visitor), children)
@@ -1661,16 +1650,24 @@ class FileInclusion(object):
 # String Functions
 _CXString_dispose = lib.clang_disposeString
 _CXString_dispose.argtypes = [_CXString]
+if isWin64:
+    _CXString_dispose.argtypes = [POINTER(_CXString)]
 
 _CXString_getCString = lib.clang_getCString
 _CXString_getCString.argtypes = [_CXString]
 _CXString_getCString.restype = c_char_p
+if isWin64:
+    _CXString_getCString.argtypes = [POINTER(_CXString)]
 
 # Source Location Functions
 SourceLocation_loc = lib.clang_getInstantiationLocation
 SourceLocation_loc.argtypes = [SourceLocation, POINTER(c_object_p),
                                POINTER(c_uint), POINTER(c_uint),
                                POINTER(c_uint)]
+if isWin64:
+    SourceLocation_loc.argtypes = [POINTER(SourceLocation), POINTER(c_object_p),
+                                   POINTER(c_uint), POINTER(c_uint),
+                                   POINTER(c_uint)]
 
 _clang_getLocation = lib.clang_getLocation
 _clang_getLocation.argtypes = [TranslationUnit, File, c_uint, c_uint]
@@ -1681,14 +1678,20 @@ _clang_getLocation.restype = SourceLocation
 SourceRange_getRange = lib.clang_getRange
 SourceRange_getRange.argtypes = [SourceLocation, SourceLocation]
 SourceRange_getRange.restype = SourceRange
+if isWin64:
+    SourceRange_getRange.argtypes = [POINTER(SourceLocation), POINTER(SourceLocation)]
 
 SourceRange_start = lib.clang_getRangeStart
 SourceRange_start.argtypes = [SourceRange]
 SourceRange_start.restype = SourceLocation
+if isWin64:
+    SourceRange_start.argtypes = [POINTER(SourceRange)]
 
 SourceRange_end = lib.clang_getRangeEnd
 SourceRange_end.argtypes = [SourceRange]
 SourceRange_end.restype = SourceLocation
+if isWin64:
+    SourceRange_end.argtypes = [POINTER(SourceRange)]
 
 # CursorKind Functions
 CursorKind_is_decl = lib.clang_isDeclaration
@@ -1721,6 +1724,8 @@ CursorKind_is_inv.restype = bool
 Cursor_get = lib.clang_getCursor
 Cursor_get.argtypes = [TranslationUnit, SourceLocation]
 Cursor_get.restype = Cursor
+if isWin64:
+    Cursor_get.argtypes = [TranslationUnit, POINTER(SourceLocation)]
 
 Cursor_null = lib.clang_getNullCursor
 Cursor_null.restype = Cursor
@@ -1729,72 +1734,105 @@ Cursor_usr = lib.clang_getCursorUSR
 Cursor_usr.argtypes = [Cursor]
 Cursor_usr.restype = _CXString
 Cursor_usr.errcheck = _CXString.from_result
+if isWin64:
+    Cursor_usr.argtypes = [POINTER(Cursor)]
 
 Cursor_is_def = lib.clang_isCursorDefinition
 Cursor_is_def.argtypes = [Cursor]
 Cursor_is_def.restype = bool
+if isWin64:
+    Cursor_is_def.argtypes = [POINTER(Cursor)]
 
 Cursor_def = lib.clang_getCursorDefinition
 Cursor_def.argtypes = [Cursor]
 Cursor_def.restype = Cursor
 Cursor_def.errcheck = Cursor.from_result
+if isWin64:
+    Cursor_def.argtypes = [POINTER(Cursor)]
 
 Cursor_eq = lib.clang_equalCursors
 Cursor_eq.argtypes = [Cursor, Cursor]
 Cursor_eq.restype = c_uint
+if isWin64:
+    Cursor_eq.argtypes = [POINTER(Cursor), POINTER(Cursor)]
 
 Cursor_spelling = lib.clang_getCursorSpelling
 Cursor_spelling.argtypes = [Cursor]
 Cursor_spelling.restype = _CXString
 Cursor_spelling.errcheck = _CXString.from_result
+if isWin64:
+    Cursor_spelling.argtypes = [POINTER(Cursor)]
 
 Cursor_displayname = lib.clang_getCursorDisplayName
 Cursor_displayname.argtypes = [Cursor]
 Cursor_displayname.restype = _CXString
 Cursor_displayname.errcheck = _CXString.from_result
+if isWin64:
+    Cursor_displayname.argtypes = [POINTER(Cursor)]
 
 Cursor_loc = lib.clang_getCursorLocation
 Cursor_loc.argtypes = [Cursor]
 Cursor_loc.restype = SourceLocation
+if isWin64:
+    Cursor_loc.argtypes = [POINTER(Cursor)]
 
 Cursor_extent = lib.clang_getCursorExtent
 Cursor_extent.argtypes = [Cursor]
 Cursor_extent.restype = SourceRange
+if isWin64:
+    Cursor_extent.argtypes = [POINTER(Cursor)]
 
 Cursor_ref = lib.clang_getCursorReferenced
 Cursor_ref.argtypes = [Cursor]
 Cursor_ref.restype = Cursor
 Cursor_ref.errcheck = Cursor.from_result
+if isWin64:
+    Cursor_ref.argtypes = [POINTER(Cursor)]
 
 Cursor_semanticParent = lib.clang_getCursorSemanticParent
 Cursor_semanticParent.argtypes = [Cursor]
 Cursor_semanticParent.restype = Cursor
+if isWin64:
+    Cursor_semanticParent.argtypes = [POINTER(Cursor)]
 
 Cursor_lexicalParent = lib.clang_getCursorLexicalParent
 Cursor_lexicalParent.argtypes = [Cursor]
 Cursor_lexicalParent.restype = Cursor
+if isWin64:
+    Cursor_lexicalParent.argtypes = [POINTER(Cursor)]
 
 Cursor_get_canonical = lib.clang_getCanonicalCursor
 Cursor_get_canonical.argtypes = [Cursor]
 Cursor_get_canonical.restype = Cursor
 Cursor_get_canonical.errcheck = Cursor.from_result
+if isWin64:
+    Cursor_get_canonical.argtypes = [POINTER(Cursor)]
 
 Cursor_get_linkage = lib.clang_getCursorLinkage
 Cursor_get_linkage.argtypes = [Cursor]
 Cursor_get_linkage.restype = c_uint
+if isWin64:
+    Cursor_get_linkage.argtypes = [POINTER(Cursor)]
 
 Cursor_type = lib.clang_getCursorType
 Cursor_type.argtypes = [Cursor]
 Cursor_type.restype = Type
 Cursor_type.errcheck = Type.from_result
+if isWin64:
+    Cursor_type.argtypes = [POINTER(Cursor)]
 
 Cursor_visit_callback = CFUNCTYPE(c_int, Cursor, Cursor, py_object)
 Cursor_visit = lib.clang_visitChildren
 Cursor_visit.argtypes = [Cursor, Cursor_visit_callback, py_object]
 Cursor_visit.restype = c_uint
+if isWin64:
+    Cursor_visit_callback = CFUNCTYPE(c_int, POINTER(Cursor), POINTER(Cursor), py_object)
+    Cursor_visit.argtypes = [POINTER(Cursor), Cursor_visit_callback, py_object]
 
 Cursor_getOverridden = lib.clang_getOverriddenCursors
 Cursor_getOverridden.argtypes = [Cursor, POINTER(POINTER(Cursor)), POINTER(c_int)]
+if isWin64:
+    Cursor_getOverridden.argtypes = [POINTER(Cursor), POINTER(POINTER(Cursor)), POINTER(c_int)]
 
 Cursor_disposeOverridden = lib.clang_disposeOverriddenCursors
 Cursor_disposeOverridden.argtypes = [POINTER(Cursor)]
@@ -1804,34 +1842,47 @@ Type_get_canonical = lib.clang_getCanonicalType
 Type_get_canonical.argtypes = [Type]
 Type_get_canonical.restype = Type
 Type_get_canonical.errcheck = Type.from_result
+if isWin64:
+    Type_get_canonical.argtypes = [POINTER(Type)]
 
 Type_is_const_qualified = lib.clang_isConstQualifiedType
 Type_is_const_qualified.argtypes = [Type]
 Type_is_const_qualified.restype = bool
+if isWin64:
+    Type_is_const_qualified.argtypes = [POINTER(Type)]
 
 Type_is_volatile_qualified = lib.clang_isVolatileQualifiedType
 Type_is_volatile_qualified.argtypes = [Type]
 Type_is_volatile_qualified.restype = bool
+if isWin64:
+    Type_is_volatile_qualified.argtypes = [POINTER(Type)]
 
 Type_is_restrict_qualified = lib.clang_isRestrictQualifiedType
 Type_is_restrict_qualified.argtypes = [Type]
 Type_is_restrict_qualified.restype = bool
+if isWin64:
+    Type_is_restrict_qualified.argtypes = [POINTER(Type)]
 
 Type_get_pointee = lib.clang_getPointeeType
 Type_get_pointee.argtypes = [Type]
 Type_get_pointee.restype = Type
 Type_get_pointee.errcheck = Type.from_result
+if isWin64:
+    Type_get_pointee.argtypes = [POINTER(Type)]
 
 Type_get_declaration = lib.clang_getTypeDeclaration
 Type_get_declaration.argtypes = [Type]
 Type_get_declaration.restype = Cursor
 Type_get_declaration.errcheck = Cursor.from_result
+if isWin64:
+    Type_get_declaration.argtypes = [POINTER(Type)]
 
 Type_get_result = lib.clang_getResultType
 Type_get_result.argtypes = [Type]
 Type_get_result.restype = Type
 Type_get_result.errcheck = Type.from_result
-
+if isWin64:
+    Type_get_result.argtypes = [POINTER(Type)]
 
 # Index Functions
 Index_create = lib.clang_createIndex
@@ -1898,6 +1949,8 @@ _clang_getFile.restype = c_object_p
 _clang_getIncludedFile = lib.clang_getIncludedFile
 _clang_getIncludedFile.argtypes = [Cursor]
 _clang_getIncludedFile.restype = c_object_p
+if isWin64:
+    _clang_getIncludedFile.argtypes = [POINTER(Cursor)]
 
 # Code completion
 
