@@ -359,6 +359,9 @@ class ClangGoBack(sublime_plugin.TextCommand):
     def is_enabled(self):
         return is_supported_language(sublime.active_window().active_view()) and len(navigation_stack) > 0
 
+    def is_visible(self):
+        return is_supported_language(sublime.active_window().active_view())
+
 
 def format_cursor(cursor):
     return "%s:%d:%d" % (cursor.location.file.name, cursor.location.line,
@@ -408,7 +411,7 @@ class ClangGotoImplementation(sublime_plugin.TextCommand):
                         d = child.get_definition()
                         if not d is None:
                             target = format_cursor(d)
-                        break;
+                        break
             elif cursor.kind == cindex.CursorKind.CLASS_DECL:
                 for child in cursor.get_children():
                     if child.kind == cindex.CursorKind.CXX_BASE_SPECIFIER:
@@ -451,6 +454,9 @@ class ClangGotoImplementation(sublime_plugin.TextCommand):
             sublime.status_message("Don't know where the implementation is!")
 
     def is_enabled(self):
+        return is_supported_language(sublime.active_window().active_view())
+
+    def is_visible(self):
         return is_supported_language(sublime.active_window().active_view())
 
 
@@ -501,7 +507,7 @@ class ClangGotoDef(sublime_plugin.TextCommand):
                                 d = child.get_definition()
                                 if not d is None:
                                     target = format_cursor(d)
-                                break;
+                                break
                     elif cursor.kind == cindex.CursorKind.CLASS_DECL:
                         for child in cursor.get_children():
                             if child.kind == cindex.CursorKind.CXX_BASE_SPECIFIER:
@@ -522,6 +528,9 @@ class ClangGotoDef(sublime_plugin.TextCommand):
             sublime.status_message("No parent to go to!")
 
     def is_enabled(self):
+        return is_supported_language(sublime.active_window().active_view())
+
+    def is_visible(self):
         return is_supported_language(sublime.active_window().active_view())
 
 
