@@ -55,6 +55,8 @@ def get_language(view):
 
 
 def is_supported_language(view):
+    if view.is_scratch():
+        return False
     language = get_language(view)
     if language == None or (language != "c++" and
                             language != "c" and
@@ -860,12 +862,12 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
     def on_activated(self, view):
         if is_supported_language(view) and get_setting("reparse_on_activated"):
             self.view = view
-            self.recompile()
+            self.restart_recompile_timer(0.1)
 
     def on_post_save(self, view):
         if is_supported_language(view) and get_setting("reparse_on_save"):
             self.view = view
-            self.recompile()
+            self.restart_recompile_timer(0.1)
 
     def on_modified(self, view):
         if (self.popup_delay <= 0 and self.recompile_delay <= 0) or \
