@@ -2,50 +2,50 @@
   {
     "command": "clang_goto_def",
     "context": [{"key": "clang_supported_language"}],
-    "keys": ["ctrl+d", "ctrl+d"]
+    "keys": ["alt+d", "alt+d"]
   },
   {
     "command": "clang_goto_implementation",
     "context": [{"key": "clang_supported_language"}],
-    "keys": ["ctrl+d", "ctrl+i"]
+    "keys": ["alt+d", "alt+i"]
   },
   {
     "command": "clang_go_back",
     "context": [{"key": "clang_supported_language"}],
-    "keys": ["ctrl+d", "ctrl+b"]
+    "keys": ["alt+d", "alt+b"]
   },
   {
     "command": "clang_clear_cache",
     "context": [{"key": "clang_supported_language"}],
-    "keys": ["ctrl+d", "ctrl+c"]
+    "keys": ["alt+d", "alt+c"]
   },
   {
     "command": "clang_warmup_cache",
     "context": [{"key": "clang_supported_language"}],
-    "keys": ["ctrl+d", "ctrl+w"]
+    "keys": ["alt+d", "alt+w"]
   },
   {
     "command": "clang_reparse",
     "context": [{"key": "clang_supported_language"}],
-    "keys": ["ctrl+d", "ctrl+r"]
+    "keys": ["alt+d", "alt+r"]
   },
   {
     "command": "clang_toggle_complete_enabled",
     "context": [{"key": "clang_supported_language"}],
-    "keys": ["ctrl+d", "ctrl+t"]
+    "keys": ["alt+d", "alt+t"]
   },
   {
     "command": "show_panel", "args": {"panel": "output.clang", "toggle": true},
-    "keys": ["ctrl+d", "ctrl+p"]
+    "keys": ["alt+d", "alt+p"]
   },
     {
     "command": "clang_previous",
     "context": [{"key": "clang_supported_language"}],
-    "keys": ["ctrl+shift+d", "ctrl+shift+e"]
+    "keys": ["alt+shift+d", "alt+shift+e"]
   },
   {
     "command": "clang_next",
     "context": [{"key": "clang_supported_language"}],
-    "keys": ["ctrl+d", "ctrl+e"]
+    "keys": ["alt+d", "alt+e"]
   }
 ]
