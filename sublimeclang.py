@@ -38,10 +38,9 @@ import os
 import re
 import threading
 import time
-import Queue
 from errormarkers import clear_error_marks, add_error_mark, show_error_marks, \
                          update_statusbar, erase_error_marks, set_clang_view
-from common import get_setting, get_settings
+from common import get_setting, get_settings, Worker
 
 language_regex = re.compile("(?<=source\.)[\w+#]+")
 
@@ -66,7 +65,7 @@ def is_supported_language(view):
     return True
 
 
-class TranslationUnitCache:
+class TranslationUnitCache(Worker):
     STATUS_PARSING      = 1
     STATUS_REPARSING    = 2
     STATUS_READY        = 3
@@ -84,26 +83,13 @@ class TranslationUnitCache:
         def unlock(self):
             self.l.release()
 
-    def getCpuCount(self):
-        cpus = 1
-        try:
-            import multiprocessing
-            cpus = multiprocessing.cpu_count()
-        except:
-            pass
-        return cpus
-
     def __init__(self):
+        Worker.__init__(self)
         self.translationUnits = TranslationUnitCache.LockedVariable({})
         self.parsingList = TranslationUnitCache.LockedVariable([])
         self.busyList = TranslationUnitCache.LockedVariable([])
         self.index_parse_options = 13
-        self.tasks = Queue.Queue()
         self.index = None
-        for i in range(self.getCpuCount()):
-            t = threading.Thread(target=self.worker)
-            t.daemon = True
-            t.start()
 
     def get_status(self, filename):
         tu = self.translationUnits.lock()
@@ -203,23 +189,6 @@ class TranslationUnitCache:
                 self.translationUnits.unlock()
         finally:
             self.remove_busy(data)
-
-    def worker(self):
-        try:
-            # Just so we give time for the editor itself to start
-            # up before we start doing work
-            time.sleep(5)
-        except:
-            pass
-        while True:
-            task, data = self.tasks.get()
-            try:
-                task(data)
-            except:
-                import traceback
-                traceback.print_exc()
-            finally:
-                self.tasks.task_done()
 
     def reparse(self, view, filename, unsaved_files=[], on_done=None):
         ret = False

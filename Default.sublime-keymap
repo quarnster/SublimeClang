@@ -47,5 +47,10 @@
     "command": "clang_next",
     "context": [{"key": "clang_supported_language"}],
     "keys": ["alt+d", "alt+e"]
+  },
+  {
+    "command": "clang_analyze_file",
+    "context": [{"key": "clang_supported_language"}],
+    "keys": ["alt+d","alt+s"]
   }
 ]

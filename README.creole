@@ -4,7 +4,10 @@ Clang plugin for Sublime Text 2 providing auto complete suggestions for C/C++/Ob
 === Known issues and feature requests ===
 Please go [[https://github.com/quarnster/SublimeClang/issues?sort=created&direction=desc&state=open|here]] to see the currently known issues and feature request, or to file a new.
 
-=== Prerequisites (Linux Only)===
+=== Prerequisites ===
+  # To use the clang static analyzer you need to have clang installed and in your path. The other functionality should work without having the clang binaries installed.
+
+=== Additional Prerequisites (Linux Only)===
   # [[http://sublimetext.userecho.com/topic/85126-ctypes-cant-be-imported-in-linux/|ctypes can't be imported]] in the Linux version of Sublime Text 2 right now. This can however be worked around (solution provided by [[http://www.sublimetext.com/forum/viewtopic.php?f=5&t=3958&start=10#p18782|mnus]]):
   ## Install python2.6 via apt-get or synpactic.
   ## Backup python26.zip in sublime2's lib directory (just for safe measure). I did mv "python26.zip backup.python26.zip"
@@ -44,6 +47,7 @@ There's also the following key-bindings (tweak Default.sublime-keymaps to change
       |alt+d,alt+p|Toggle the Clang output panel|
       |alt+d,alt+e|Go to next error or warning in the file|
       |alt+shift+d,alt+shift+e|Go to the previous error or warning in the file|
+      |alt+d,alt+s|Run the Clang static analyzer on the current file|
 
 === License ===
 This plugin is using the zlib license
