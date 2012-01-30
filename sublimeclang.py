@@ -107,6 +107,10 @@ class TranslationUnitCache(Worker):
         else:
             return TranslationUnitCache.STATUS_NOT_IN_CACHE
 
+    def display_status(self):
+        if get_setting("parse_status_messages", True):
+            super(TranslationUnitCache, self).display_status()
+
     def add_busy(self, filename, task, data):
         bl = self.busyList.lock()
         test = filename in bl
@@ -139,7 +143,9 @@ class TranslationUnitCache(Worker):
         if self.add_busy(filename, self.task_parse, data):
             return
         try:
+            self.set_status("Parsing %s" % filename)
             self.get_translation_unit(filename, opts)
+            self.set_status("Parsing %s done" % filename)
         finally:
             l = self.parsingList.lock()
             try:
@@ -147,18 +153,21 @@ class TranslationUnitCache(Worker):
             finally:
                 self.parsingList.unlock()
                 self.remove_busy(filename)
-        sublime.set_timeout(on_done, 0)
+        if not on_done is None:
+            sublime.set_timeout(on_done, 0)
 
     def task_reparse(self, data):
         filename, opts, unsaved_files, on_done = data
         if self.add_busy(filename, self.task_reparse, data):
             return
         try:
+            self.set_status("Reparsing %s" % filename)
             tu = self.get_translation_unit(filename, opts, unsaved_files)
             if tu != None:
                 tu.lock()
                 try:
                     tu.var.reparse(unsaved_files)
+                    self.set_status("Reparsing %s done" % filename)
                 finally:
                     tu.unlock()
         finally:
@@ -168,7 +177,8 @@ class TranslationUnitCache(Worker):
             finally:
                 self.parsingList.unlock()
                 self.remove_busy(filename)
-        sublime.set_timeout(on_done, 0)
+        if not on_done is None:
+            sublime.set_timeout(on_done, 0)
 
     def task_clear(self, data):
         tus = self.translationUnits.lock()
@@ -257,17 +267,12 @@ class TranslationUnitCache(Worker):
         self.tasks.put((self.task_clear, None))
 
 
-def cache_warmed_up():
-    sublime.status_message("Cache warmed up")
-
-
 def warm_up_cache(view, filename=None):
     if filename == None:
         filename = view.file_name()
     stat = tuCache.get_status(filename)
     if stat == TranslationUnitCache.STATUS_NOT_IN_CACHE:
-        tuCache.add(view, filename, cache_warmed_up)
-        sublime.status_message("Warming up cache")
+        tuCache.add(view, filename)
     return stat
 
 
@@ -513,19 +518,13 @@ class ClangClearCache(sublime_plugin.TextCommand):
 
 
 class ClangReparse(sublime_plugin.TextCommand):
-    def reparse_done(self):
-        sublime.status_message("reparse done")
-        display_compilation_results(self.view)
-
     def run(self, edit):
         view = self.view
         unsaved_files = []
         if view.is_dirty():
             unsaved_files.append((view.file_name(),
                           view.substr(Region(0, view.size()))))
-        tuCache.reparse(view, view.file_name(), unsaved_files,
-                        self.reparse_done)
-        sublime.status_message("reparsing")
+        tuCache.reparse(view, view.file_name(), unsaved_files)
 
 
 def display_compilation_results(view):

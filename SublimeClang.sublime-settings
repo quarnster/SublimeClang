@@ -72,6 +72,12 @@
     // when a view is saved
     "reparse_on_save": true,
 
+    // When set to true will display parse status messages
+    "parse_status_messages": true,
+
+    // When set to true will display analyzer status messages
+    "analyzer_status_messages": true,
+
     // Scope used for markers in the clang output panel
     "marker_output_panel_scope": "invalid",
 

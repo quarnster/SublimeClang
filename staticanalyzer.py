@@ -23,7 +23,6 @@ freely, subject to the following restrictions:
 
 import os
 import subprocess
-import sublime
 import sublime_plugin
 import time
 from common import get_setting, Worker
@@ -115,11 +114,8 @@ class Analyzer(Worker):
         self.tasks.put((self.do_analyze_project, folders))
 
     def display_status(self):
-        sublime.status_message(self.status)
-
-    def set_status(self, msg):
-        self.status = msg
-        sublime.set_timeout(self.display_status, 0)
+        if get_setting("analyzer_status_messages", True):
+            super(Analyzer, self).display_status()
 
     def do_analyze_file(self, filename):
         cmdline = self.cmdline
