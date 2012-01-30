@@ -129,5 +129,15 @@
         "-IC:/MinGW/include",
         "-I/path/to/sources/1",
         "-I/path/to/sources/2"
+    ],
+
+    // Commandline used to invoke the static analyzer.
+    // "options" will be appended to this
+    "analyzer_commandline":
+    [
+        "clang",
+        "--analyze",
+        "-o",
+        "-"
     ]
 }
