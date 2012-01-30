@@ -21,10 +21,12 @@ freely, subject to the following restrictions:
    distribution.
 """
 
+import os
 import subprocess
 import sublime
 import sublime_plugin
-from common import get_setting
+import time
+from common import get_setting, Worker
 
 
 def parse(l):
@@ -94,25 +96,70 @@ def parse(l):
     return result
 
 
-def analyze_file(filename):
-    cmdline = get_setting("analyzer_commandline", ["clang", "--analyze", "-o", "-"])
-    opts = get_setting("options")
-    for setting in opts:
-        cmdline.append(setting)
-    cmdline.append(filename)
-    p = subprocess.Popen(cmdline, stdout=subprocess.PIPE)
-    stdout, stderr = p.communicate()
+class Analyzer(Worker):
 
-    res = parse(stdout)
-    for diag in res["diagnostics"]:
-        loc = diag["location"]
-        desc = diag["description"]
-        desc = desc.replace("&apos;", "'")
-        print "%s:%d:%d - %s" % (res["files"][loc["file"]], loc["line"], loc["col"], desc)
+    def update_settings(self):
+        cmdline = get_setting("analyzer_commandline", ["clang", "--analyze", "-o", "-"])
+        opts = get_setting("options")
+        for setting in opts:
+            cmdline.append(setting)
+        self.cmdline = cmdline
+        self.extensions = get_setting("analyzer_extensions")
+
+    def analyze_file(self, filename):
+        self.update_settings()
+        self.tasks.put((self.do_analyze_file, filename))
+
+    def analyze_project(self, folders):
+        self.update_settings()
+        self.tasks.put((self.do_analyze_project, folders))
+
+    def display_status(self):
+        sublime.status_message(self.status)
+
+    def set_status(self, msg):
+        self.status = msg
+        sublime.set_timeout(self.display_status, 0)
+
+    def do_analyze_file(self, filename):
+        cmdline = self.cmdline
+        cmdline.append(filename)
+
+        p = subprocess.Popen(cmdline, stdout=subprocess.PIPE)
+        stdout, stderr = p.communicate()
+        self.set_status("Analyzing %s" % filename)
+
+        res = parse(stdout)
+        if res != None:
+            for diag in res["diagnostics"]:
+                loc = diag["location"]
+                desc = diag["description"]
+                desc = desc.replace("&apos;", "'")
+                print "%s:%d:%d - %s" % (res["files"][loc["file"]], loc["line"], loc["col"], desc)
+        self.set_status("Analyzing %s done" % filename)
+
+    def do_analyze_project(self, folders):
+        for dir in folders:
+            for dirpath, dirnames, filenames in os.walk(dir):
+                for file in filenames:
+                    if "." in file:
+                        extension = file[file.rfind(".") + 1:]
+                        if extension in self.extensions:
+                            self.tasks.put((self.do_analyze_file, "%s/%s" % (dirpath, file)))
+        while not self.tasks.empty():
+            time.sleep(0.25)
+        self.tasks.put((self.set_status, "Project analyzed"))
+
+
+analyzer = Analyzer()
 
 
 class ClangAnalyzeFile(sublime_plugin.TextCommand):
     def run(self, edit):
         fn = self.view.file_name()
-        sublime.status_message("Analyzing %s" % fn)
-        analyze_file(fn)
+        analyzer.analyze_file(fn)
+
+
+class ClangAnalyzeProject(sublime_plugin.TextCommand):
+    def run(self, edit):
+        analyzer.analyze_project(self.view.window().folders())

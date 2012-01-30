@@ -139,5 +139,17 @@
         "--analyze",
         "-o",
         "-"
+    ],
+
+    // Extensions to be scanned by the static analyzer
+    // when analyzing a project
+    "analyzer_extensions":
+    [
+        "cpp",
+        "c",
+        "cc",
+        "m",
+        "mm"
     ]
+
 }
