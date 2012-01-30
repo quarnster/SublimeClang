@@ -212,7 +212,7 @@ class TranslationUnitCache(Worker):
         self.parsingList.unlock()
         return ret
 
-    def add(self, view, filename, on_done):
+    def add(self, view, filename, on_done=None):
         tu = self.translationUnits.lock()
         pl = self.parsingList.lock()
         if filename not in tu and filename not in pl:
