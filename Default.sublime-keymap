@@ -52,5 +52,11 @@
     "command": "clang_analyze_file",
     "context": [{"key": "clang_supported_language"}],
     "keys": ["alt+d","alt+s"]
+  },
+  {
+    "command": "clang_analyze_project",
+    "context": [{"key": "clang_supported_language"}],
+    "keys": ["alt+d","alt+o"]
   }
+
 ]

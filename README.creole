@@ -48,6 +48,7 @@ There's also the following key-bindings (tweak Default.sublime-keymaps to change
       |alt+d,alt+e|Go to next error or warning in the file|
       |alt+shift+d,alt+shift+e|Go to the previous error or warning in the file|
       |alt+d,alt+s|Run the Clang static analyzer on the current file|
+      |alt+d,alt+o|Run the Clang static analyzer on the current project|
 
 === License ===
 This plugin is using the zlib license
