@@ -182,7 +182,8 @@ class Analyzer(Worker):
                 desc = diag["description"]
                 desc = desc.replace("&apos;", "'")
                 output_view.add_line("%s:%d:%d - %s\n" % (res["files"][loc["file"]], loc["line"], loc["col"], desc))
-            output_view.show()
+            if len(res["diagnostics"]) > 0:
+                output_view.show()
         self.set_status("Analyzing %s done" % filename)
 
     def do_analyze_project(self, folders):
