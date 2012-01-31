@@ -167,12 +167,13 @@ class Analyzer(Worker):
             super(Analyzer, self).display_status()
 
     def do_analyze_file(self, filename):
+        self.set_status("Analyzing %s" % filename)
+
         cmdline = list(self.cmdline)
         cmdline.append(filename)
 
         p = subprocess.Popen(cmdline, stdout=subprocess.PIPE)
         stdout, stderr = p.communicate()
-        self.set_status("Analyzing %s" % filename)
 
         res = parse(stdout)
         if res != None:
