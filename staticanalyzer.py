@@ -25,7 +25,7 @@ import os
 import subprocess
 import sublime_plugin
 import time
-from common import get_setting, Worker
+from common import get_setting, get_cpu_count, Worker
 
 
 def parse(l):
@@ -96,7 +96,6 @@ def parse(l):
 
 
 class Analyzer(Worker):
-
     def update_settings(self):
         cmdline = get_setting("analyzer_commandline", ["clang", "--analyze", "-o", "-"])
         opts = get_setting("options")
@@ -118,7 +117,7 @@ class Analyzer(Worker):
             super(Analyzer, self).display_status()
 
     def do_analyze_file(self, filename):
-        cmdline = self.cmdline
+        cmdline = list(self.cmdline)
         cmdline.append(filename)
 
         p = subprocess.Popen(cmdline, stdout=subprocess.PIPE)
@@ -142,8 +141,9 @@ class Analyzer(Worker):
                         extension = file[file.rfind(".") + 1:]
                         if extension in self.extensions:
                             self.tasks.put((self.do_analyze_file, "%s/%s" % (dirpath, file)))
-        while not self.tasks.empty():
-            time.sleep(0.25)
+        if get_cpu_count() > 1:
+            while not self.tasks.empty():
+                time.sleep(0.25)
         self.tasks.put((self.set_status, "Project analyzed"))
 
 
