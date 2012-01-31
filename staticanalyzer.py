@@ -23,8 +23,11 @@ freely, subject to the following restrictions:
 
 import os
 import subprocess
+import sublime
 import sublime_plugin
 import time
+import traceback
+import Queue
 from common import get_setting, get_cpu_count, Worker
 
 
@@ -95,6 +98,53 @@ def parse(l):
     return result
 
 
+class AnalyzerOutputView:
+    def __init__(self):
+        self.view = None
+        self.queue = Queue.Queue()
+
+    def do_clear(self, data=None):
+        self.view = sublime.active_window().get_output_panel("clang_static_analyzer")
+        self.view.settings().set("result_file_regex", "^(.+):([0-9]+):([0-9]+)")
+
+    def do_show(self, data=None):
+        sublime.active_window().run_command("show_panel", {"panel": "output.clang_static_analyzer"})
+
+    def do_add_line(self, line):
+        self.view.set_read_only(False)
+        e = self.view.begin_edit()
+        self.view.insert(e, self.view.size(), line)
+        self.view.end_edit(e)
+        self.view.set_read_only(True)
+
+    def add_task(self, task, data=None):
+        self.queue.put((task, data))
+        sublime.set_timeout(self.run_tasks, 0)
+
+    def clear(self):
+        self.add_task(self.do_clear)
+
+    def show(self):
+        self.add_task(self.do_show)
+
+    def add_line(self, line):
+        self.add_task(self.do_add_line, line)
+
+    def run_tasks(self):
+        try:
+            while True:
+                task, data = self.queue.get_nowait()
+                task(data)
+                self.queue.task_done()
+        except Queue.Empty:
+            pass
+        except:
+            traceback.print_exc()
+
+
+output_view = AnalyzerOutputView()
+
+
 class Analyzer(Worker):
     def update_settings(self):
         cmdline = get_setting("analyzer_commandline", ["clang", "--analyze", "-o", "-"])
@@ -130,7 +180,8 @@ class Analyzer(Worker):
                 loc = diag["location"]
                 desc = diag["description"]
                 desc = desc.replace("&apos;", "'")
-                print "%s:%d:%d - %s" % (res["files"][loc["file"]], loc["line"], loc["col"], desc)
+                output_view.add_line("%s:%d:%d - %s\n" % (res["files"][loc["file"]], loc["line"], loc["col"], desc))
+            output_view.show()
         self.set_status("Analyzing %s done" % filename)
 
     def do_analyze_project(self, folders):
@@ -152,10 +203,12 @@ analyzer = Analyzer()
 
 class ClangAnalyzeFile(sublime_plugin.TextCommand):
     def run(self, edit):
+        output_view.clear()
         fn = self.view.file_name()
         analyzer.analyze_file(fn)
 
 
 class ClangAnalyzeProject(sublime_plugin.TextCommand):
     def run(self, edit):
+        output_view.clear()
         analyzer.analyze_project(self.view.window().folders())
