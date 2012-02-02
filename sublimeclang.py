@@ -234,6 +234,9 @@ class TranslationUnitCache(Worker):
             else:
                 opts.append("-x")
                 opts.append(language)
+            additional_language_options = get_setting("additional_language_options", {})
+            if additional_language_options.has_key(language):
+                opts.extend(additional_language_options[language] or [])
         self.index_parse_options = get_setting("index_parse_options", 13)
         return opts
 
