@@ -54,7 +54,7 @@ def get_language(view):
 
 
 def is_supported_language(view):
-    if view.is_scratch():
+    if view.is_scratch() or not get_setting("enabled", True):
         return False
     language = get_language(view)
     if language == None or (language != "c++" and
