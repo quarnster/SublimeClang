@@ -167,9 +167,15 @@ class Diagnostic:
         desc = self.format_desc(desc)
 
         output = "%s - %s\n" % (self.format_location(self.data["location"]), desc)
+        eventCount = 0
         for path in self.data["path"]:
             if path["kind"] == "event":
-                output += "    - %s - %s\n" % (self.format_location(path["location"]), self.format_desc(path["extended_message"]))
+                eventCount += 1
+
+        if eventCount > 1:
+            for path in self.data["path"]:
+                if path["kind"] == "event":
+                    output += "    - %s - %s\n" % (self.format_location(path["location"]), self.format_desc(path["extended_message"]))
         self.lines = output.count("\n")
         return output
 
