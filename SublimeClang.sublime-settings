@@ -12,6 +12,10 @@
     // in this file and in your user settings.
 
 
+    // Whether or not the plugin is enabled. Useful if you want to disable
+    // the plugin completely for a specific project.
+    "enabled": true,
+
     // Delay in ms until autocompletion pops up after . or :: or ->
     // Set to 0 to disable
     "popup_delay": 100,
