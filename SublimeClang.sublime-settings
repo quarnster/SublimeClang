@@ -137,6 +137,12 @@
         "-I/path/to/sources/2"
     ],
 
+    // Scope used for markers in the clang output panel
+    "marker_analyzer_output_panel_scope": "invalid",
+
+    // Scope used for markers by the analyzer in the file views
+    "marker_analyzer_scope": "invalid",
+
     // Commandline used to invoke the static analyzer.
     // "options" will be appended to this
     "analyzer_commandline":
