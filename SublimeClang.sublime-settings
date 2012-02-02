@@ -97,6 +97,17 @@
     // If set to true it'll add for example "-x c++" to the options for c++ files
     "add_language_option": true,
 
+    // Addtional language specific options for clang.
+    // This option only works when "add_language_option" is set to true.
+    "additional_language_options":
+    {
+        // For example, you can use "c++": ["-std=c++11"] to enable C++11 features.
+        "c++" : [],
+        "c": [],
+        "objc": [],
+        "objc++": []
+    },
+
     // Any options you want to give to clang
     // This can also be specified as project specific options. Choose the menu item
     // Project->Edit Project, and then add something like the following to the
