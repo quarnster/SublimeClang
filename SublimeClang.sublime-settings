@@ -136,6 +136,32 @@
     //
     // If "sublimeclang_options" exists in your project settings, it'll override
     // rather than add to the "options" defined in SublimeClang.sublime-settings.
+    //
+    // ${home}, ${project_path:} and ${folder:} tokens can be used in these options.
+    //
+    // ${home} is replaced with the value of the HOME environment variable.
+    //
+    // ${project_path:} tries to find a file with the given name in all the registered project folders and
+    // returns the first file found, or the original file name if none is found.
+    // Example: ${project_path:main.cpp} tries to find a file named "main.cpp" relative
+    // to the current project's folders. If none is found, it is replaced with "main.cpp".
+    //
+    // ${folder:} is replaced with the dirname of the given path.
+    // Example: ${folder:/path/to/file} is replaced with "/path/to".
+    //
+    // Replacement is done sequencially, first all ${home} tokens, then all ${project_path:} are resolved, and then the
+    // ${folder:} are replaced.
+    //
+    // So for example, you might specify:
+    //       "-I${folder:${project_path:main.cpp}}",
+    //       "-I${folder:${project_path:main.cpp}}/includepath",
+    //       "-I${folder:${project_path:main.cpp}}/anotherincludepath"
+    //
+    // And it will expand into:
+    //       "-I<path of the project folder containing main.cpp>",
+    //       "-I<path of the project folder containing main.cpp>/includepath",
+    //       "-I<path of the project folder containing main.cpp>/anotherincludepath"
+    //
     "options":
     [
         "-Wall",
