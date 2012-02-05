@@ -2,6 +2,7 @@ import sublime
 import threading
 import time
 import Queue
+import os, re
 
 
 class Worker(object):
@@ -49,6 +50,30 @@ def get_setting(key, default=None):
     except:
         pass
     return get_settings().get(key, default)
+
+
+def complete_path(value):
+    value = value % ({'home': os.getenv('HOME')})
+
+    get_existing_files = \
+        lambda m: [ path \
+            for f in sublime.active_window().folders() \
+            for path in [os.path.join(f, m.group('file'))] \
+            if os.path.exists(path) \
+        ]
+    value = re.sub(r'\${project_path:(?P<file>[^}]+)}', lambda m: len(get_existing_files(m)) > 0 and get_existing_files(m)[0] or m.group('file'), value)
+    value = re.sub(r'\${folder:(?P<file>.*)}', lambda m: os.path.dirname(m.group('file')), value)
+
+    return value
+
+
+def get_path_setting(key, default=None):
+    value = get_setting(key, default)
+
+    if isinstance(value, str) or isinstance(value, unicode):
+        return complete_path(value)
+    else:
+        return [ complete_path(v) for v in value ]
 
 
 def get_cpu_count():

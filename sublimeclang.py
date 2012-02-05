@@ -40,7 +40,7 @@ import threading
 import time
 from errormarkers import clear_error_marks, add_error_mark, show_error_marks, \
                          update_statusbar, erase_error_marks, set_clang_view
-from common import get_setting, get_settings, Worker
+from common import get_setting, get_settings, get_path_setting, Worker
 
 language_regex = re.compile("(?<=source\.)[\w+#]+")
 
@@ -224,7 +224,7 @@ class TranslationUnitCache(Worker):
         self.parsingList.unlock()
 
     def get_opts(self, view):
-        opts = get_setting("options")
+        opts = get_path_setting("options")
         if get_setting("add_language_option", True):
             language = get_language(view)
             if language == "objc":
