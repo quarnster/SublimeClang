@@ -162,6 +162,52 @@
     //       "-I<path of the project folder containing main.cpp>/includepath",
     //       "-I<path of the project folder containing main.cpp>/anotherincludepath"
     //
+    //
+    // 
+    // You can also add an '*' or '**' to the end of a path.
+    //   '*'    will include all the subdirectories (non-recursive) of that path (not including the given path)
+    //   '**'   will expand to include all subdirectories recursively (not including the given path)
+    // 
+    // Both with ignore any directories that begin with '.', but you can still specify those manually
+    //
+    //
+    // For example, imagine we had a directory structure like so:
+    //
+    //  myproject/myproject.sublime-project
+    //  myproject/src
+    //  myproject/src/.hidden-dir
+    //  myproject/src/ModuleA
+    //  myproject/src/ModuleB
+    //  myproject/src/ModuleC/SubmoduleC-A
+    //  myproject/src/ModuleC/SubmoduleC-B
+    //  myproject/includes
+    //  myproject/includes/something
+    //  myproject/includes/somethingelse
+    //  myproject/includes/morethings
+    //  myproject/includes/evenmorethings/asdf
+    //
+    //
+    //  an option like this:
+    //    "-I${folder:${project_path:myproject.sublime-project}}/src/**",
+    //
+    //  will expand to:
+    //    "-I/path/to/myproject/src/ModuleA",
+    //    "-I/path/to/myproject/src/ModuleB",
+    //    "-I/path/to/myproject/src/ModuleC/SubmoduleC-A",
+    //    "-I/path/to/myproject/src/ModuleC/SubmoduleC-B",
+    //  
+    //  Note that src and .hidden-dir were skipped
+    //
+    //
+    //  an option like this:    
+    //    "-I${folder:${project_path:myproject.sublime-project}}/includes/*",
+    //  will expand to:
+    //    "-I/path/to/myproject/includes/something",
+    //    "-I/path/to/myproject/includes/somethingelse",
+    //    "-I/path/to/myproject/includes/morethings",
+    //    "-I/path/to/myproject/includes/evenmorethings",
+    //
+    //  Notice that the both the myproject/includes directory and any directories more than one level deep are skipped
     "options":
     [
         "-Wall",
