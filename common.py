@@ -52,7 +52,7 @@ def get_setting(key, default=None):
     return get_settings().get(key, default)
 
 
-def complete_path(value):
+def expand_path(value):
     value = value % ({'home': os.getenv('HOME')})
 
     get_existing_files = \
@@ -66,14 +66,40 @@ def complete_path(value):
 
     return value
 
+def complete_path(value):
+    path_init, path_last = os.path.split(value)
+    if path_init[:2] == "-I" and (path_last == "**" or path_last == "*") :
+      starting_path = expand_path(path_init[2:])
+      include_paths = []
+      if os.path.exists(starting_path):
+        if path_last == "*":
+          for dirname in os.listdir(starting_path):
+              if not dirname.startswith("."): # skip directories that begin with .
+                include_paths.append("-I" + os.path.join(starting_path, dirname))
+        elif path_last == "**":
+          for dirpath, dirs, files in os.walk(starting_path):
+            for dirname in list(dirs):
+              if dirname.startswith("."): # skip directories that begin with .
+                dirs.remove(dirname)
+            if dirpath != starting_path:
+              include_paths.append("-I" + dirpath)
+        else:
+          include_paths.append("-I" + starting_path)
+      else:
+        pass # perhaps put some error here?
+      return include_paths
+    else:
+      return [expand_path(value)]
 
 def get_path_setting(key, default=None):
     value = get_setting(key, default)
-
+    opts = []
     if isinstance(value, str) or isinstance(value, unicode):
-        return complete_path(value)
+        opts.extend(complete_path(value))
     else:
-        return [ complete_path(v) for v in value ]
+        for v in value:
+          opts.extend(complete_path(v))
+    return opts
 
 
 def get_cpu_count():
