@@ -585,6 +585,7 @@ def display_compilation_results(view):
     else:
         view.erase_status("SublimeClang")
     window = view.window()
+    output_view = None
     if not window is None:
         v = view.window().get_output_panel("clang")
         v.settings().set("result_file_regex", "^(.+):([0-9]+),([0-9]+)")
@@ -597,13 +598,15 @@ def display_compilation_results(view):
         v.insert(e, 0, errString)
         v.end_edit(e)
         v.set_read_only(True)
+        output_view = v
     show_error_marks(view)
     update_statusbar(view)
     if not window is None:
         if show:
             window.run_command("show_panel", {"panel": "output.clang"})
         elif get_setting("hide_output_when_empty", False):
-            window.run_command("hide_panel", {"panel": "output.clang"})
+            if not output_view is None and output_view.window() != None:
+                window.run_command("hide_panel", {"panel": "output.clang"})
 
 
 class SublimeClangAutoComplete(sublime_plugin.EventListener):
