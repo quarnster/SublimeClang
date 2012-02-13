@@ -1276,18 +1276,11 @@ class CompletionChunk:
     def __init__(self, completionString, key):
         self.cs = completionString
         self.key = key
+        self.kind = completionChunkKindMap[_clang_getCompletionChunkKind(self.cs, self.key)]
+        self.spelling = _clang_getCompletionChunkText(self.cs, self.key).spelling
 
     def __repr__(self):
         return "{'" + self.spelling + "', " + str(self.kind) + "}"
-
-    @property
-    def spelling(self):
-        return _clang_getCompletionChunkText(self.cs, self.key).spelling
-
-    @property
-    def kind(self):
-        res = _clang_getCompletionChunkKind(self.cs, self.key)
-        return completionChunkKindMap[res]
 
     @property
     def string(self):

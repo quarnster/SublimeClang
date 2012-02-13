@@ -646,16 +646,17 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         self.cache_on_load = get_setting("cache_on_load", True)
         self.remove_on_close = get_setting("remove_on_close", True)
 
-    def parse_res(self, compRes, prefix):
-        #print compRes.kind, compRes.string
+    def parse_res(self, string, prefix):
         representation = ""
         insertion = ""
         returnType = ""
         start = False
         placeHolderCount = 0
-        for chunk in compRes.string:
+
+        for chunk in string:
             if chunk.isKindTypedText():
                 start = True
+
                 if not chunk.spelling.startswith(prefix):
                     return (False, None, None)
                 for test in self.dont_complete_startswith:
@@ -664,14 +665,14 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
             if chunk.isKindResultType():
                 returnType = chunk.spelling
             else:
-                representation = "%s%s" % (representation, chunk.spelling)
+                representation += chunk.spelling
             if start and not chunk.isKindInformative():
                 if chunk.isKindPlaceHolder():
                     placeHolderCount = placeHolderCount + 1
-                    insertion = "%s${%d:%s}" % (insertion, placeHolderCount,
+                    insertion += "${%d:%s}" % (placeHolderCount,
                                                 chunk.spelling)
                 else:
-                    insertion = "%s%s" % (insertion, chunk.spelling)
+                    insertion += chunk.spelling
         return (True, "%s\t%s" % (representation, returnType), insertion)
 
     def is_member_completion(self, view, caret):
@@ -764,26 +765,19 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         ret = []
         if res != None:
             res.sort()
-            #for diag in res.diagnostics:
-            #    print diag
-            #lastRes = res.results[len(res.results)-1].string
-            #if "CurrentParameter" in str(lastRes):
-            #    for chunk in lastRes:
-            #        if chunk.isKindCurrentParameter():
-            #            return [(chunk.spelling, "${1:%s}" % chunk.spelling)]
-            #    return []
             onlyMembers = self.is_member_completion(view,
                                                     locations[0] - len(prefix))
             s, e = self.find_prefix_range(prefix, res.results)
             if not (s == -1 or e == -1):
                 for idx in range(s, e + 1):
                     compRes = res.results[idx]
-                    if compRes.string.isAvailabilityNotAccessible() or (
+                    string = compRes.string
+                    if string.isAvailabilityNotAccessible() or (
                              onlyMembers and
                              not self.is_member_kind(compRes.kind)):
                         continue
                     add, representation, insertion = self.parse_res(
-                                    compRes, prefix)
+                                    string, prefix)
                     if add:
                         #print compRes.kind, compRes.string
                         ret.append((representation, insertion))
