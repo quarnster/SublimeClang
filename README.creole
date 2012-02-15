@@ -11,7 +11,8 @@ Please go [[https://github.com/quarnster/SublimeClang/issues?sort=created&direct
   # [[http://sublimetext.userecho.com/topic/85126-ctypes-cant-be-imported-in-linux/|ctypes can't be imported]] in the Linux version of Sublime Text 2 right now. This can however be worked around (solution provided by [[http://www.sublimetext.com/forum/viewtopic.php?f=5&t=3958&start=10#p18782|mnus]]):
   ## Install python2.6 via apt-get or synpactic.
   ## Backup python26.zip in sublime2's lib directory (just for safe measure). I did mv "python26.zip backup.python26.zip"
-  ## Symlink /usr/lib/python2.6/ to sublime2's lib directory.
+  ## Symlink /usr/lib/python2.6/ to sublime2's lib/python2.6 directory.
+  ## If you run into issues with this step, issue [[https://github.com/quarnster/SublimeClang/issues/35#issuecomment-3976794|#35]] contains additional notes.
   # The Linux libclang.so is not part of the plugin by default:
   ## [[http://www.llvm.org/releases/download.html#3.0|Download]] and compile clang.
     *** You can probably get away with installing clang from the ubuntu repos (note that this plugin relies on features from clang 3.0) or
