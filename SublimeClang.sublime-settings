@@ -91,6 +91,12 @@
     // Scope used for error markers
     "marker_error_scope": "invalid",
 
+    // Whether or not to print out timing information for the complete operation
+    "time_completions": false,
+
+    // Whether or not to inhibit the Sublime Text 2 built in word completions
+    "inhibit_sublime_completions": true,
+
     // Don't show stuff in the autocomplete list when the name starts with the following
     "dont_complete_startswith":
     [
@@ -163,11 +169,11 @@
     //       "-I<path of the project folder containing main.cpp>/anotherincludepath"
     //
     //
-    // 
+    //
     // You can also add an '*' or '**' to the end of a path.
     //   '*'    will include all the subdirectories (non-recursive) of that path (not including the given path)
     //   '**'   will expand to include all subdirectories recursively (not including the given path)
-    // 
+    //
     // Both with ignore any directories that begin with '.', but you can still specify those manually
     //
     //
@@ -195,11 +201,11 @@
     //    "-I/path/to/myproject/src/ModuleB",
     //    "-I/path/to/myproject/src/ModuleC/SubmoduleC-A",
     //    "-I/path/to/myproject/src/ModuleC/SubmoduleC-B",
-    //  
+    //
     //  Note that src and .hidden-dir were skipped
     //
     //
-    //  an option like this:    
+    //  an option like this:
     //    "-I${folder:${project_path:myproject.sublime-project}}/includes/*",
     //  will expand to:
     //    "-I/path/to/myproject/includes/something",

@@ -645,6 +645,7 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         self.recompile_delay = get_setting("recompile_delay", 1000)
         self.cache_on_load = get_setting("cache_on_load", True)
         self.remove_on_close = get_setting("remove_on_close", True)
+        self.time_completions = get_setting("time_completions", False)
 
     def parse_res(self, string, prefix):
         representation = ""
@@ -652,7 +653,6 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         returnType = ""
         start = False
         placeHolderCount = 0
-
         for chunk in string:
             if chunk.isKindTypedText():
                 start = True
@@ -669,11 +669,10 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
             if start and not chunk.isKindInformative():
                 if chunk.isKindPlaceHolder():
                     placeHolderCount = placeHolderCount + 1
-                    insertion += "${%d:%s}" % (placeHolderCount,
-                                                chunk.spelling)
+                    insertion += "${" + str(placeHolderCount) + ":" + chunk.spelling + "}"
                 else:
                     insertion += chunk.spelling
-        return (True, "%s\t%s" % (representation, returnType), insertion)
+        return (True, representation + "\t" + returnType, insertion)
 
     def is_member_completion(self, view, caret):
         line = view.substr(Region(view.line(caret).a, caret))
@@ -740,34 +739,66 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
             end = self.search_results(prefix, results, 0, False)
         return (start, end)
 
+    def return_completions(self, comp):
+        if get_setting("inhibit_sublime_completions", True):
+            return (comp, sublime.INHIBIT_WORD_COMPLETIONS | sublime.INHIBIT_EXPLICIT_COMPLETIONS)
+        return comp
+
     def on_query_completions(self, view, prefix, locations):
         global clang_complete_enabled
         if not is_supported_language(view) or not clang_complete_enabled:
-            return []
+            return self.return_completions([])
 
+        timing = ""
+        tot = 0
+        start = time.time()
         tu = get_translation_unit(view)
         if tu == None:
-            return []
-        # Getting strange results form clang if I don't remove prefix
+            return self.return_completions([])
+        # Prefix should be removed as stated in the documentation:
+        # http://clang.llvm.org/doxygen/group__CINDEX__CODE__COMPLET.html#ga50fedfa85d8d1517363952f2e10aa3bf
         row, col = view.rowcol(locations[0] - len(prefix))
         unsaved_files = []
         if view.is_dirty():
             unsaved_files.append((view.file_name(),
                                   view.substr(Region(0, view.size()))))
-
         tu.lock()
+        if self.time_completions:
+            curr = (time.time() - start)*1000
+            tot += curr
+            timing += "TU: %f" % (curr)
+            start = time.time()
         res = None
         try:
             res = tu.var.codeComplete(view.file_name(), row + 1, col + 1,
                                       unsaved_files, 3)
         finally:
             tu.unlock()
+        if self.time_completions:
+            # Unfortunately if this takes a long time it is libclang doing its thing
+            # so I'm not sure if there's anything that can be done to speed it up.
+            # If you have a pull request that does indeed provide a significant
+            # speed up here, I'd be very grateful.
+            curr = (time.time() - start)*1000
+            tot += curr
+            timing += ", Comp: %f" % (curr)
+            start = time.time()
         ret = []
         if res != None:
             res.sort()
+            if self.time_completions:
+                curr = (time.time() - start)*1000
+                tot += curr
+                timing += ", Sort: %f" % (curr)
+                start = time.time()
             onlyMembers = self.is_member_completion(view,
                                                     locations[0] - len(prefix))
             s, e = self.find_prefix_range(prefix, res.results)
+            if self.time_completions:
+                curr = (time.time() - start)*1000
+                tot += curr
+                timing += ", Range: %f" % (curr)
+                start = time.time()
             if not (s == -1 or e == -1):
                 for idx in range(s, e + 1):
                     compRes = res.results[idx]
@@ -776,12 +807,20 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
                              onlyMembers and
                              not self.is_member_kind(compRes.kind)):
                         continue
+
                     add, representation, insertion = self.parse_res(
                                     string, prefix)
                     if add:
                         #print compRes.kind, compRes.string
                         ret.append((representation, insertion))
-        return sorted(ret)
+        ret = sorted(ret)
+        if self.time_completions:
+            curr = (time.time() - start)*1000
+            tot += curr
+            timing += ", Post: %f" % (curr)
+            timing += ", Tot: %f ms" % (tot)
+            sublime.status_message(timing)
+        return self.return_completions(ret)
 
     def restart_complete_timer(self, view):
         if self.complete_timer != None:
