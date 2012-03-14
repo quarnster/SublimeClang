@@ -32,7 +32,7 @@ Please go [[https://github.com/quarnster/SublimeClang/issues?sort=created&direct
     # Type SublimeClang and open up the settings file you want to modify with any include directories or other options you want to provide to clang.
 
 === Usage ===
-After installation, suggestions from clang should be provided when triggering the autocomplete operation in Sublime Text 2. It'll not disable the built in completion.
+After installation, suggestions from clang should be provided when triggering the autocomplete operation in Sublime Text 2. By default it'll not inhibit the Sublime Text 2 built in word completion, but that can be re-enabled by setting the configuration option "inhibit_sublime_completions" to false.
 
 If you modify a file that clang can compile and if there are any errors or warnings in that file, you should see the output in the output panel, as well as having the warnings and errors marked in the source file.
 
