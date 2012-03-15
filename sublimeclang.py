@@ -747,7 +747,7 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
     def on_query_completions(self, view, prefix, locations):
         global clang_complete_enabled
         if not is_supported_language(view) or not clang_complete_enabled:
-            return self.return_completions([])
+            return []
 
         timing = ""
         tot = 0
