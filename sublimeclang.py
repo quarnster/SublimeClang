@@ -54,7 +54,7 @@ def get_language(view):
 
 
 def is_supported_language(view):
-    if view.is_scratch() or not get_setting("enabled", True):
+    if view.is_scratch() or not get_setting("enabled", True, view):
         return False
     language = get_language(view)
     if language == None or (language != "c++" and
@@ -224,8 +224,8 @@ class TranslationUnitCache(Worker):
         self.parsingList.unlock()
 
     def get_opts(self, view):
-        opts = get_path_setting("options")
-        if get_setting("add_language_option", True):
+        opts = get_path_setting("options", [], view)
+        if get_setting("add_language_option", True, view):
             language = get_language(view)
             if language == "objc":
                 opts.append("-ObjC")
@@ -234,10 +234,10 @@ class TranslationUnitCache(Worker):
             else:
                 opts.append("-x")
                 opts.append(language)
-            additional_language_options = get_setting("additional_language_options", {})
+            additional_language_options = get_setting("additional_language_options", {}, view)
             if additional_language_options.has_key(language):
                 opts.extend(additional_language_options[language] or [])
-        self.index_parse_options = get_setting("index_parse_options", 13)
+        self.index_parse_options = get_setting("index_parse_options", 13, view)
         return opts
 
     def get_translation_unit(self, filename, opts=[], unsaved_files=[]):
@@ -282,7 +282,7 @@ def warm_up_cache(view, filename=None):
 def get_translation_unit(view, filename=None, blocking=False):
     if filename == None:
         filename = view.file_name()
-    if get_setting("warm_up_in_separate_thread", True) and not blocking:
+    if get_setting("warm_up_in_separate_thread", True, view) and not blocking:
         stat = warm_up_cache(view, filename)
         if stat == TranslationUnitCache.STATUS_NOT_IN_CACHE:
             return None
@@ -314,7 +314,7 @@ class ClangWarmupCache(sublime_plugin.TextCommand):
 
 class ClangGoBackEventListener(sublime_plugin.EventListener):
     def on_close(self, view):
-        if not get_setting("pop_on_close", True):
+        if not get_setting("pop_on_close", True, view):
             return
         # If the view we just closed was last in the navigation_stack,
         # consider it "popped" from the stack
@@ -571,10 +571,10 @@ def display_compilation_results(view):
                 """
                 add_error_mark(
                     diag.severityName, filename, f.line - 1, diag.spelling)
-            show = get_setting("show_output_panel", True)
+            show = get_setting("show_output_panel", True, view)
     finally:
         tu.unlock()
-    if (errorCount > 0 or warningCount > 0) and get_setting("show_status"):
+    if (errorCount > 0 or warningCount > 0) and get_setting("show_status", True, view):
         statusString = "Clang Status: "
         if errorCount > 0:
             statusString = "%s%d Error%s" % (statusString, errorCount, "s" if errorCount != 1 else "")
@@ -604,7 +604,7 @@ def display_compilation_results(view):
     if not window is None:
         if show:
             window.run_command("show_panel", {"panel": "output.clang"})
-        elif get_setting("hide_output_when_empty", False):
+        elif get_setting("hide_output_when_empty", False, view):
             if not output_view is None and output_view.window() != None:
                 window.run_command("hide_panel", {"panel": "output.clang"})
 
@@ -739,8 +739,8 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
             end = self.search_results(prefix, results, 0, False)
         return (start, end)
 
-    def return_completions(self, comp):
-        if get_setting("inhibit_sublime_completions", True):
+    def return_completions(self, comp, view):
+        if get_setting("inhibit_sublime_completions", True, view):
             return (comp, sublime.INHIBIT_WORD_COMPLETIONS | sublime.INHIBIT_EXPLICIT_COMPLETIONS)
         return comp
 
@@ -754,7 +754,7 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         start = time.time()
         tu = get_translation_unit(view)
         if tu == None:
-            return self.return_completions([])
+            return self.return_completions([], view)
         # Prefix should be removed as stated in the documentation:
         # http://clang.llvm.org/doxygen/group__CINDEX__CODE__COMPLET.html#ga50fedfa85d8d1517363952f2e10aa3bf
         row, col = view.rowcol(locations[0] - len(prefix))
@@ -820,7 +820,7 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
             timing += ", Post: %f" % (curr)
             timing += ", Tot: %f ms" % (tot)
             sublime.status_message(timing)
-        return self.return_completions(ret)
+        return self.return_completions(ret, view)
 
     def restart_complete_timer(self, view):
         if self.complete_timer != None:
@@ -867,12 +867,12 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
             self.restart_recompile_timer(1)
 
     def on_activated(self, view):
-        if is_supported_language(view) and get_setting("reparse_on_activated"):
+        if is_supported_language(view) and get_setting("reparse_on_activated", True, view):
             self.view = view
             self.restart_recompile_timer(0.1)
 
     def on_post_save(self, view):
-        if is_supported_language(view) and get_setting("reparse_on_save"):
+        if is_supported_language(view) and get_setting("reparse_on_save", True, view):
             self.view = view
             self.restart_recompile_timer(0.1)
 
