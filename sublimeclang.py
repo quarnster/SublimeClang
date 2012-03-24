@@ -408,7 +408,7 @@ class ClangGotoImplementation(sublime_plugin.TextCommand):
                         endings = ["cpp", "c", "cc", "m", "mm"]
                         for ending in endings:
                             f = "%s.%s" % (f[:f.rfind(".")], ending)
-                            if os.access(f, os.R_OK):
+                            if f != view.file_name() and os.access(f, os.R_OK):
                                 tu2 = get_translation_unit(view, f, True)
                                 if tu2 == None:
                                     continue
