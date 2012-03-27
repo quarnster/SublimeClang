@@ -87,7 +87,7 @@ def expand_path(value, window):
 def complete_path(value, window):
     path_init, path_last = os.path.split(value)
     if path_init[:2] == "-I" and (path_last == "**" or path_last == "*"):
-        starting_path = expand_path(path_init[2:])
+        starting_path = expand_path(path_init[2:], window)
         include_paths = []
         if os.path.exists(starting_path):
             if path_last == "*":
