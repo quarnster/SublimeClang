@@ -142,6 +142,10 @@
     //
     // If "sublimeclang_options" exists in your project settings, it'll override
     // rather than add to the "options" defined in SublimeClang.sublime-settings.
+    // 
+    // Note that the project settings aren't applied for already cached files,
+    // so to make them take effect you'll have to clear the cache first. The
+    // default keybinding for clearing the cache is alt+d,alt+c.
     //
     // ${home}, ${project_path:} and ${folder:} tokens can be used in these options.
     //
