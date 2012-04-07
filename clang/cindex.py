@@ -882,6 +882,9 @@ class Cursor(Structure):
         sl = _clang_getLocation(tu, f, row, col)
         return Cursor_get(tu, sl)
 
+    def get_completionString(self):
+        return CompletionString(_clang_getCursorCompletionString(self))
+
     def get_included_file(self):
         obj = _clang_getIncludedFile(self)
         if not obj:
@@ -1004,6 +1007,16 @@ class Cursor(Structure):
             self._type = Cursor_type(self)
         return self._type
 
+    @property
+    def result_type(self):
+        """
+        Retrieve the result type (if any) of the entity pointed at by the
+        cursor.
+        """
+        if not hasattr(self, '_resulttype'):
+            self._resulttype = _clang_getCursorResultType(self)
+        return self._resulttype
+
     def get_children(self):
         """Return an iterator for accessing the children of this cursor."""
 
@@ -1025,7 +1038,7 @@ class Cursor(Structure):
             return 1 # continue
         children = []
         Cursor_visit(self, Cursor_visit_callback(visitor), children)
-        return iter(children)
+        return children
 
     @staticmethod
     def from_result(res, fn, args):
@@ -1756,6 +1769,12 @@ Cursor_spelling.errcheck = _CXString.from_result
 if isWin64:
     Cursor_spelling.argtypes = [POINTER(Cursor)]
 
+_clang_getCursorCompletionString = lib.clang_getCursorCompletionString
+_clang_getCursorCompletionString.argtypes = [Cursor]
+_clang_getCursorCompletionString.restype = c_object_p
+if isWin64:
+    _clang_getCursorCompletionString.argtypes = [POINTER(Cursor)]
+
 Cursor_displayname = lib.clang_getCursorDisplayName
 Cursor_displayname.argtypes = [Cursor]
 Cursor_displayname.restype = _CXString
@@ -1813,6 +1832,14 @@ Cursor_type.restype = Type
 Cursor_type.errcheck = Type.from_result
 if isWin64:
     Cursor_type.argtypes = [POINTER(Cursor)]
+
+_clang_getCursorResultType = lib.clang_getCursorResultType
+_clang_getCursorResultType.argtypes = [Cursor]
+_clang_getCursorResultType.restype = Type
+_clang_getCursorResultType.errcheck = Type.from_result
+if isWin64:
+    _clang_getCursorResultType.argtypes = [POINTER(Cursor)]
+
 
 Cursor_visit_callback = CFUNCTYPE(c_int, Cursor, Cursor, py_object)
 Cursor_visit = lib.clang_visitChildren
@@ -1972,6 +1999,7 @@ _clang_getCompletionChunkKind.restype = c_int
 _clang_getCompletionChunkCompletionString = lib.clang_getCompletionChunkCompletionString
 _clang_getCompletionChunkCompletionString.argtypes = [c_void_p, c_int]
 _clang_getCompletionChunkCompletionString.restype = c_object_p
+
 
 _clang_getNumCompletionChunks = lib.clang_getNumCompletionChunks
 _clang_getNumCompletionChunks.argtypes = [c_void_p]
