@@ -41,7 +41,7 @@ import time
 import sqlitecache
 from errormarkers import clear_error_marks, add_error_mark, show_error_marks, \
                          update_statusbar, erase_error_marks, set_clang_view
-from common import get_setting, get_settings, get_path_setting, Worker
+from common import get_setting, get_settings, get_path_setting, Worker, parse_res
 
 language_regex = re.compile("(?<=source\.)[\w+#]+")
 
@@ -76,6 +76,9 @@ class TranslationUnitCache(Worker):
         def __init__(self, var):
             self.var = var
             self.l = threading.Lock()
+
+        def try_lock(self):
+            return self.l.acquire(False)
 
         def lock(self):
             self.l.acquire()
@@ -648,33 +651,6 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         self.remove_on_close = get_setting("remove_on_close", True)
         self.time_completions = get_setting("time_completions", False)
 
-    def parse_res(self, string, prefix):
-        representation = ""
-        insertion = ""
-        returnType = ""
-        start = False
-        placeHolderCount = 0
-        for chunk in string:
-            if chunk.isKindTypedText():
-                start = True
-
-                if not chunk.spelling.startswith(prefix):
-                    return (False, None, None)
-                for test in self.dont_complete_startswith:
-                    if chunk.spelling.startswith(test):
-                        return (False, None, None)
-            if chunk.isKindResultType():
-                returnType = chunk.spelling
-            else:
-                representation += chunk.spelling
-            if start and not chunk.isKindInformative():
-                if chunk.isKindPlaceHolder():
-                    placeHolderCount = placeHolderCount + 1
-                    insertion += "${" + str(placeHolderCount) + ":" + chunk.spelling + "}"
-                else:
-                    insertion += chunk.spelling
-        return (True, representation + "\t" + returnType, insertion)
-
     def is_member_completion(self, view, caret):
         line = view.substr(Region(view.line(caret).a, caret))
         if self.member_regex.search(line) != None:
@@ -772,7 +748,9 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         res = None
         try:
             line = view.substr(sublime.Region(view.full_line(locations[0]).begin(), locations[0]))
-            sqlitecache.sqlCache.test(tu.var, view, line, prefix, locations)
+            ret = sqlitecache.sqlCache.test(tu.var, view, line, prefix, locations)
+            if not ret is None:
+                return ret
             res = tu.var.codeComplete(view.file_name(), row + 1, col + 1,
                                       unsaved_files, 3)
         finally:
@@ -811,8 +789,10 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
                              not self.is_member_kind(compRes.kind)):
                         continue
 
-                    add, representation, insertion = self.parse_res(
-                                    string, prefix)
+                    add, representation, insertion = parse_res(
+                                    string, prefix,
+                                    self.dont_complete_startswith
+                                    )
                     if add:
                         #print compRes.kind, compRes.string
                         ret.append((representation, insertion))

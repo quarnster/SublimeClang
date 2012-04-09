@@ -851,6 +851,31 @@ CursorKind.MACRO_DEFINITION = CursorKind(501)
 CursorKind.MACRO_INSTANTIATION = CursorKind(502)
 CursorKind.INCLUSION_DIRECTIVE = CursorKind(503)
 
+
+class CXXAccessSpecifier:
+    def __init__(self, name, kind):
+        self.name = name
+        self.kind = kind
+
+    def __str__(self):
+        return self.name
+
+    def is_public(self):
+        return self.kind == 1
+
+    def is_protected(self):
+        return self.kind == 2
+
+    def is_private(self):
+        return self.kind == 3
+
+_cxx_access_specifiers = {
+       0: CXXAccessSpecifier("CX_CXXInvalidAccessSpecifier", 0),
+       1: CXXAccessSpecifier("CX_CXXPublic", 1),
+       2: CXXAccessSpecifier("CX_CXXProtected", 2),
+       3: CXXAccessSpecifier("CX_CXXPrivate", 3)
+}
+
 ### Cursors ###
 
 class Cursor(Structure):
@@ -882,7 +907,7 @@ class Cursor(Structure):
         sl = _clang_getLocation(tu, f, row, col)
         return Cursor_get(tu, sl)
 
-    def get_completionString(self):
+    def get_completion_string(self):
         return CompletionString(_clang_getCursorCompletionString(self))
 
     def get_included_file(self):
@@ -947,6 +972,13 @@ class Cursor(Structure):
         e.g., when references in one translation refer to an entity defined in
         another translation unit."""
         return Cursor_usr(self)
+
+    def get_cxx_access_specifier(self):
+        return _cxx_access_specifiers[_clang_getCXXAccessSpecifier(self)]
+
+    @property
+    def availability(self):
+        return _clang_getCursorAvailability(self)
 
     @property
     def kind(self):
@@ -1042,8 +1074,6 @@ class Cursor(Structure):
 
     def get_resolved_cursor(self):
         print "get_type"
-        print self.kind
-        print self.spelling
         if self.kind == CursorKind.CLASS_DECL or self.kind == CursorKind.ENUM_DECL:
             return self
         elif self.kind.is_reference():
@@ -1074,7 +1104,8 @@ class Cursor(Structure):
         if self is None or self.kind.is_invalid():
             print "cursor: None"
             return
-        print "cursor: %s, %s, %s, %s" % (self.kind, self.type.kind, self.result_type.kind, self.spelling)
+        print "cursor: %s, %s, %s, %s, %s" % (self.kind, self.type.kind, self.result_type.kind, self.spelling, self.get_usr())
+        print "defined at: %s, %d, %d" % (self.location.file.name, self.location.line, self.location.column)
 
     def dump(self, once=True):
         print "this: %s, %s, %s, %s, %s" % (self.kind, self.spelling, self.displayname, self.type.kind, self.result_type.kind)
@@ -1095,7 +1126,7 @@ class Cursor(Structure):
         ret = None
         print "getting returned cursor of %s, %s, %s, %s" % (self.kind, self.spelling, self.type.kind, self.result_type.kind)
         if self.kind.is_declaration():
-            ret = self # .get_resolved_cursor()
+            ret = self  # .get_resolved_cursor()
         if self.result_type.kind == TypeKind.RECORD:
             ret = self.get_children()[0]
         if self.result_type.kind == TypeKind.POINTER or \
@@ -1121,6 +1152,14 @@ class Cursor(Structure):
                 return child
             elif not function and child.kind == CursorKind.FIELD_DECL and child.spelling == membername:
                 return child
+            elif child.spelling == membername:
+                print "unhandled kind: %s" % child.kind
+        # Not found in this class, try base class
+        for child in self.get_children():
+            if child.kind == CursorKind.CXX_BASE_SPECIFIER:
+                ret = child.get_reference().get_member(membername, function)
+                if ret:
+                    return ret
         return None
 
     @staticmethod
@@ -1130,7 +1169,6 @@ class Cursor(Structure):
         if res == Cursor_null():
             return None
         return res
-
 
 ### Type Kinds ###
 
@@ -1915,6 +1953,18 @@ Cursor_type.restype = Type
 Cursor_type.errcheck = Type.from_result
 if isWin64:
     Cursor_type.argtypes = [POINTER(Cursor)]
+
+_clang_getCursorAvailability = lib.clang_getCursorAvailability
+_clang_getCursorAvailability.argtypes = [Cursor]
+_clang_getCursorAvailability.restype = c_int
+if isWin64:
+    _clang_getCursorAvailability.argtypes = [POINTER(Cursor)]
+
+_clang_getCXXAccessSpecifier = lib.clang_getCXXAccessSpecifier
+_clang_getCXXAccessSpecifier.argtypes = [Cursor]
+_clang_getCXXAccessSpecifier.restype = c_int
+if isWin64:
+    _clang_getCXXAccessSpecifier.argtypes = [POINTER(Cursor)]
 
 _clang_getCursorResultType = lib.clang_getCursorResultType
 _clang_getCursorResultType.argtypes = [Cursor]

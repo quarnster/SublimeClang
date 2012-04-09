@@ -129,3 +129,31 @@ def get_cpu_count():
     except:
         pass
     return cpus
+
+
+def parse_res(string, prefix, dont_complete_startswith=[]):
+    representation = ""
+    insertion = ""
+    returnType = ""
+    start = False
+    placeHolderCount = 0
+    for chunk in string:
+        if chunk.isKindTypedText():
+            start = True
+
+            if not chunk.spelling.startswith(prefix):
+                return (False, None, None)
+            for test in dont_complete_startswith:
+                if chunk.spelling.startswith(test):
+                    return (False, None, None)
+        if chunk.isKindResultType():
+            returnType = chunk.spelling
+        else:
+            representation += chunk.spelling
+        if start and not chunk.isKindInformative():
+            if chunk.isKindPlaceHolder():
+                placeHolderCount = placeHolderCount + 1
+                insertion += "${" + str(placeHolderCount) + ":" + chunk.spelling + "}"
+            else:
+                insertion += chunk.spelling
+    return (True, representation + "\t" + returnType, insertion)
