@@ -4,9 +4,36 @@ from clang import cindex
 import time
 import re
 import sublime
+from common import parse_res
 
 scriptdir = os.path.dirname(os.path.abspath(__file__))
 enableCache = True
+
+
+def collapse_parenthesis(before):
+    i = len(before)-1
+    count = 0
+    end = -1
+    while i >= 0:
+        if before[i] == ')':
+            count += 1
+            if end == -1:
+                end = i
+        elif before[i] == '(':
+            count -= 1
+            if count == 0 and end != -1:
+                before = "%s%s" % (before[:i+1], before[end:])
+                end = -1
+        i -= 1
+    before = re.sub("[^\(]+\((?!\))", "", before)
+    return before
+
+
+def extract_completion(before):
+    before = collapse_parenthesis(before)
+    m = re.search("([^ \t]+)(\.|\->)$", before)
+    before = before[m.start(1):m.end(2)]
+    return before
 
 
 class SQLiteCache:
@@ -162,23 +189,26 @@ class SQLiteCache:
         return type
     """
 
-    def get_type(self, tu, filename, data, before, location):
+    def get_type(self, tu, filename, data, before):
         start = time.time()
-        before = re.search("([^ \t]+)(\.|\->)$", before).group(0)
-        match = re.search("([^.\-]+)(\.|\->)(.*)", before)
+        print "before: %s" % before
+        before = extract_completion(before)
+        print "after: %s" % before
+
+        match = re.search("([^\.\-]+)(\.|\->)(.*)", before)
         var = match.group(1)
         before = match.group(3)
         end = time.time()
         print "var is %s (%f ms) " % (var, (end-start)*1000)
         start = time.time()
 
-        regex = re.compile("(\w[^( \t\{,]+)[ \t\*\&]+(%s)[ \t]*(\(|\;|,|\)|=)" % var)
+        regex = re.compile("(\w[^( \t\{,\*\&]+)[ \t\*\&]+(%s)[ \t]*(\(|\;|,|\)|=)" % var)
 
         match = None
         for m in regex.finditer(data, re.MULTILINE):
             if m.group(1) == "return":
                 continue
-            sub = data[m.start(2):location]
+            sub = data[m.start(2):]
             count = 0
             lowest = 0
             while len(sub):
@@ -208,26 +238,22 @@ class SQLiteCache:
         column = len(data[:match.start(2)].split("\n")[-1])+1
         print line
         print column
+
         type = cindex.Cursor.get(tu, filename, line, column)
         print type.kind
         print type.displayname
-        if type is None or type.kind.is_invalid():
+        if type is None or type.kind.is_invalid() or type.displayname != var:
+            # TODO: should fall back to a cached version of the class
+            # If the displayname is wrong, it probably means that the translation unit
+            # is out of date.
             return None
-        if type.displayname != var:
-            type.dump()
-            for child in type.get_children():
-                child.dump()
-                if child.displayname == var:
-                    type = child
-                    break
-            if type.displayname != var:
-                return None
         print "resolving"
         type = type.get_resolved_cursor()
         if type is None or type.kind.is_invalid() or type.kind == cindex.CursorKind.CLASS_TEMPLATE:
             # templates are scary, lets not go there right now
             return None
-        #self.format(type)
+        print "base type is:"
+        type.dump_self()
 
         end = time.time()
         print "took: %f ms" % ((end-start)*1000)
@@ -261,25 +287,6 @@ class SQLiteCache:
             print "type is"
             type.dump_self()
         return type
-
-    def format(self, cursor):
-        print cursor.kind
-        ref = cursor
-        if ref.kind.is_reference():
-            ref = ref.get_reference()
-        for child in ref.get_children():
-            print child.kind
-            if child.kind == cindex.CursorKind.CXX_METHOD or child.kind == cindex.CursorKind.FIELD_DECL:
-                #print child.kind
-                #print child.spelling
-                print "%s" % (child.get_completionString())
-            elif child.kind == cindex.CursorKind.CXX_ACCESS_SPEC_DECL:
-                print child.get_children()
-                print child.type.kind
-                print child.result_type.kind
-                print child.displayname
-                print child.spelling
-
 
     """
     def walk(self, tu, cursor):
@@ -369,6 +376,24 @@ class SQLiteCache:
         end = time.time()
         print "took: %f ms" % ((end-start)*1000)
     """
+
+    def complete(self, cursor, prefix, ret):
+        for child in cursor.get_children():
+            print "%s, %s, %d" % (child.kind, child.displayname, child.availability)
+            if child.kind == cindex.CursorKind.CXX_BASE_SPECIFIER:
+                self.complete(child.get_reference(), prefix, ret)
+            elif child.kind == cindex.CursorKind.CXX_ACCESS_SPEC_DECL:
+                access = child.get_cxx_access_specifier()
+                print "%s, %d, %d, %d" % (access, access.is_public(), access.is_protected(), access.is_private())
+                child.dump()
+            if not (child.kind == cindex.CursorKind.CXX_METHOD or child.kind == cindex.CursorKind.FIELD_DECL):
+                continue
+            add, representation, insertion = parse_res(child.get_completion_string(), prefix)
+            if add:
+                #print compRes.kind, compRes.string
+                ret.append((representation, insertion))
+                print "adding: %s" % (representation)
+
     def test(self, tu, view, line, prefix, locations):
         start = time.time()
         data = view.substr(sublime.Region(0, locations[0]))
@@ -380,9 +405,16 @@ class SQLiteCache:
             before = ""
         elif re.search("([^ \t]+)(\.|\->)$", before):
             row, col = view.rowcol(view.sel()[0].a)
-            self.get_type(tu, view.file_name(), data, before, locations[0])
-        end = time.time()
-        print "%f ms" % ((end-start)*1000)
+            type_cursor = self.get_type(tu, view.file_name(), data, before)
+            if not type_cursor is None and not type_cursor.kind.is_invalid():
+                ret = []
+                self.complete(type_cursor, prefix, ret)
+                end = time.time()
+                print "%f ms" % ((end-start)*1000)
+                return sorted(ret)
+            else:
+                return None
+        return None
 
 
 sqlCache = SQLiteCache()
