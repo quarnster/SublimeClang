@@ -1040,6 +1040,89 @@ class Cursor(Structure):
         Cursor_visit(self, Cursor_visit_callback(visitor), children)
         return children
 
+    def get_resolved_cursor(self):
+        print "get_type"
+        print self.kind
+        print self.spelling
+        if self.kind == CursorKind.CLASS_DECL or self.kind == CursorKind.ENUM_DECL:
+            return self
+        elif self.kind.is_reference():
+            return self.get_reference().get_resolved_cursor()
+        elif self.kind.is_declaration():
+            for child in self.get_children():
+                print "%s, %s, %s, %s" % (child.kind, child.spelling, child.type.kind, child.result_type.kind)
+                if child.kind == CursorKind.TEMPLATE_REF or child.kind == CursorKind.TYPE_REF:
+                    c = child.get_reference()
+                    #print "will return this type: "
+                    #self.dump(c)
+                    return c.get_resolved_cursor()
+                elif child.kind == CursorKind.ENUM_DECL:
+                    return child
+        #if self.kind == CursorKind.TYPE_REF:
+        #    return self.get_reference()
+
+        #if self.kind == CursorKind.TYPEDEF_DECL:
+        #    print "here"
+        #    self.dump_cursor(self)
+        # return self.get_type_from_cursor(self, self.get_reference())
+        if self.result_type.kind == TypeKind.POINTER:
+            return self.result_type.get_pointee().get_declaration()
+
+        return self
+
+    def dump_self(self):
+        if self is None or self.kind.is_invalid():
+            print "cursor: None"
+            return
+        print "cursor: %s, %s, %s, %s" % (self.kind, self.type.kind, self.result_type.kind, self.spelling)
+
+    def dump(self, once=True):
+        print "this: %s, %s, %s, %s, %s" % (self.kind, self.spelling, self.displayname, self.type.kind, self.result_type.kind)
+        for child in self.get_children():
+            print "    %s, %s, %s, %s, %s" % (child.kind, child.spelling, child.displayname, child.type.kind, child.result_type.kind)
+            if child.result_type.kind == TypeKind.POINTER:
+                pointee = child.result_type.get_pointee()
+                c3 = pointee.get_declaration()
+                if not c3 is None and not c3.kind.is_invalid():
+                    print "dumping pointee"
+                    c3.dump_self()
+                else:
+                    print "c3 == null"
+            if child.kind.is_reference() and child.kind != CursorKind.NAMESPACE_REF and once:
+                child.get_reference().dump(False)
+
+    def get_returned_cursor(self):
+        ret = None
+        print "getting returned cursor of %s, %s, %s, %s" % (self.kind, self.spelling, self.type.kind, self.result_type.kind)
+        if self.kind.is_declaration():
+            ret = self # .get_resolved_cursor()
+        if self.result_type.kind == TypeKind.RECORD:
+            ret = self.get_children()[0]
+        if self.result_type.kind == TypeKind.POINTER or \
+                    self.result_type.kind == TypeKind.LVALUEREFERENCE:
+
+            pointee = self.result_type.get_pointee()
+            print "pointee kind: %s" % (pointee.kind)
+            ret = pointee.get_declaration()
+            if ret is None or ret.kind.is_invalid():
+                #ret = pointee.get_canonical().get_declaration()
+                ret = self.result_type.get_result().get_declaration()
+
+        ret.dump_self()
+        if not ret is None and not ret.kind.is_invalid():
+            ret.dump()
+            return ret.get_resolved_cursor()
+        return None
+
+    def get_member(self, membername, function):
+        print "want to get the cursor for: %s->%s%s" % (self.spelling, membername, "()" if function else "")
+        for child in self.get_children():
+            if function and child.kind == CursorKind.CXX_METHOD and child.spelling == membername:
+                return child
+            elif not function and child.kind == CursorKind.FIELD_DECL and child.spelling == membername:
+                return child
+        return None
+
     @staticmethod
     def from_result(res, fn, args):
         assert isinstance(res, Cursor)

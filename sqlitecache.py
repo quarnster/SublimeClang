@@ -72,12 +72,6 @@ class SQLiteCache:
         return add
     """
 
-    def dump_cursor(self, c2):
-        if c2 is None or c2.kind.is_invalid():
-            print "cursor: None"
-            return
-        print "cursor: %s, %s, %s, %s" % (c2.kind, c2.type.kind, c2.result_type.kind, c2.spelling)
-
     """
     def cursor_to_db_name(self, c2):
         print "%s, %s, %s, %s, %s, %s " % (c2.kind, c2.type.kind, c2.result_type.kind, c2.displayname, c2.get_usr(), c2.spelling)
@@ -168,17 +162,7 @@ class SQLiteCache:
         return type
     """
 
-    def get_type_from_cursor(self, cursor):
-        if cursor.kind == cindex.CursorKind.VAR_DECL:
-            for child in cursor.get_children():
-                if child.kind == cindex.CursorKind.TYPE_REF:
-                    return child.get_reference()
-        if cursor.result_type.kind == cindex.TypeKind.POINTER:
-            return cursor.result_type.get_pointee().get_declaration()
-
-        return cursor
-
-    def get_type(self, tu, filename, data, cursor, before):
+    def get_type(self, tu, filename, data, before, location):
         start = time.time()
         before = re.search("([^ \t]+)(\.|\->)$", before).group(0)
         match = re.search("([^.\-]+)(\.|\->)(.*)", before)
@@ -188,25 +172,68 @@ class SQLiteCache:
         print "var is %s (%f ms) " % (var, (end-start)*1000)
         start = time.time()
 
-        regex = "(\w[^( \t\{]+)[ \t\*\&]+(%s)[ \t]*(\(|\;|,|\)|=).*$" % var
-        match = re.search(regex, data, re.MULTILINE)
+        regex = re.compile("(\w[^( \t\{,]+)[ \t\*\&]+(%s)[ \t]*(\(|\;|,|\)|=)" % var)
+
+        match = None
+        for m in regex.finditer(data, re.MULTILINE):
+            if m.group(1) == "return":
+                continue
+            sub = data[m.start(2):location]
+            count = 0
+            lowest = 0
+            while len(sub):
+                idx1 = sub.rfind("{")
+                idx2 = sub.rfind("}")
+                if idx1 == idx2 and idx1 == -1:
+                    break
+                maxidx = max(idx1, idx2)
+
+                sub = sub[:maxidx]
+                if idx1 > idx2:
+                    count -= 1
+                    if count < lowest:
+                        lowest = count
+                elif idx2 != -1:
+                    count += 1
+            if count == lowest:
+                match = m
+                break
+        end = time.time()
+        print "Regex found type is %s (%f ms)" % ("None" if match == None else match.group(1), (end-start)*1000)
         if match == None:
             return None
+        start = time.time()
+
         line = data[:match.start(2)].count("\n") + 1
         column = len(data[:match.start(2)].split("\n")[-1])+1
+        print line
+        print column
         type = cindex.Cursor.get(tu, filename, line, column)
-        if type is None or type.kind.is_invalid() or type.displayname != var:
-            return None
-        type = self.get_type_from_cursor(type)
+        print type.kind
+        print type.displayname
         if type is None or type.kind.is_invalid():
             return None
-        self.format(type)
+        if type.displayname != var:
+            type.dump()
+            for child in type.get_children():
+                child.dump()
+                if child.displayname == var:
+                    type = child
+                    break
+            if type.displayname != var:
+                return None
+        print "resolving"
+        type = type.get_resolved_cursor()
+        if type is None or type.kind.is_invalid() or type.kind == cindex.CursorKind.CLASS_TEMPLATE:
+            # templates are scary, lets not go there right now
+            return None
+        #self.format(type)
 
         end = time.time()
         print "took: %f ms" % ((end-start)*1000)
-        bice = 0
-        while len(before) and bice < 3 and not type is None:
-            bice += 1
+        count = 0
+        while len(before) and count < 100 and not type is None:
+            count += 1
             match = re.search("([^\.\-\(]+)(\(|\.|->)(.*)", before)
             if match == None:
                 break
@@ -217,7 +244,6 @@ class SQLiteCache:
             if match.group(2) == "(":
                 function = True
                 for i in range(len(before)):
-                    print i, len(before)
                     if before[i] == '(':
                         count += 1
                     elif before[i] == ')':
@@ -226,10 +252,14 @@ class SQLiteCache:
                             before = before[i+1:]
                             break
             before = re.match("(\.|\->)?(.*)", before).group(2)
-            type = self.get_return_type(type, match.group(1), function)
+            member = type.get_member(match.group(1), function)
+            if member is None or member.kind.is_invalid():
+                type = None
+                break
+            type = member.get_returned_cursor()
         if not type is None:
             print "type is"
-            self.dump_cursor(type)
+            type.dump_self()
         return type
 
     def format(self, cursor):
@@ -250,20 +280,7 @@ class SQLiteCache:
                 print child.displayname
                 print child.spelling
 
-    def dump(self, cursor, once=True):
-        print "this: %s, %s, %s, %s, %s" % (cursor.kind, cursor.spelling, cursor.displayname, cursor.type.kind, cursor.result_type.kind)
-        for child in cursor.get_children():
-            print "    %s, %s, %s, %s, %s" % (child.kind, child.spelling, child.displayname, child.type.kind, child.result_type.kind)
-            if child.result_type.kind == cindex.TypeKind.POINTER:
-                pointee = child.result_type.get_pointee()
-                c3 = pointee.get_declaration()
-                if not c3 is None and not c3.kind.is_invalid():
-                    print "dumping pointee"
-                    self.dump_cursor(c3)
-                else:
-                    print "c3 == null"
-            if child.kind.is_reference() and child.kind != cindex.CursorKind.NAMESPACE_REF and once:
-                self.dump(child.get_reference(), False)
+
     """
     def walk(self, tu, cursor):
         #print cursor.kind
@@ -309,23 +326,7 @@ class SQLiteCache:
         #     self.dump_cursor(cursor.get_lexical_parent())
         #     for child in cursor.get_children():
         #         self.dump(child)
-    """
 
-    def get_member(self, type_cursor, membername, function):
-        print "want to get the return type of: %s->%s%s" % (type_cursor.spelling, membername, "()" if function else "")
-        for child in type_cursor.get_children():
-            if function and child.kind == cindex.CursorKind.CXX_METHOD and child.spelling == membername:
-                return child
-
-        return None
-
-    def get_return_type(self, type_cursor, member, function):
-        member = self.get_member(type_cursor, member, function)
-        if member:
-            if member.result_type.kind == cindex.TypeKind.POINTER or \
-                        member.result_type.kind == cindex.TypeKind.LVALUEREFERENCE:
-                return member.result_type.get_pointee().get_declaration()
-        return None
 
     def recache(self, tu):
         start = time.time()
@@ -367,8 +368,9 @@ class SQLiteCache:
             count += 1
         end = time.time()
         print "took: %f ms" % ((end-start)*1000)
-
+    """
     def test(self, tu, view, line, prefix, locations):
+        start = time.time()
         data = view.substr(sublime.Region(0, locations[0]))
         before = line
         if len(prefix) > 0:
@@ -378,9 +380,9 @@ class SQLiteCache:
             before = ""
         elif re.search("([^ \t]+)(\.|\->)$", before):
             row, col = view.rowcol(view.sel()[0].a)
-            cursor = cindex.Cursor.get(tu, view.file_name(),
-                                       row + 1, col + 1)
-            self.get_type(tu, view.file_name(), data, cursor, before)
+            self.get_type(tu, view.file_name(), data, before, locations[0])
+        end = time.time()
+        print "%f ms" % ((end-start)*1000)
 
 
 sqlCache = SQLiteCache()
