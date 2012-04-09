@@ -49,10 +49,18 @@ class SQLiteCache:
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT,
             lastmodified TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
+        self.cacheCursor.execute("""create table if not exists dependencies(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            sourceId INTEGER,
+            dependencyId INTEGER,
+            FOREIGN KEY(sourceId) REFERENCES source(id),
+            FOREIGN KEY(dependencyId) REFERENCES source(id))""")
         self.cacheCursor.execute("""create table if not exists type(
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT,
             sourceId INTEGER,
+            definitionLine INTEGER,
+            definitionColumn INTEGER,
             lastmodified TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY(sourceId) REFERENCES source(id))""")
         self.cacheCursor.execute(
@@ -189,19 +197,7 @@ class SQLiteCache:
         return type
     """
 
-    def get_type(self, tu, filename, data, before):
-        start = time.time()
-        print "before: %s" % before
-        before = extract_completion(before)
-        print "after: %s" % before
-
-        match = re.search("([^\.\-]+)(\.|\->)(.*)", before)
-        var = match.group(1)
-        before = match.group(3)
-        end = time.time()
-        print "var is %s (%f ms) " % (var, (end-start)*1000)
-        start = time.time()
-
+    def get_var_type(self, data, var):
         regex = re.compile("(\w[^( \t\{,\*\&]+)[ \t\*\&]+(%s)[ \t]*(\(|\;|,|\)|=)" % var)
 
         match = None
@@ -228,17 +224,35 @@ class SQLiteCache:
             if count == lowest:
                 match = m
                 break
+        return match
+
+    def get_type_definition(self, data, before):
+        start = time.time()
+        before = extract_completion(before)
+        match = re.search("([^\.\-]+)(\.|\->)(.*)", before)
+        var = match.group(1)
+        tocomplete = match.group(3)
+        end = time.time()
+        print "var is %s (%f ms) " % (var, (end-start)*1000)
+
+        start = time.time()
+        match = self.get_var_type(data, var)
         end = time.time()
         print "Regex found type is %s (%f ms)" % ("None" if match == None else match.group(1), (end-start)*1000)
         if match == None:
             return None
-        start = time.time()
-
         line = data[:match.start(2)].count("\n") + 1
         column = len(data[:match.start(2)].split("\n")[-1])+1
-        print line
-        print column
+        typename = match.group(1)
+        return line, column, typename, var, tocomplete
 
+    def get_completion_cursors(self, tu, filename, data, before):
+        typedef = self.get_type_definition(data, before)
+        if typedef == None:
+            return (None, None)
+        line, column, typename, var, tocomplete = typedef
+
+        start = time.time()
         type = cindex.Cursor.get(tu, filename, line, column)
         print type.kind
         print type.displayname
@@ -246,38 +260,39 @@ class SQLiteCache:
             # TODO: should fall back to a cached version of the class
             # If the displayname is wrong, it probably means that the translation unit
             # is out of date.
-            return None
+            return (None, None)
         print "resolving"
         type = type.get_resolved_cursor()
         if type is None or type.kind.is_invalid() or type.kind == cindex.CursorKind.CLASS_TEMPLATE:
             # templates are scary, lets not go there right now
-            return None
+            return (None, None)
         print "base type is:"
         type.dump_self()
+        member = None
 
         end = time.time()
         print "took: %f ms" % ((end-start)*1000)
         count = 0
-        while len(before) and count < 100 and not type is None:
+        while len(tocomplete) and count < 100 and not type is None:
             count += 1
-            match = re.search("([^\.\-\(]+)(\(|\.|->)(.*)", before)
+            match = re.search("([^\.\-\(]+)(\(|\.|->)(.*)", tocomplete)
             if match == None:
                 break
 
-            before = match.group(3)
+            tocomplete = match.group(3)
             count = 1
             function = False
             if match.group(2) == "(":
                 function = True
-                for i in range(len(before)):
-                    if before[i] == '(':
+                for i in range(len(tocomplete)):
+                    if tocomplete[i] == '(':
                         count += 1
-                    elif before[i] == ')':
+                    elif tocomplete[i] == ')':
                         count -= 1
                         if count == 0:
-                            before = before[i+1:]
+                            tocomplete = tocomplete[i+1:]
                             break
-            before = re.match("(\.|\->)?(.*)", before).group(2)
+            tocomplete = re.match("(\.|\->)?(.*)", tocomplete).group(2)
             member = type.get_member(match.group(1), function)
             if member is None or member.kind.is_invalid():
                 type = None
@@ -286,7 +301,7 @@ class SQLiteCache:
         if not type is None:
             print "type is"
             type.dump_self()
-        return type
+        return (member, type)
 
     """
     def walk(self, tu, cursor):
@@ -390,7 +405,6 @@ class SQLiteCache:
                 continue
             add, representation, insertion = parse_res(child.get_completion_string(), prefix)
             if add:
-                #print compRes.kind, compRes.string
                 ret.append((representation, insertion))
                 print "adding: %s" % (representation)
 
@@ -405,8 +419,9 @@ class SQLiteCache:
             before = ""
         elif re.search("([^ \t]+)(\.|\->)$", before):
             row, col = view.rowcol(view.sel()[0].a)
-            type_cursor = self.get_type(tu, view.file_name(), data, before)
-            if not type_cursor is None and not type_cursor.kind.is_invalid():
+            member_cursor, type_cursor = self.get_completion_cursors(tu, view.file_name(), data, before)
+            if not type_cursor is None and not type_cursor.kind.is_invalid() and \
+                            not type_cursor.kind == cindex.CursorKind.CLASS_TEMPLATE:
                 ret = []
                 self.complete(type_cursor, prefix, ret)
                 end = time.time()
@@ -418,13 +433,4 @@ class SQLiteCache:
 
 
 sqlCache = SQLiteCache()
-        #     sub = before[:idx]
-        #     idx2 = sub.find("(")
-        #     if idx2 >= 0:
-        #         sub = sub[:idx2]
 
-        #     n = self.get_return_type(t, sub)
-        #     print "%s.%s = %s" % (t, sub, n)
-        #     t = n
-        #     before = before[idx+1:]
-        #     idx = before.find(".")
