@@ -5,35 +5,10 @@ import time
 import re
 import sublime
 from common import parse_res
+from parsehelp import *
 
 scriptdir = os.path.dirname(os.path.abspath(__file__))
 enableCache = True
-
-
-def collapse_parenthesis(before):
-    i = len(before)-1
-    count = 0
-    end = -1
-    while i >= 0:
-        if before[i] == ')':
-            count += 1
-            if end == -1:
-                end = i
-        elif before[i] == '(':
-            count -= 1
-            if count == 0 and end != -1:
-                before = "%s%s" % (before[:i+1], before[end:])
-                end = -1
-        i -= 1
-    before = re.sub("[^\(]+\((?!\))", "", before)
-    return before
-
-
-def extract_completion(before):
-    before = collapse_parenthesis(before)
-    m = re.search("([^ \t]+)(\.|\->)$", before)
-    before = before[m.start(1):m.end(2)]
-    return before
 
 
 class SQLiteCache:
@@ -197,57 +172,8 @@ class SQLiteCache:
         return type
     """
 
-    def get_var_type(self, data, var):
-        regex = re.compile("(\w[^( \t\{,\*\&]+)[ \t\*\&]+(%s)[ \t]*(\(|\;|,|\)|=)" % var)
-
-        match = None
-        for m in regex.finditer(data, re.MULTILINE):
-            if m.group(1) == "return":
-                continue
-            sub = data[m.start(2):]
-            count = 0
-            lowest = 0
-            while len(sub):
-                idx1 = sub.rfind("{")
-                idx2 = sub.rfind("}")
-                if idx1 == idx2 and idx1 == -1:
-                    break
-                maxidx = max(idx1, idx2)
-
-                sub = sub[:maxidx]
-                if idx1 > idx2:
-                    count -= 1
-                    if count < lowest:
-                        lowest = count
-                elif idx2 != -1:
-                    count += 1
-            if count == lowest:
-                match = m
-                break
-        return match
-
-    def get_type_definition(self, data, before):
-        start = time.time()
-        before = extract_completion(before)
-        match = re.search("([^\.\-]+)(\.|\->)(.*)", before)
-        var = match.group(1)
-        tocomplete = match.group(3)
-        end = time.time()
-        print "var is %s (%f ms) " % (var, (end-start)*1000)
-
-        start = time.time()
-        match = self.get_var_type(data, var)
-        end = time.time()
-        print "Regex found type is %s (%f ms)" % ("None" if match == None else match.group(1), (end-start)*1000)
-        if match == None:
-            return None
-        line = data[:match.start(2)].count("\n") + 1
-        column = len(data[:match.start(2)].split("\n")[-1])+1
-        typename = match.group(1)
-        return line, column, typename, var, tocomplete
-
     def get_completion_cursors(self, tu, filename, data, before):
-        typedef = self.get_type_definition(data, before)
+        typedef = get_type_definition(data, before)
         if typedef == None:
             return (None, None)
         line, column, typename, var, tocomplete = typedef
@@ -408,7 +334,29 @@ class SQLiteCache:
                 ret.append((representation, insertion))
                 print "adding: %s" % (representation)
 
+    def walk(self, cursor):
+        def visitor(child, parent, data):
+            if cindex.isWin64:
+                _child = cindex.Cursor()
+                #_fields_ = [("_kind_id", c_int), ("xdata", c_int), ("data", c_void_p * 3)]
+
+                _child._kind_id = child[0]._kind_id  # dealing with pointers on Win64
+                _child.xdata = child[0].xdata
+                _child.data = child[0].data
+                child = _child
+
+            if child == cindex.Cursor_null():
+                return 0
+            child.dump_self()
+            data[0] = data[0] + 1
+            if data[0] > 1000:
+                return 0
+            return 1  # continue
+        cindex.Cursor_visit(cursor, cindex.Cursor_visit_callback(visitor), [0])
+
     def test(self, tu, view, line, prefix, locations):
+        #self.walk(tu.cursor)
+
         start = time.time()
         data = view.substr(sublime.Region(0, locations[0]))
         before = line
