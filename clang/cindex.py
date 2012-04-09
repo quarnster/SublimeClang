@@ -1105,7 +1105,8 @@ class Cursor(Structure):
             print "cursor: None"
             return
         print "cursor: %s, %s, %s, %s, %s" % (self.kind, self.type.kind, self.result_type.kind, self.spelling, self.get_usr())
-        print "defined at: %s, %d, %d" % (self.location.file.name, self.location.line, self.location.column)
+        source = "<unknown>" if self.location.file is None else self.location.file.name
+        print "defined at: %s, %d, %d" % (source, self.location.line, self.location.column)
 
     def dump(self, once=True):
         print "this: %s, %s, %s, %s, %s" % (self.kind, self.spelling, self.displayname, self.type.kind, self.result_type.kind)
