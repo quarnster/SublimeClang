@@ -1,3 +1,25 @@
+"""
+Copyright (c) 2011-2012 Fredrik Ehnbom
+
+This software is provided 'as-is', without any express or implied
+warranty. In no event will the authors be held liable for any damages
+arising from the use of this software.
+
+Permission is granted to anyone to use this software for any purpose,
+including commercial applications, and to alter it and redistribute it
+freely, subject to the following restrictions:
+
+   1. The origin of this software must not be misrepresented; you must not
+   claim that you wrote the original software. If you use this software
+   in a product, an acknowledgment in the product documentation would be
+   appreciated but is not required.
+
+   2. Altered source versions must be plainly marked as such, and must not be
+   misrepresented as being the original software.
+
+   3. This notice may not be removed or altered from any source
+   distribution.
+"""
 import sqlite3
 import os.path
 from clang import cindex
@@ -6,6 +28,8 @@ import re
 import sublime
 from common import parse_res
 from parsehelp import *
+import translationunitcache
+import threading
 
 scriptdir = os.path.dirname(os.path.abspath(__file__))
 enableCache = True
@@ -16,6 +40,7 @@ class SQLiteCache:
         self.createDB()
         self.cacheCursor = None
         self.cache = None
+        self.tuCache = translationunitcache.TranslationUnitCache()
 
     def createDB(self):
         self.cache = sqlite3.connect("%s/cache.db" % scriptdir)
@@ -24,31 +49,55 @@ class SQLiteCache:
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT,
             lastmodified TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
-        self.cacheCursor.execute("""create table if not exists dependencies(
+        self.cacheCursor.execute("""create table if not exists type(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT)""")
+        self.cacheCursor.execute("""create table if not exists dependency(
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             sourceId INTEGER,
             dependencyId INTEGER,
             FOREIGN KEY(sourceId) REFERENCES source(id),
             FOREIGN KEY(dependencyId) REFERENCES source(id))""")
-        self.cacheCursor.execute("""create table if not exists type(
+        self.cacheCursor.execute("""create table if not exists namespace(
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT,
-            sourceId INTEGER,
+            name TEXT
+            )""")
+        self.cacheCursor.execute("""create table if not exists inheritance(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            classId INTEGER,
+            parentId INTEGER)""")
+        self.cacheCursor.execute("""create table if not exists class(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            namespaceId INTEGER,
+            definitionSourceId INTEGER,
             definitionLine INTEGER,
             definitionColumn INTEGER,
-            lastmodified TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY(sourceId) REFERENCES source(id))""")
-        self.cacheCursor.execute(
-        """create table if not exists member(
+            name TEXT,
+            FOREIGN KEY(namespaceId) REFERENCES namespace(id),
+            FOREIGN KEY(definitionSourceId) REFERENCES source(id)
+            )""")
+        self.cacheCursor.execute("""create table if not exists member(
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            classId INTEGER,
+            returnId INTEGER,
+            definitionSourceId INTEGER,
+            definitionLine INTEGER,
+            definitionColumn INTEGER,
+            implementationSourceId INTEGER,
+            implementationLine INTEGER,
+            implementationColumn INTEGER,
             typeId INTEGER,
-            returnTypeId INTEGER,
-            field_or_method INTEGER,
-            flags INTEGER,
+            name TEXT,
             insertionText TEXT,
             displayText TEXT,
-            FOREIGN KEY(typeId) REFERENCES type(id),
-            FOREIGN KEY(returnTypeId) REFERENCES type(id) )""")
+            FOREIGN KEY(classId) REFERENCES class(id),
+            FOREIGN KEY(returnId) REFERENCES class(id),
+            FOREIGN KEY(definitionSourceId) REFERENCES source(id),
+            FOREIGN KEY(implementationSourceId) REFERENCES source(id),
+            FOREIGN KEY(typeId) REFERENCES type(id))
+            """
+        )
+
     """
     def get_type_db_name(self, c2, t=None):
         if t == None:
@@ -334,27 +383,30 @@ class SQLiteCache:
                 ret.append((representation, insertion))
                 print "adding: %s" % (representation)
 
-    def walk(self, cursor):
+    def indexthread(self, filename, opts=[]):
+        tu = self.tuCache.get_translation_unit(filename, opts)
+        tu.lock()
+
         def visitor(child, parent, data):
-            if cindex.isWin64:
-                _child = cindex.Cursor()
-                #_fields_ = [("_kind_id", c_int), ("xdata", c_int), ("data", c_void_p * 3)]
-
-                _child._kind_id = child[0]._kind_id  # dealing with pointers on Win64
-                _child.xdata = child[0].xdata
-                _child.data = child[0].data
-                child = _child
-
             if child == cindex.Cursor_null():
                 return 0
             child.dump_self()
             data[0] = data[0] + 1
-            if data[0] > 1000:
+            if data[0] > 2000:
+                print "returning 0"
                 return 0
+            if child.kind == cindex.CursorKind.FUNCTION_DECL:
+                return 2
             return 1  # continue
-        cindex.Cursor_visit(cursor, cindex.Cursor_visit_callback(visitor), [0])
+        cindex.Cursor_visit(tu.var.cursor, cindex.Cursor_visit_callback(visitor), [0])
+        tu.unlock()
+
+    def index(self, view):
+        t = threading.Thread(target=self.indexthread, args=(view.file_name(), self.tuCache.get_opts(view),))
+        t.start()
 
     def test(self, tu, view, line, prefix, locations):
+        self.index(view)
         #self.walk(tu.cursor)
 
         start = time.time()
