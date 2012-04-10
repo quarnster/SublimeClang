@@ -65,7 +65,7 @@ def get_var_type(data, var):
 
     match = None
     for m in regex.finditer(data, re.MULTILINE):
-        if m.group(1) == "return":
+        if m.group(1) == "return" or m.group(1) == "new" or m.group(1) == "delete":
             continue
         sub = data[m.start(2):]
         count = 0
