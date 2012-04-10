@@ -243,6 +243,12 @@ class Diagnostic(object):
         return _clang_getDiagnosticSpelling(self)
 
     @property
+    def disable_option(self):
+        option = _CXString()
+        _clang_getDiagnosticOption(self, byref(option))
+        return _CXString_getCString(option)
+
+    @property
     def ranges(self):
         class RangeIterator:
             def __init__(self, diag):
@@ -1368,6 +1374,11 @@ _clang_disposeDiagnostic.argtypes = [Diagnostic]
 _clang_getDiagnosticSeverity = lib.clang_getDiagnosticSeverity
 _clang_getDiagnosticSeverity.argtypes = [Diagnostic]
 _clang_getDiagnosticSeverity.restype = c_int
+
+_clang_getDiagnosticOption = lib.clang_getDiagnosticOption
+_clang_getDiagnosticOption.argtypes = [Diagnostic, POINTER(_CXString)]
+_clang_getDiagnosticOption.restype = _CXString
+_clang_getDiagnosticOption.errcheck = _CXString.from_result
 
 _clang_getDiagnosticLocation = lib.clang_getDiagnosticLocation
 _clang_getDiagnosticLocation.argtypes = [Diagnostic]
