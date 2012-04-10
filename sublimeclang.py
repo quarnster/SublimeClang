@@ -553,6 +553,8 @@ def display_compilation_results(view):
                 err = "%s:%d,%d - %s - %s" % (filename, f.line, f.column,
                                               diag.severityName,
                                               diag.spelling)
+                if len(diag.disable_option) > 0:
+                    err = "%s [Disable with %s]" % (err, diag.disable_option)
                 if diag.severity == cindex.Diagnostic.Fatal and \
                         "not found" in diag.spelling:
                     err = "%s\nDid you configure the include path used by clang properly?\n" \
