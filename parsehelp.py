@@ -34,6 +34,29 @@ def count_brackets(data):
     return even
 
 
+def collapse_brackets(before):
+    i = len(before)-1
+    count = 0
+    end = -1
+    min = 0
+    while i >= 0:
+        if before[i] == '}':
+            count += 1
+            if end == -1:
+                end = i
+        elif before[i] == '{':
+            count -= 1
+            if count < min:
+                min = count
+
+        if count == min and end != -1:
+            before = "%s%s" % (before[:i+1], before[end:])
+            end = -1
+        i -= 1
+    #before = re.sub("[^\{}]+\((?!\))", "", before)
+    return before
+
+
 def collapse_parenthesis(before):
     i = len(before)-1
     count = 0
@@ -59,13 +82,33 @@ def extract_completion(before):
     before = before[m.start(1):m.end(2)]
     return before
 
+_keywords = ["return", "new", "delete", "class", "define", "using", "void"]
+
+
+def extract_variables(data):
+    data = collapse_brackets(data)
+    invalid = """( \t\{,\*\&\-\+\/;=%\)\""""
+    regex = re.compile("(\w[^%s]+[ \t\*\&]+)([^%s]+)[ \t]*(\(|\;|,|\)|=)" % (invalid, invalid))
+    regex2 = re.compile("[^)]+\)+\s+\{")
+    ret = []
+    for m in regex.finditer(data, re.MULTILINE):
+        type = m.group(1).strip()
+        if type in _keywords:
+            continue
+        if m.group(3) == "(":
+            left = data[m.end():]
+            if regex.match(left) or regex2.match(left, re.MULTILINE):
+                continue
+        ret.append((type, m.group(2).strip()))
+    return ret
+
 
 def get_var_type(data, var):
     regex = re.compile("(\w[^( \t\{,\*\&]+)[ \t\*\&]+(%s)[ \t]*(\(|\;|,|\)|=)" % var)
 
     match = None
     for m in regex.finditer(data, re.MULTILINE):
-        if m.group(1) == "return" or m.group(1) == "new" or m.group(1) == "delete":
+        if m.group(1) in _keywords:
             continue
         sub = data[m.start(2):]
         count = 0
