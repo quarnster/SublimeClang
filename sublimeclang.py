@@ -38,7 +38,6 @@ import os
 import re
 import threading
 import time
-import sqlitecache
 from errormarkers import clear_error_marks, add_error_mark, show_error_marks, \
                          update_statusbar, erase_error_marks, set_clang_view
 from common import get_setting, get_settings, parse_res, is_supported_language, get_language
@@ -521,7 +520,7 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         res = None
         try:
             line = view.substr(sublime.Region(view.full_line(locations[0]).begin(), locations[0]))
-            ret = sqlitecache.sqlCache.test(tu.var, view, line, prefix, locations)
+            ret = tu.sqlCache.test(tu.var, view, line, prefix, locations)
             if not ret is None:
                 return ret
             res = tu.var.codeComplete(view.file_name(), row + 1, col + 1,

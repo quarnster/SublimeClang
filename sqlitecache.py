@@ -28,198 +28,75 @@ import re
 import sublime
 from common import parse_res
 from parsehelp import *
-import translationunitcache
-import threading
 
 scriptdir = os.path.dirname(os.path.abspath(__file__))
 enableCache = True
 
 
+def createDB(cursor):
+    cursor.execute("""create table if not exists source(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT,
+        lastmodified TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
+    cursor.execute("""create table if not exists type(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT)""")
+    cursor.execute("""create table if not exists dependency(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        sourceId INTEGER,
+        dependencyId INTEGER,
+        FOREIGN KEY(sourceId) REFERENCES source(id),
+        FOREIGN KEY(dependencyId) REFERENCES source(id))""")
+    cursor.execute("""create table if not exists namespace(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        parentId INTEGER,
+        name TEXT,
+        FOREIGN KEY(parentId) REFERENCES namespace(id)
+        )""")
+    cursor.execute("""create table if not exists inheritance(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        classId INTEGER,
+        parentId INTEGER)""")
+    cursor.execute("""create table if not exists class(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        namespaceId INTEGER,
+        definitionSourceId INTEGER,
+        definitionLine INTEGER,
+        definitionColumn INTEGER,
+        name TEXT,
+        FOREIGN KEY(namespaceId) REFERENCES namespace(id),
+        FOREIGN KEY(definitionSourceId) REFERENCES source(id)
+        )""")
+    cursor.execute("""create table if not exists member(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        classId INTEGER,
+        namespaceId INTEGER,
+        returnId INTEGER,
+        definitionSourceId INTEGER,
+        definitionLine INTEGER,
+        definitionColumn INTEGER,
+        implementationSourceId INTEGER,
+        implementationLine INTEGER,
+        implementationColumn INTEGER,
+        typeId INTEGER,
+        name TEXT,
+        insertionText TEXT,
+        displayText TEXT,
+        FOREIGN KEY(classId) REFERENCES class(id),
+        FOREIGN KEY(namespaceId) REFERENCES namespace(id),
+        FOREIGN KEY(returnId) REFERENCES class(id),
+        FOREIGN KEY(definitionSourceId) REFERENCES source(id),
+        FOREIGN KEY(implementationSourceId) REFERENCES source(id),
+        FOREIGN KEY(typeId) REFERENCES type(id))
+        """
+    )
+
+
 class SQLiteCache:
     def __init__(self):
-        self.createDB()
-        self.cacheCursor = None
         self.cache = None
-        self.tuCache = translationunitcache.TranslationUnitCache()
-
-    def createDB(self):
-        self.cache = sqlite3.connect("%s/cache.db" % scriptdir)
-        self.cacheCursor = self.cache.cursor()
-        self.cacheCursor.execute("""create table if not exists source(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT,
-            lastmodified TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
-        self.cacheCursor.execute("""create table if not exists type(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT)""")
-        self.cacheCursor.execute("""create table if not exists dependency(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            sourceId INTEGER,
-            dependencyId INTEGER,
-            FOREIGN KEY(sourceId) REFERENCES source(id),
-            FOREIGN KEY(dependencyId) REFERENCES source(id))""")
-        self.cacheCursor.execute("""create table if not exists namespace(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT
-            )""")
-        self.cacheCursor.execute("""create table if not exists inheritance(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            classId INTEGER,
-            parentId INTEGER)""")
-        self.cacheCursor.execute("""create table if not exists class(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            namespaceId INTEGER,
-            definitionSourceId INTEGER,
-            definitionLine INTEGER,
-            definitionColumn INTEGER,
-            name TEXT,
-            FOREIGN KEY(namespaceId) REFERENCES namespace(id),
-            FOREIGN KEY(definitionSourceId) REFERENCES source(id)
-            )""")
-        self.cacheCursor.execute("""create table if not exists member(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            classId INTEGER,
-            returnId INTEGER,
-            definitionSourceId INTEGER,
-            definitionLine INTEGER,
-            definitionColumn INTEGER,
-            implementationSourceId INTEGER,
-            implementationLine INTEGER,
-            implementationColumn INTEGER,
-            typeId INTEGER,
-            name TEXT,
-            insertionText TEXT,
-            displayText TEXT,
-            FOREIGN KEY(classId) REFERENCES class(id),
-            FOREIGN KEY(returnId) REFERENCES class(id),
-            FOREIGN KEY(definitionSourceId) REFERENCES source(id),
-            FOREIGN KEY(implementationSourceId) REFERENCES source(id),
-            FOREIGN KEY(typeId) REFERENCES type(id))
-            """
-        )
-
-    """
-    def get_type_db_name(self, c2, t=None):
-        if t == None:
-            t = c2.type
-            if c2.kind == cindex.CursorKind.FUNCTION_DECL or c2.kind == cindex.CursorKind.CXX_METHOD:
-                t = c2.result_type
-
-        if t.kind == cindex.TypeKind.UNEXPOSED or t.kind == cindex.TypeKind.RECORD:
-            return self.cursor_to_db_name(c2)
-        elif t.kind == cindex.TypeKind.TYPEDEF:
-            return self.get_type_db_name(c2, t.get_canonical())
-        elif t.kind == cindex.TypeKind.POINTER:
-            pointee = t.get_pointee()
-            c3 = pointee.get_declaration()
-            if not c3 is None and not c3.kind.is_invalid():
-                c2 = c3
-                pointee = c2.type
-            return self.get_type_db_name(c2, pointee)
-        else:
-            return t.kind.name
-
-    def get_absolute_path(self, c2):
-        c3 = c2.get_lexical_parent()
-        add = ""
-        while not c3 is None and not c3.kind.is_invalid():
-            #print "         %s, %s, %s, %s, %s" % (c3.kind, c3.type.kind, c3.displayname, c3.get_usr(), c3.spelling)
-            if len(c3.displayname):
-                print "here"
-                add += "%s::" % (c3.displayname)
-            c3 = c3.get_lexical_parent()
-        return add
-    """
-
-    """
-    def cursor_to_db_name(self, c2):
-        print "%s, %s, %s, %s, %s, %s " % (c2.kind, c2.type.kind, c2.result_type.kind, c2.displayname, c2.get_usr(), c2.spelling)
-        # if c2.kind == cindex.CursorKind.VAR_DECL:
-        #     print c2.spelling
-        #     self.dump_cursor(c2.get_definition())
-        #     self.dump_cursor(c2.get_reference())
-        #     self.dump_cursor(c2.get_canonical_cursor())
-        #     self.dump_cursor(c2.get_lexical_parent())
-        #     self.dump_cursor(c2.get_semantic_parent())
-        if c2.type.kind == cindex.TypeKind.RECORD and not c2.kind == cindex.CursorKind.VAR_DECL:
-            return self.get_absolute_path(c2) + c2.spelling
-        else:
-            ret = ""
-            children = c2.get_children()
-            for c3 in children:
-                add = ""
-                #print "child - %s, %s, %s, %s, %s" % (c3.kind, c3.type.kind, c3.displayname, c3.get_usr(), c3.spelling)
-                if c3.kind == cindex.CursorKind.NAMESPACE_REF:
-                    # The namespace is looked up later instead
-                    continue
-                elif c3.kind.is_reference():
-                    c4 = c3.get_reference()
-                    #print "     %s, %s, %s, %s, %s" % (c4.kind, c4.type.kind, c4.displayname, c4.get_usr(), c4.spelling)
-                    add = self.get_absolute_path(c4)
-                    if c3.kind == cindex.CursorKind.TYPE_REF:
-                        add += c4.displayname
-                    else:
-                        add += c3.displayname
-                    if c3.kind == cindex.CursorKind.TEMPLATE_REF:
-                        add += "<"
-                ret += add
-            for c3 in children:
-                if c3.kind == cindex.CursorKind.TEMPLATE_REF:
-                    if ret[-1] == ">":
-                        ret += " "
-                    ret += ">"
-            return ret
-
-    def recurse(self, cursor, symbol, count=0):
-        if cursor is None or cursor.kind.is_invalid() or count > 2:
-            return None
-        if cursor.kind.is_reference():
-            c2 = cursor.get_reference()
-            if not c2 is None and not c2.kind.is_invalid() and not c2 == cursor:
-                ret = self.recurse(c2, symbol, count+1)
-                if not ret is None:
-                    return ret
-        elif cursor.displayname == symbol and (\
-                        cursor.kind == cindex.CursorKind.VAR_DECL or
-                        cursor.kind == cindex.CursorKind.FIELD_DECL):
-            return cursor
-        else:
-            for child in cursor.get_children():
-                ret = self.recurse(child, symbol, count+1)
-                if not ret is None:
-                    return ret
-        return None
-
-    def backtrack(self, tu, cursor, loc):
-        cursor2 = cindex.Cursor.get(tu, loc.file.name, loc.line-1, 1)
-        count = 0
-        LIMIT = 2
-        while (cursor2 is None or cursor2.kind.is_invalid) and count < LIMIT:
-            cursor2 = cindex.Cursor.get(tu, loc.file.name, loc.line-1-count-1, 1)
-            count += 1
-        if cursor2 is None or cursor2.kind.is_invalid():
-            cursor2 = None
-        return cursor2
-
-    def find_type(self, cursor, symbol, tu=None, count=0):
-        type = self.recurse(cursor, symbol)
-        if not type is None:
-            return type
-
-        # if the type isn't found in the current block of code,
-        # try searching in nearby blocks
-        RECURSE_DEPTH = 5
-        if not tu is None and count < RECURSE_DEPTH:
-            cursor2 = self.backtrack(tu, cursor, cursor.extent.start)
-            if not cursor2 is None and not cursor2.kind.is_invalid():
-                type = self.find_type(cursor2, symbol, tu, count+1)
-            if not type is None:
-                return type
-            cursor2 = self.backtrack(tu, cursor, cursor.extent.end)
-            if not cursor2 is None and not cursor2.kind.is_invalid():
-                type = self.find_type(cursor2, symbol, tu, count+1)
-        return type
-    """
+        self.cacheCursor = None
+        self.newCache = None
 
     def get_completion_cursors(self, tu, filename, data, before):
         typedef = get_type_definition(data, before)
@@ -278,95 +155,6 @@ class SQLiteCache:
             type.dump_self()
         return (member, type)
 
-    """
-    def walk(self, tu, cursor):
-        #print cursor.kind
-        #print cursor.displayname
-        kind = cursor.kind
-
-        #print "%s, %s, %s" % (cursor.displayname, cursor.kind, cursor.spelling)
-        if kind.is_declaration():
-            #print "%s, %s, %s" % (child.displayname, child.kind, child.spelling)
-            if kind == cindex.CursorKind.FUNCTION_DECL or kind == cindex.CursorKind.FIELD_DECL or \
-                        kind == cindex.CursorKind.VAR_DECL or kind == cindex.CursorKind.CXX_METHOD:
-                #self.dump(child)
-                parent = cursor.get_semantic_parent()
-                pstr = ""
-                skip = False
-                while not parent is None and not parent.kind.is_invalid() and not parent.kind == cindex.CursorKind.UNEXPOSED_DECL:
-                    if parent.kind == cindex.CursorKind.CLASS_TEMPLATE:
-                        skip = True
-                        break
-                    #print "parent: %s, %s" % (parent.spelling, parent.kind)
-                    pstr = "%s::%s" % (parent.spelling, pstr)
-                    parent = parent.get_semantic_parent()
-                if skip:
-                    return
-                t = cursor.type
-                if kind == cindex.CursorKind.FUNCTION_DECL or kind == cindex.CursorKind.CXX_METHOD:
-                    t = cursor.result_type
-
-                type = self.get_type_db_name(cursor, t)
-                print "%s %s, %s -> %s, %s, %s, %s" % (pstr, cursor.spelling, cursor.kind, type, cursor.result_type.kind, cursor.type.kind, None)
-            elif kind == cindex.CursorKind.NAMESPACE or kind == cindex.CursorKind.CLASS_DECL:
-                print "%s, %s" % (cursor.kind, cursor.spelling)
-                for child in cursor.get_children():
-                    self.walk(tu, child)
-        elif kind == cindex.CursorKind.CXX_BASE_SPECIFIER:
-            self.walk(tu, cursor.get_definition())
-            #self.dump_cursor(cursor.get_definition())
-            #self.dump_cursor(cursor.get_reference())
-
-        # elif kind == cindex.CursorKind.INCLUSION_DIRECTIVE:
-        #     self.dump_cursor(cursor.get_canonical_cursor())
-        #     self.dump_cursor(cursor.get_semantic_parent())
-        #     self.dump_cursor(cursor.get_lexical_parent())
-        #     for child in cursor.get_children():
-        #         self.dump(child)
-
-
-    def recache(self, tu):
-        start = time.time()
-        self.walk(tu, tu.cursor)
-        end = time.time()
-        print "recache took %f ms" % ((end-start)*1000)
-
-    def walk_file(self, tu, view):
-        start = time.time()
-        row, col = view.rowcol(view.size())
-        line = 0
-        cursor = None
-        count = 0
-        while (cursor is None or cursor.kind.is_invalid()) and line < row:
-            line += 1
-            #print "line: %d, row: %d" % (line, row)
-            cursor = cindex.Cursor.get(tu, view.file_name(), line, 1)
-        if cursor is None or cursor.kind.is_invalid():
-            return
-
-        sourceLoc = cursor.extent.end
-
-        while True and count < 330:
-            if line > row:
-                break
-
-            while cursor is None or cursor.kind.is_invalid() and line < row:
-                line += 1
-                cursor = cindex.Cursor.get(tu, view.file_name(), line, 1)
-
-            if not cursor is None and not cursor.kind.is_invalid():
-                sourceLoc = cursor.extent.end
-                #print "%s, %s" % (cursor.extent.start, sourceLoc)
-                self.walk(tu, cursor)
-                line = sourceLoc.line+1
-                cursor = cindex.Cursor.get(tu, view.file_name(), line, 1)
-            else:
-                break
-            count += 1
-        end = time.time()
-        print "took: %f ms" % ((end-start)*1000)
-    """
-
     def complete(self, cursor, prefix, ret):
         for child in cursor.get_children():
             print "%s, %s, %d" % (child.kind, child.displayname, child.availability)
@@ -383,40 +171,153 @@ class SQLiteCache:
                 ret.append((representation, insertion))
                 print "adding: %s" % (representation)
 
-    def indexthread(self, filename, opts=[]):
-        tu = self.tuCache.get_translation_unit(filename, opts)
-        tu.lock()
+    def index(self, cursor):
+        start = time.time()
+
+        class IndexData:
+            def __init__(self):
+                self.count = 0
+                self.parents = []
+                self.cache = sqlite3.connect(":memory:", check_same_thread=False)
+                self.cacheCursor = self.cache.cursor()
+                createDB(self.cacheCursor)
+                self.namespace = []
+                self.classes = []
+
+            def get_namespace_id(self):
+                if len(self.namespace) > 0:
+                    return data.namespace[-1]
+                return "null"
+
+            def get_namespace_id_query(self):
+                ns = self.get_namespace_id()
+                if ns == "null":
+                    return " is null"
+                return "=%d" % ns
+
+            def get_source_id(self, source):
+                sql = "select id from source where name='%s'" % source
+                self.cacheCursor.execute(sql)
+                id = self.cacheCursor.fetchone()
+                if id == None:
+                    self.cacheCursor.execute("insert into source (name) values ('%s')" % source)
+                    self.cacheCursor.execute(sql)
+                    id = self.cacheCursor.fetchone()
+                return id[0]
 
         def visitor(child, parent, data):
             if child == cindex.Cursor_null():
                 return 0
-            child.dump_self()
-            data[0] = data[0] + 1
-            if data[0] > 2000:
+
+            data.count = data.count + 1
+            if data.count > 2000:
                 print "returning 0"
                 return 0
-            if child.kind == cindex.CursorKind.FUNCTION_DECL:
-                return 2
-            return 1  # continue
-        cindex.Cursor_visit(tu.var.cursor, cindex.Cursor_visit_callback(visitor), [0])
-        tu.unlock()
 
-    def index(self, view):
-        t = threading.Thread(target=self.indexthread, args=(view.file_name(), self.tuCache.get_opts(view),))
-        t.start()
+            while len(data.parents) > 0 and data.parents[-1] != parent:
+                oldparent = data.parents.pop()
+                #child.dump_self()
+                if oldparent.kind == cindex.CursorKind.NAMESPACE:
+                    data.namespace.pop()
+                elif oldparent.kind == cindex.CursorKind.CLASS_DECL:
+                    data.classes.pop()
+
+            recurse = False
+            if child.kind == cindex.CursorKind.NAMESPACE:
+                sql = "select id from namespace where name='%s' and parentId %s" % (child.spelling, data.get_namespace_id_query())
+
+                #print sql
+                data.cacheCursor.execute(sql)
+                idx = data.cacheCursor.fetchone()
+                if idx == None:
+                    sql2 = "insert into namespace (name, parentId) VALUES ('%s', %s)" % (child.spelling, "null" if len(data.namespace) == 0 else data.namespace[-1])
+                    data.cacheCursor.execute(sql2)
+                    #data.cache.commit()
+                    data.cacheCursor.execute(sql)
+                    idx = data.cacheCursor.fetchone()
+                idx = idx[0]
+                data.namespace.append(idx)
+                recurse = True
+            elif child.kind == cindex.CursorKind.CLASS_DECL:
+                sql = "select id from class where name='%s' and namespaceId %s" % (child.spelling, data.get_namespace_id_query())
+                idx = data.cacheCursor.fetchone()
+                if idx == None:
+                    recurse = True
+                    sql2 = """insert into class (name, namespaceId,
+                                definitionSourceId, definitionLine, definitionColumn) VALUES ('%s', %s, %d, %d, %d)""" % \
+                            (child.spelling, data.get_namespace_id(), \
+                             data.get_source_id(child.location.file.name), child.location.line, child.location.column)
+                    data.cacheCursor.execute(sql2)
+                    data.cacheCursor.execute(sql)
+                    idx = data.cacheCursor.fetchone()
+                    idx = idx[0]
+                    data.classes.append(idx)
+                else:
+                    # TODO: update definition if needed
+                    pass
+            elif child.kind == cindex.CursorKind.CXX_METHOD or child.kind == cindex.CursorKind.FUNCTION_DECL or child.kind == cindex.CursorKind.FIELD_DECL:
+                classId = "null"
+                if len(data.classes) > 0:
+                    classId = data.classes[-1]
+                returnId = "null"  # TODO
+                ret = parse_res(child.get_completion_string(), "")
+                data.cacheCursor.execute("""select id from member where name='%s' and definitionSourceId=%d and definitionLine=%d and definitionColumn=%d""" % \
+                    (child.spelling, data.get_source_id(child.location.file.name), child.location.line, child.location.column))
+                if data.cacheCursor.fetchone():
+                    # TODO. what?
+                    pass
+                else:
+                    sql = """insert into member (namespaceId, classId, returnId, definitionSourceId, definitionLine, definitionColumn, name, displayText, insertionText) values (%s, %s, %s, %s, %d, %d, '%s', '%s', '%s')""" % \
+                        (data.get_namespace_id(), classId, returnId, \
+                         data.get_source_id(child.location.file.name), child.location.line, child.location.column, \
+                         child.spelling, ret[1], ret[2])
+                    data.cacheCursor.execute(sql)
+
+            if recurse:
+                data.parents.append(child)
+                return 2
+
+            return 1  # continue
+        data = IndexData()
+        cindex.Cursor_visit(cursor, cindex.Cursor_visit_callback(visitor), data)
+        data.cache.commit()
+        data.cacheCursor.close()
+
+        end = time.time()
+        self.newCache = data.cache
+        print "indexing took %s ms" % ((end-start)*1000)
 
     def test(self, tu, view, line, prefix, locations):
-        self.index(view)
-        #self.walk(tu.cursor)
+        if self.newCache != None:
+            if self.cacheCursor:
+                self.cacheCursor.close()
+                self.cache.close()
+                self.cacheCursor = None
+                self.cache = None
+            self.cache = self.newCache
+            self.cacheCursor = self.cache.cursor()
+            self.newCache = None
+        if self.cacheCursor == None:
+            return []
 
         start = time.time()
         data = view.substr(sublime.Region(0, locations[0]))
         before = line
         if len(prefix) > 0:
             before = line[:-len(prefix)]
-        print before
         if re.search("[ \t]+$", before):
-            before = ""
+            ret = []
+            self.cacheCursor.execute("select name from class where namespaceId is null and name like '%s%%'" % prefix)
+            for c in self.cacheCursor:
+                ret.append(("%s\tclass" % c[0], c[0]))
+            self.cacheCursor.execute("select name from namespace where parentId is null and name like '%s%%'" % prefix)
+            for n in self.cacheCursor:
+                ret.append(("%s\tnamespace" % n[0], n[0]))
+            self.cacheCursor.execute("select displayText, insertionText from member where classId is null and namespaceId is null and name like '%s%%'" % prefix)
+            members = self.cacheCursor.fetchall()
+            if members:
+                ret.extend(members)
+            return ret
         elif re.search("([^ \t]+)(\.|\->)$", before):
             row, col = view.rowcol(view.sel()[0].a)
             member_cursor, type_cursor = self.get_completion_cursors(tu, view.file_name(), data, before)
@@ -432,5 +333,4 @@ class SQLiteCache:
         return None
 
 
-sqlCache = SQLiteCache()
-
+#sqlCache = SQLiteCache()
