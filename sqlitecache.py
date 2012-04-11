@@ -210,10 +210,6 @@ class SQLiteCache:
                 return 0
 
             data.count = data.count + 1
-            if data.count > 2000:
-                print "returning 0"
-                return 0
-
             while len(data.parents) > 0 and data.parents[-1] != parent:
                 oldparent = data.parents.pop()
                 #child.dump_self()
@@ -287,6 +283,22 @@ class SQLiteCache:
         self.newCache = data.cache
         print "indexing took %s ms" % ((end-start)*1000)
 
+    def get_namespace_query(self, namespace):
+        if len(namespace) == 0:
+            return "is null"
+        sub = namespace.split("::")
+        ns = "is null"
+        for sub in sub:
+            sql = "select id from namespace where name='%s' and parentId %s" % (sub, ns)
+            self.cacheCursor.execute(sql)
+            result = self.cacheCursor.fetchone()
+            if result == None:
+                ns = None
+                break
+            else:
+                ns = "=%s" % result[0]
+        return ns
+
     def test(self, tu, view, line, prefix, locations):
         if self.newCache != None:
             if self.cacheCursor:
@@ -307,24 +319,50 @@ class SQLiteCache:
             before = line[:-len(prefix)]
         if re.search("[ \t]+$", before):
             ret = []
-            self.cacheCursor.execute("select name from class where namespaceId is null and name like '%s%%'" % prefix)
-            for c in self.cacheCursor:
-                ret.append(("%s\tclass" % c[0], c[0]))
-            self.cacheCursor.execute("select name from namespace where parentId is null and name like '%s%%'" % prefix)
-            for n in self.cacheCursor:
-                ret.append(("%s\tnamespace" % n[0], n[0]))
-            self.cacheCursor.execute("select displayText, insertionText from member where classId is null and namespaceId is null and name like '%s%%'" % prefix)
-            members = self.cacheCursor.fetchall()
-            if members:
-                ret.extend(members)
+            namespaces = extract_used_namespaces(data)
+            namespaces.append("null")
+
+            mynamespace = extract_namespace(data)
+            if len(mynamespace):
+                namespaces.append(mynamespace)
+            for namespace in namespaces:
+                ns = "is null"
+                if namespace != "null":
+                    ns = self.get_namespace_query(namespace)
+                    if ns == None:
+                        # Couldn't find that namespace
+                        continue
+
+                self.cacheCursor.execute("select name from class where namespaceId %s and name like '%s%%'" % (ns, prefix))
+                for c in self.cacheCursor:
+                    ret.append(("%s\tclass" % c[0], c[0]))
+                self.cacheCursor.execute("select name from namespace where parentId %s and name like '%s%%'" % (ns, prefix))
+                for n in self.cacheCursor:
+                    ret.append(("%s\tnamespace" % n[0], n[0]))
+                self.cacheCursor.execute("select displayText, insertionText from member where classId is null and namespaceId %s and name like '%s%%'" % (ns, prefix))
+                members = self.cacheCursor.fetchall()
+                if members:
+                    ret.extend(members)
+            myclass = extract_class(data)
+            if myclass == None:
+                myclass = extract_class_from_function(data)
+
+            if myclass != None:
+                ns = self.get_namespace_query(mynamespace)
+                self.cacheCursor.execute("select id from class where name='%s' and namespaceId %s" % (myclass, ns))
+                classid = self.cacheCursor.fetchone()
+                self.cacheCursor.execute("select id, name from class")
+                if classid != None:
+                    classid = classid[0]
+
+                    self.cacheCursor.execute("select displayText, insertionText from member where classId=%s and namespaceId %s and name like '%s%%'" % (classid, ns, prefix))
+                    members = self.cacheCursor.fetchall()
+                    if members:
+                        ret.extend(members)
             variables = extract_variables(data)
             for var in variables:
                 ret.append(("%s\t%s" % (var[1], var[0]), var[1]))
-            # TODO: vars, classes and namespaces that are in a namespace
-            #       and the current source file has a "using namespace"
-            #       directive for.
-            #
-            #       Class members for "this" where appropriate.
+            # TODO:
             #       Inheritance.
             ret = sorted(ret, key=lambda a: a[1])
             return ret

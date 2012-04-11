@@ -85,19 +85,92 @@ def extract_completion(before):
 _keywords = ["return", "new", "delete", "class", "define", "using", "void", "template", "public:", "protected:", "private:", "public", "private", "protected"]
 
 
-def remove_functions(data):
-    regex = re.compile("\S+\s*\([^\)]*\)\s*\{\}")
+def extract_used_namespaces(data):
+    regex = re.compile("\s*using\s+(namespace\s+)?([^;]+)")
+    ret = []
+    for match in regex.finditer(data, re.MULTILINE):
+        toadd = match.group(2)
+        if match.group(1) == None:
+            toadd = toadd[:toadd.rfind("::")]
+        ret.append(toadd)
+    return ret
+
+
+def extract_namespace(data):
+    data = collapse_brackets(data)
+    data = remove_namespaces(data)
+    regex = re.compile("namespace\s+([^{\s]+)")
+    ret = ""
+    for match in regex.finditer(data, re.MULTILINE):
+        if len(ret):
+            ret += "::"
+        ret += match.group(1)
+    return ret
+
+
+def extract_class_from_function(data):
+    data = collapse_brackets(data)
+    data = remove_functions(data)
+    ret = None
+    for match in re.finditer("(\w+\s+)?(\w+)::~?(\w+)\([^)]*\)\s*\{", data, re.MULTILINE):
+        ret = match.group(2)
+    return ret
+
+
+def extract_class(data):
+    data = collapse_brackets(data)
+    data = remove_classes(data)
+    regex = re.compile("class\s+([^;{\s]+)")
     match = regex.search(data, re.MULTILINE)
-    print match
+    if match != None:
+        return match.group(1)
+    return None
+
+
+def remove_classes(data):
+    regex = re.compile("class\s+\S+\s*\{\}\s*;")
+    match = regex.search(data, re.MULTILINE)
     while match:
         data = "%s%s" % (data[:match.start()], data[match.end():])
         match = regex.search(data, re.MULTILINE)
     return data
 
 
+def remove_functions(data):
+    regex = re.compile("\S+\s*\([^\)]*\)\s*\{\}")
+    match = regex.search(data, re.MULTILINE)
+    while match:
+        data = "%s%s" % (data[:match.start()], data[match.end():])
+        match = regex.search(data, re.MULTILINE)
+    return data
+
+
+def remove_namespaces(data):
+    regex = re.compile("\s*namespace\s+[^{]+\s*\{\}\s*;")
+    match = regex.search(data, re.MULTILINE)
+    while match:
+        data = "%s%s" % (data[:match.start()], data[match.end():])
+        match = regex.search(data, re.MULTILINE)
+    return data
+
+
+def remove_includes(data):
+    regex = re.compile("""\#\s*include\s+(<|")[^>"]+(>|")""")
+    while True:
+        old = data
+        data = regex.sub("", data)
+        if old == data:
+            break
+    return data
+
+
 def extract_variables(data):
+    data = remove_includes(data)
     data = collapse_brackets(data)
     data = remove_functions(data)
+    data = remove_namespaces(data)
+    data = remove_classes(data)
+
     invalid = """( \t\{,\*\&\-\+\/;=%\)\""""
     regex = re.compile("(\w[^%s]+[ \t\*\&]+)([^%s]+)[ \t]*(\(|\;|,|\)|=)" % (invalid, invalid))
     regex2 = re.compile("[^)]+\)+\s+\{")
