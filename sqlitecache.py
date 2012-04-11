@@ -317,6 +317,16 @@ class SQLiteCache:
             members = self.cacheCursor.fetchall()
             if members:
                 ret.extend(members)
+            variables = extract_variables(data)
+            for var in variables:
+                ret.append(("%s\t%s" % (var[1], var[0]), var[1]))
+            # TODO: vars, classes and namespaces that are in a namespace
+            #       and the current source file has a "using namespace"
+            #       directive for.
+            #
+            #       Class members for "this" where appropriate.
+            #       Inheritance.
+            ret = sorted(ret, key=lambda a: a[1])
             return ret
         elif re.search("([^ \t]+)(\.|\->)$", before):
             row, col = view.rowcol(view.sel()[0].a)
