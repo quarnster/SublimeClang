@@ -20,11 +20,11 @@ freely, subject to the following restrictions:
    3. This notice may not be removed or altered from any source
    distribution.
 """
-import threading
-from common import Worker, get_setting, get_path_setting, get_language
+from common import Worker, get_setting, get_path_setting, get_language, LockedVariable
 from clang import cindex
 import time
 import sublime
+import sqlitecache
 
 
 class TranslationUnitCache(Worker):
@@ -33,27 +33,18 @@ class TranslationUnitCache(Worker):
     STATUS_READY        = 3
     STATUS_NOT_IN_CACHE = 4
 
-    class LockedVariable:
+    class LockedTranslationUnit(LockedVariable):
         def __init__(self, var):
-            self.var = var
-            self.l = threading.Lock()
-
-        def try_lock(self):
-            return self.l.acquire(False)
-
-        def lock(self):
-            self.l.acquire()
-            return self.var
-
-        def unlock(self):
-            self.l.release()
+            LockedVariable.__init__(self, var)
+            self.sqlCache = sqlitecache.SQLiteCache()
+            self.sqlCache.index(var.cursor)
 
     def __init__(self):
         self.as_super = super(TranslationUnitCache, self)
         self.as_super.__init__()
-        self.translationUnits = TranslationUnitCache.LockedVariable({})
-        self.parsingList = TranslationUnitCache.LockedVariable([])
-        self.busyList = TranslationUnitCache.LockedVariable([])
+        self.translationUnits = LockedVariable({})
+        self.parsingList = LockedVariable([])
+        self.busyList = LockedVariable([])
         self.index_parse_options = 13
         self.index = None
 
@@ -133,6 +124,7 @@ class TranslationUnitCache(Worker):
                 tu.lock()
                 try:
                     tu.var.reparse(unsaved_files)
+                    tu.sqlCache.index(tu.var.cursor)
                     self.set_status("Reparsing %s done" % filename)
                 finally:
                     tu.unlock()
@@ -221,8 +213,9 @@ class TranslationUnitCache(Worker):
                 # Apparently the options aren't used in the first parse,
                 # so reparse to heat up the cache
                 tu.reparse(unsaved_files)
+                tu = TranslationUnitCache.LockedTranslationUnit(tu)
                 tus = self.translationUnits.lock()
-                tus[filename] = tu = TranslationUnitCache.LockedVariable(tu)
+                tus[filename] = tu
                 self.translationUnits.unlock()
         else:
             tu = tus[filename]

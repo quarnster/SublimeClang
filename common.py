@@ -51,6 +51,22 @@ def is_supported_language(view):
     return True
 
 
+class LockedVariable:
+    def __init__(self, var):
+        self.var = var
+        self.l = threading.Lock()
+
+    def try_lock(self):
+        return self.l.acquire(False)
+
+    def lock(self):
+        self.l.acquire()
+        return self.var
+
+    def unlock(self):
+        self.l.release()
+
+
 class Worker(object):
     def __init__(self):
         self.tasks = Queue.Queue()
