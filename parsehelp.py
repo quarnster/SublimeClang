@@ -82,18 +82,29 @@ def extract_completion(before):
     before = before[m.start(1):m.end(2)]
     return before
 
-_keywords = ["return", "new", "delete", "class", "define", "using", "void"]
+_keywords = ["return", "new", "delete", "class", "define", "using", "void", "template", "public:", "protected:", "private:", "public", "private", "protected"]
+
+
+def remove_functions(data):
+    regex = re.compile("\S+\s*\([^\)]*\)\s*\{\}")
+    match = regex.search(data, re.MULTILINE)
+    print match
+    while match:
+        data = "%s%s" % (data[:match.start()], data[match.end():])
+        match = regex.search(data, re.MULTILINE)
+    return data
 
 
 def extract_variables(data):
     data = collapse_brackets(data)
+    data = remove_functions(data)
     invalid = """( \t\{,\*\&\-\+\/;=%\)\""""
     regex = re.compile("(\w[^%s]+[ \t\*\&]+)([^%s]+)[ \t]*(\(|\;|,|\)|=)" % (invalid, invalid))
     regex2 = re.compile("[^)]+\)+\s+\{")
     ret = []
     for m in regex.finditer(data, re.MULTILINE):
         type = m.group(1).strip()
-        if type in _keywords:
+        if type in _keywords or type.startswith("template"):
             continue
         if m.group(3) == "(":
             left = data[m.end():]
