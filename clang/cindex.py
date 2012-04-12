@@ -1079,18 +1079,23 @@ class Cursor(Structure):
         return children
 
     def get_resolved_cursor(self):
-        print "get_type"
+        #print "get_type"
         if self.kind == CursorKind.CLASS_DECL or self.kind == CursorKind.ENUM_DECL:
             return self
         elif self.kind.is_reference():
-            return self.get_reference().get_resolved_cursor()
+            ref = self.get_reference()
+            if ref == self:
+                return None
+            return ref.get_resolved_cursor()
         elif self.kind.is_declaration():
             for child in self.get_children():
-                print "%s, %s, %s, %s" % (child.kind, child.spelling, child.type.kind, child.result_type.kind)
+                #print "%s, %s, %s, %s" % (child.kind, child.spelling, child.type.kind, child.result_type.kind)
                 if child.kind == CursorKind.TEMPLATE_REF or child.kind == CursorKind.TYPE_REF:
                     c = child.get_reference()
                     #print "will return this type: "
                     #self.dump(c)
+                    if c == child:
+                        return None
                     return c.get_resolved_cursor()
                 elif child.kind == CursorKind.ENUM_DECL:
                     return child
@@ -1131,7 +1136,7 @@ class Cursor(Structure):
 
     def get_returned_cursor(self):
         ret = None
-        print "getting returned cursor of %s, %s, %s, %s" % (self.kind, self.spelling, self.type.kind, self.result_type.kind)
+        #print "getting returned cursor of %s, %s, %s, %s" % (self.kind, self.spelling, self.type.kind, self.result_type.kind)
         if self.kind.is_declaration():
             ret = self  # .get_resolved_cursor()
         if self.result_type.kind == TypeKind.RECORD:
@@ -1140,15 +1145,15 @@ class Cursor(Structure):
                     self.result_type.kind == TypeKind.LVALUEREFERENCE:
 
             pointee = self.result_type.get_pointee()
-            print "pointee kind: %s" % (pointee.kind)
+            #print "pointee kind: %s" % (pointee.kind)
             ret = pointee.get_declaration()
             if ret is None or ret.kind.is_invalid():
                 #ret = pointee.get_canonical().get_declaration()
                 ret = self.result_type.get_result().get_declaration()
 
-        ret.dump_self()
+        #ret.dump_self()
         if not ret is None and not ret.kind.is_invalid():
-            ret.dump()
+            #ret.dump()
             return ret.get_resolved_cursor()
         return None
 
