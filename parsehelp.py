@@ -137,7 +137,7 @@ def remove_classes(data):
 
 
 def remove_functions(data):
-    regex = re.compile("\S+\s*\([^\)]*\)\s*\{\}")
+    regex = re.compile("\S+\s*\([^\)]*\)\s*(const)?\s*\{\}")
     match = regex.search(data, re.MULTILINE)
     while match:
         data = "%s%s" % (data[:match.start()], data[match.end():])
@@ -154,6 +154,25 @@ def remove_namespaces(data):
     return data
 
 
+def sub(exp, data):
+    regex = re.compile(exp)
+    while True:
+        olddata = data
+        data = regex.sub("", data, re.MULTILINE|re.DOTALL)
+        if olddata == data:
+            break
+    return data
+
+
+def remove_preprocessing(data):
+    data = data.replace("\\\n", " ")
+    data = sub("\#\s*define.+\\n", data)
+    data = sub("\#\s*(ifndef|ifdef|if|endif|else|elif|pragma|include)[^\\n]*\\n", data)
+    data = sub("//[^\n]+\\n", data)
+    data = sub("/\\*.*(?!\\*/)", data)
+    return data
+
+
 def remove_includes(data):
     regex = re.compile("""\#\s*include\s+(<|")[^>"]+(>|")""")
     while True:
@@ -165,25 +184,34 @@ def remove_includes(data):
 
 
 def extract_variables(data):
+    data = remove_preprocessing(data)
     data = remove_includes(data)
     data = collapse_brackets(data)
     data = remove_functions(data)
     data = remove_namespaces(data)
     data = remove_classes(data)
 
-    invalid = """( \t\{,\*\&\-\+\/;=%\)\""""
-    regex = re.compile("(\w[^%s]+[ \t\*\&]+)([^%s]+)[ \t]*(\(|\;|,|\)|=)" % (invalid, invalid))
+    invalid = """( \t\{,\*\&\-\+\/;=%\)\.\"!"""
+    pattern = "(\\b\\w[^%s]+[ \t\*\&]+(const)?[ \t\*\&]*)(\w[^%s\>]+)[ \t]*(\(|\;|,|\)|=)" % (invalid, invalid)
+    regex = re.compile(pattern)
     regex2 = re.compile("[^)]+\)+\s+\{")
     ret = []
     for m in regex.finditer(data, re.MULTILINE):
         type = m.group(1).strip()
         if type in _keywords or type.startswith("template"):
             continue
-        if m.group(3) == "(":
+        if m.group(4) == "(":
             left = data[m.end():]
             if regex.match(left) or regex2.match(left, re.MULTILINE):
                 continue
-        ret.append((type, m.group(2).strip()))
+        var = m.group(3).strip()
+        for i in range(len(ret)):
+            if ret[i][1] == var:
+                ret[i] = (type, var)
+                var = None
+                break
+        if var != None:
+            ret.append((type, var))
     return ret
 
 
