@@ -182,6 +182,8 @@ def remove_includes(data):
             break
     return data
 
+_invalid = """( \t\{,\*\&\-\+\/;=%\)\.\"!"""
+
 
 def extract_variables(data):
     data = remove_preprocessing(data)
@@ -191,8 +193,7 @@ def extract_variables(data):
     data = remove_namespaces(data)
     data = remove_classes(data)
 
-    invalid = """( \t\{,\*\&\-\+\/;=%\)\.\"!"""
-    pattern = "(\\b\\w[^%s]+[ \t\*\&]+(const)?[ \t\*\&]*)(\w[^%s\>]+)[ \t]*(\(|\;|,|\)|=)" % (invalid, invalid)
+    pattern = "(\\b\\w[^%s]+[ \t\*\&]+(const)?[ \t\*\&]*)(\w[^%s\>]+)[ \t]*(\(|\;|,|\)|=)" % (_invalid, _invalid)
     regex = re.compile(pattern)
     regex2 = re.compile("[^)]+\)+\s+\{")
     ret = []
@@ -216,7 +217,7 @@ def extract_variables(data):
 
 
 def get_var_type(data, var):
-    regex = re.compile("(\w[^( \t\{,\*\&]+)[ \t\*\&]+(%s)[ \t]*(\(|\;|,|\)|=)" % var)
+    regex = re.compile("(\w[^%s]+)[ \t\*\&]+(%s)[ \t]*(\(|\;|,|\)|=)" % (_invalid, var))
 
     data = collapse_brackets(data)
     match = None
