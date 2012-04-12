@@ -218,30 +218,12 @@ def extract_variables(data):
 def get_var_type(data, var):
     regex = re.compile("(\w[^( \t\{,\*\&]+)[ \t\*\&]+(%s)[ \t]*(\(|\;|,|\)|=)" % var)
 
+    data = collapse_brackets(data)
     match = None
     for m in regex.finditer(data, re.MULTILINE):
         if m.group(1) in _keywords:
             continue
-        sub = data[m.start(2):]
-        count = 0
-        lowest = 0
-        while len(sub):
-            idx1 = sub.rfind("{")
-            idx2 = sub.rfind("}")
-            if idx1 == idx2 and idx1 == -1:
-                break
-            maxidx = max(idx1, idx2)
-
-            sub = sub[:maxidx]
-            if idx1 > idx2:
-                count -= 1
-                if count < lowest:
-                    lowest = count
-            elif idx2 != -1:
-                count += 1
-        if count == lowest:
-            match = m
-            break
+        match = m
     return match
 
 

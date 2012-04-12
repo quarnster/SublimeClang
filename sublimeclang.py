@@ -523,13 +523,27 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
 
             line = view.substr(sublime.Region(view.full_line(locations[0]).begin(), locations[0]))
             ret = tu.sqlCache.test(tu.var if locked else None, view, line, prefix, locations)
+
+            if self.time_completions:
+                # TODO
+                curr = (time.time() - start)*1000
+                tot += curr
+                timing += ", Comp: %f" % (curr)
+                timing += ", Tot: %f ms" % (tot)
+                print timing
+                sublime.status_message(timing)
+
             if not ret is None:
                 return ret
-            if not locked:
-                locked = True
-                tu.lock()
-            res = tu.var.codeComplete(view.file_name(), row + 1, col + 1,
+            enableClang = False  # TODO
+            if enableClang:
+                if not locked:
+                    locked = True
+                    tu.lock()
+                res = tu.var.codeComplete(view.file_name(), row + 1, col + 1,
                                           unsaved_files, 3)
+            else:
+                return self.return_completions([], view)
         finally:
             if locked:
                 tu.unlock()
@@ -624,6 +638,7 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
                                   view.substr(Region(0, view.size()))))
         if not tuCache.reparse(view, view.file_name(), unsaved_files,
                         self.reparse_done):
+
             # Already parsing so retry in a bit
             self.restart_recompile_timer(1)
 

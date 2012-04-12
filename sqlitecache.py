@@ -417,7 +417,7 @@ class SQLiteCache:
             self.cacheCursor.execute(sql)
             result = self.cacheCursor.fetchone()
             if result == None:
-                ns = None
+                ns = "is null"
                 break
             else:
                 ns = "=%s" % result[0]
