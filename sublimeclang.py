@@ -511,22 +511,28 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         if view.is_dirty():
             unsaved_files.append((view.file_name(),
                                   view.substr(Region(0, view.size()))))
-        tu.lock()
-        if self.time_completions:
-            curr = (time.time() - start)*1000
-            tot += curr
-            timing += "TU: %f" % (curr)
-            start = time.time()
         res = None
+        locked = False
         try:
+            locked = tu.try_lock()
+            if self.time_completions:
+                curr = (time.time() - start)*1000
+                tot += curr
+                timing += "TU: %f" % (curr)
+                start = time.time()
+
             line = view.substr(sublime.Region(view.full_line(locations[0]).begin(), locations[0]))
-            ret = tu.sqlCache.test(tu.var, view, line, prefix, locations)
+            ret = tu.sqlCache.test(tu.var if locked else None, view, line, prefix, locations)
             if not ret is None:
                 return ret
+            if not locked:
+                locked = True
+                tu.lock()
             res = tu.var.codeComplete(view.file_name(), row + 1, col + 1,
-                                      unsaved_files, 3)
+                                          unsaved_files, 3)
         finally:
-            tu.unlock()
+            if locked:
+                tu.unlock()
         if self.time_completions:
             # Unfortunately if this takes a long time it is libclang doing its thing
             # so I'm not sure if there's anything that can be done to speed it up.
