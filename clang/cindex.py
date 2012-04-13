@@ -1109,7 +1109,7 @@ class Cursor(Structure):
         if self.result_type.kind == TypeKind.POINTER:
             return self.result_type.get_pointee().get_declaration()
 
-        return self
+        return None #self
 
     def dump_self(self):
         if self is None or self.kind.is_invalid():
@@ -1138,7 +1138,7 @@ class Cursor(Structure):
         ret = None
         #print "getting returned cursor of %s, %s, %s, %s" % (self.kind, self.spelling, self.type.kind, self.result_type.kind)
         if self.kind.is_declaration():
-            ret = self  # .get_resolved_cursor()
+            ret = self #.get_resolved_cursor()
         if self.result_type.kind == TypeKind.RECORD:
             ret = self.get_children()[0]
         if self.result_type.kind == TypeKind.POINTER or \
