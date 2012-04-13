@@ -64,6 +64,7 @@ def createDB(cursor):
         definitionLine INTEGER,
         definitionColumn INTEGER,
         name TEXT,
+        template INTEGER,
         FOREIGN KEY(namespaceId) REFERENCES namespace(id),
         FOREIGN KEY(definitionSourceId) REFERENCES source(id)
         )""")
@@ -92,6 +93,23 @@ def createDB(cursor):
         FOREIGN KEY(typeId) REFERENCES type(id))
         """
     )
+    cursor.execute("""create table if not exists templatearguments(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        classId INTEGER,
+        argumentClassId INTEGER,
+        argumentNumber INTEGER,
+        FOREIGN KEY(classId) REFERENCES class(id),
+        FOREIGN KEY(argumentClassId) REFERENCES class(id))
+        """)
+    cursor.execute("""create table if not exists templatedmembers(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        memberId INTEGER,
+        argumentClassId INTEGER,
+        argumentNumber INTEGER,
+        FOREIGN KEY(memberId) REFERENCES member(id),
+        FOREIGN KEY(argumentClassId) REFERENCES class(id))
+        """)
+
 
 
 class SQLiteCache:
@@ -136,11 +154,9 @@ class SQLiteCache:
         return True
 
     def lookup_sql(self, data, name, function):
-        sql = "select returnId from member where classId=%d and name='%s' and access <=%d" % (data.classId, name, data.access)
-        print "%d, %s" % (data.classId, name)
+        sql = "select returnId, id from member where classId=%d and name='%s' and access <=%d" % (data.classId, name, data.access)
         self.cacheCursor.execute(sql)
         ret = self.cacheCursor.fetchone()
-        print ret
         if ret == None or ret[0] == None:
             self.cacheCursor.execute("select parentId from inheritance where classId=%d" % data.classId)
 
@@ -156,7 +172,28 @@ class SQLiteCache:
                         return True
             data.classId = -1
             return False
-        data.classId = ret[0]
+        else:
+
+            self.cacheCursor.execute("select id, template from class where id=%d" % ret[0])
+            res = self.cacheCursor.fetchone()
+            if res != None and res[1] != 0:
+                if data.templateargs != None:
+                    tempargs = data.templateargs
+                    print tempargs
+                    data.templateargs = None
+                    self.cacheCursor.execute("select argumentNumber from templatearguments where classId=%d and argumentClassId=%d" % (data.classId, ret[0]))
+                    idx = self.cacheCursor.fetchone()[0]
+
+                    print "swapping %d for %d" % (ret[0], tempargs[idx])
+                    data.classId = tempargs[idx]
+                    return True
+                else:
+                    sql = "select argumentClassId from templatedmembers where memberId=%d order by argumentNumber" % ret[1]
+                    print sql
+                    self.cacheCursor.execute(sql)
+                    data.templateargs = [x[0] for x in self.cacheCursor.fetchall()]
+                    print data.templateargs
+            data.classId = ret[0]
         return True
 
     def complete_cursors(self, tu, filename, data, before, prefix):
@@ -240,17 +277,15 @@ class SQLiteCache:
 
     def complete_members(self, tu, filename, data, before, prefix):
         ret = None
-        if tu != None:
-            ret = self.complete_cursors(tu, filename, data, before, prefix)
-            if ret != None:
-                return ret
+        # if tu != None:
+        #     ret = self.complete_cursors(tu, filename, data, before, prefix)
+        #     if ret != None:
+        #         return ret
 
         typedef = get_type_definition(data, before)
         if typedef == None:
             return None
         line, column, typename, var, tocomplete = typedef
-        ns = self.get_namespace_query(extract_namespace(data))
-        print typedef
         if typename == None and var != None:
             # Try and see if we're in a class and var
             # thus might be a member of "this"
@@ -263,27 +298,62 @@ class SQLiteCache:
         if typename == None:
             return None
 
-        self.cacheCursor.execute("select id from class where name='%s' and namespaceId %s" % (typename, ns))
+        template = re.search("([^<]+)(<([^>]+)>)?", typename)
+        namespaces = extract_used_namespaces(data)
+        namespaces.append("null")
+        mynamespace = extract_namespace(data)
+        if len(mynamespace):
+            namespaces.append(mynamespace)
+        for namespace in namespaces:
+            ns = "is null"
+            if namespace != "null":
+                ns = self.get_namespace_query(namespace)
+                if ns == None:
+                    # Couldn't find that namespace
+                    continue
 
-        classid = self.cacheCursor.fetchone()
-        if classid != None:
-            classid = classid[0]
+            print template.groups()
+            print template.group(2)
+            print template.group(3)
 
-            class Temp:
-                def __init__(self):
-                    self.classId = -1
-                    self.namespace = -1
-                    self.access = 1  # public
-            data = Temp()
-            data.classId = classid
-            data.namespace = ns
-            self.get_final_type(self.lookup_sql, data, tocomplete)
-            ret = []
-            classid = data.classId
-            if classid != -1:
-                self.complete_sql(classid, prefix, ret)
-            if len(ret) == 0:
-                ret = None
+            sql = "select id from class where name='%s' and namespaceId %s and template=%d" % (template.group(1), ns, template.group(2) != None)
+            print sql
+            self.cacheCursor.execute(sql)
+
+            classid = self.cacheCursor.fetchone()
+            if classid != None:
+                classid = classid[0]
+
+                class Temp:
+                    def __init__(self):
+                        self.classId = -1
+                        self.namespace = -1
+                        self.access = 1  # public
+                        self.templateargs = []
+                data = Temp()
+                data.classId = classid
+                data.namespaces = namespaces
+                data.templateargs = template.group(3)
+                if data.templateargs:
+                    data.templateargs = [a.strip() for a in data.templateargs.split(",")]
+                    for i in range(len(data.templateargs)):
+                        for namespace in namespaces:
+                            sql = "select id from class where name='%s' and template=0 and namespaceId %s" % (data.templateargs[i], self.get_namespace_query(namespace))
+                            self.cacheCursor.execute(sql)
+
+                            id = self.cacheCursor.fetchone()
+                            if id != None:
+                                data.templateargs[i] = id[0]
+                                break
+                print "getting final type"
+                self.get_final_type(self.lookup_sql, data, tocomplete)
+                ret = []
+                classid = data.classId
+                print classid
+                if classid != -1:
+                    self.complete_sql(classid, prefix, ret)
+                if len(ret) == 0:
+                    ret = None
         return ret
 
     def index(self, cursor):
@@ -299,6 +369,8 @@ class SQLiteCache:
                 self.namespace = []
                 self.classes = []
                 self.access = [3]
+                self.templates = []
+                self.templateParameter = []
 
             def get_namespace_id(self):
                 if len(self.namespace) > 0:
@@ -356,16 +428,24 @@ class SQLiteCache:
                 return data.get_or_add_class_id(cursor, ns)
 
             def get_or_add_class_id(self, child, ns=None):
+                template = 0
+                if child.kind == cindex.CursorKind.CLASS_TEMPLATE:
+                    template = 1
+                elif child.kind == cindex.CursorKind.TEMPLATE_TYPE_PARAMETER:
+                    template = 2
                 if ns == None:
-                    ns = self.get_namespace_id()
-                sql = "select id from class where name='%s' and namespaceId %s" % (child.spelling, self.get_namespace_id_query(ns))
+                    if not template:
+                        ns = self.get_namespace_id()
+                    else:
+                        ns = "null"
+                sql = "select id from class where name='%s' and namespaceId %s and template=%d" % (child.spelling, self.get_namespace_id_query(ns), template)
                 self.cacheCursor.execute(sql)
                 idx = self.cacheCursor.fetchone()
                 if idx == None:
                     sql2 = """insert into class (name, namespaceId,
-                                definitionSourceId, definitionLine, definitionColumn) VALUES ('%s', %s, %d, %d, %d)""" % \
+                                definitionSourceId, definitionLine, definitionColumn, template) VALUES ('%s', %s, %d, %d, %d, %d)""" % \
                             (child.spelling, ns, \
-                             self.get_source_id(child), child.location.line, child.location.column)
+                             self.get_source_id(child), child.location.line, child.location.column, template)
                     self.cacheCursor.execute(sql2)
                     self.cacheCursor.execute(sql)
                     idx = self.cacheCursor.fetchone()
@@ -386,17 +466,34 @@ class SQLiteCache:
                         oldparent.kind == cindex.CursorKind.STRUCT_DECL:
                     data.classes.pop()
                 data.access.pop()
+                if oldparent.kind == cindex.CursorKind.CLASS_TEMPLATE:
+                    data.classes.pop()
+                    data.templates.pop()
+                    data.templateParameter.pop()
 
-            #child.dump_self()
+            #if parent and parent.kind == cindex.CursorKind.CLASS_TEMPLATE:
+            #if child.spelling == "test":
+            #    child.dump()
+
             recurse = False
             if child.kind == cindex.CursorKind.NAMESPACE:
                 data.namespace.append(data.get_or_add_namespace_id(child.spelling))
                 recurse = True
+            elif child.kind == cindex.CursorKind.CLASS_TEMPLATE:
+                data.classes.append(data.get_or_add_class_id(child))
+                data.templates.append(child)
+                data.templateParameter.append(0)
+                recurse = True
             elif child.kind == cindex.CursorKind.CLASS_DECL or \
                         child.kind == cindex.CursorKind.ENUM_DECL or \
                         child.kind == cindex.CursorKind.STRUCT_DECL:
+
                 data.classes.append(data.get_or_add_class_id(child))
                 recurse = True
+            elif child.kind == cindex.CursorKind.TEMPLATE_TYPE_PARAMETER:
+                id = data.get_or_add_class_id(child)
+                data.cacheCursor.execute("insert into templatearguments (classId, argumentClassId, argumentNumber) VALUES (%d, %d, %d)" % (data.classes[-1], id, data.templateParameter[-1]))
+                data.templateParameter[-1] += 1
             elif child.kind == cindex.CursorKind.CXX_ACCESS_SPEC_DECL:
                 data.access[-1] = child.get_cxx_access_specifier().kind
             elif child.kind == cindex.CursorKind.CXX_BASE_SPECIFIER:
@@ -434,7 +531,18 @@ class SQLiteCache:
                 else:
                     returnId = "null"
                     returnCursor = child.get_returned_cursor()
+                    templateCursor = None
                     if not returnCursor is None and not returnCursor.kind.is_invalid():
+                        if child.spelling == "test":
+                            returnCursor.dump_self()
+
+                        if returnCursor.kind == cindex.CursorKind.FIELD_DECL:
+                            # If we get here it's an instanced template.
+                            templateCursor = returnCursor
+                            for c in returnCursor.get_children():
+                                if c.kind == cindex.CursorKind.TEMPLATE_REF:
+                                    returnCursor = c.get_reference()
+                                    break
                         returnId = data.get_class_id_from_cursor(returnCursor)
                     ret = parse_res(child.get_completion_string(), "")
                     static = False
@@ -446,24 +554,34 @@ class SQLiteCache:
                          data.get_source_id(child), child.location.line, child.location.column, \
                          child.spelling, ret[1], ret[2], static, data.access[-1])
                     data.cacheCursor.execute(sql2)
-                    data.cacheCursor.execute(sql)
-            elif child.kind == cindex.CursorKind.CLASS_TEMPLATE or \
-                    child.kind == cindex.CursorKind.FUNCTION_TEMPLATE or \
-                    child.kind == cindex.CursorKind.CXX_ACCESS_SPEC_DECL or \
-                    child.kind == cindex.CursorKind.FUNCTION_TEMPLATE or \
-                    child.kind == cindex.CursorKind.USING_DIRECTIVE or \
-                    child.kind == cindex.CursorKind.USING_DECLARATION or \
-                    child.kind == cindex.CursorKind.CONSTRUCTOR or \
-                    child.kind == cindex.CursorKind.DESTRUCTOR or \
-                    child.kind == cindex.CursorKind.TEMPLATE_REF or \
-                    child.kind == cindex.CursorKind.VAR_DECL or \
-                    child.kind == cindex.CursorKind.TYPE_REF:
-                pass
+                    if not templateCursor is None:
+                        data.cacheCursor.execute(sql)
+                        memberId = data.cacheCursor.fetchone()[0]
+                        children = templateCursor.get_children()
+
+                        for i in range(1, len(children)):
+                            c = children[i]
+                            data.cacheCursor.execute("insert into templatedmembers (memberId, argumentClassId, argumentNumber) VALUES (%d, %s, %d)" % (memberId, data.get_class_id_from_cursor(c.get_resolved_cursor()), i))
+                            data.cacheCursor.execute(sql)
+
+
+            # elif child.kind == cindex.CursorKind.CLASS_TEMPLATE or \
+            #         child.kind == cindex.CursorKind.FUNCTION_TEMPLATE or \
+            #         child.kind == cindex.CursorKind.CXX_ACCESS_SPEC_DECL or \
+            #         child.kind == cindex.CursorKind.FUNCTION_TEMPLATE or \
+            #         child.kind == cindex.CursorKind.USING_DIRECTIVE or \
+            #         child.kind == cindex.CursorKind.USING_DECLARATION or \
+            #         child.kind == cindex.CursorKind.CONSTRUCTOR or \
+            #         child.kind == cindex.CursorKind.DESTRUCTOR or \
+            #         child.kind == cindex.CursorKind.TEMPLATE_REF or \
+            #         child.kind == cindex.CursorKind.VAR_DECL or \
+            #         child.kind == cindex.CursorKind.TYPE_REF:
+            #     pass
             elif child.kind == cindex.CursorKind.UNEXPOSED_DECL:
                 # extern "C" for example
                 recurse = True
             else:
-                #if child.location.file != None and "/GL/" in child.location.file.name:
+                #if child.location.file != None:
                 #    child.dump_self()
                 pass
 

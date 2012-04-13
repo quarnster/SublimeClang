@@ -1091,9 +1091,10 @@ class Cursor(Structure):
                 return None
             return ref.get_resolved_cursor()
         elif self.kind.is_declaration():
+            #print "decl: %s, %s" % (self.spelling, self.kind)
             for child in self.get_children():
                 #print "%s, %s, %s, %s" % (child.kind, child.spelling, child.type.kind, child.result_type.kind)
-                if child.kind == CursorKind.TEMPLATE_REF or child.kind == CursorKind.TYPE_REF:
+                if child.kind == CursorKind.TYPE_REF:
                     c = child.get_reference()
                     #print "will return this type: "
                     #self.dump(c)
@@ -1102,6 +1103,8 @@ class Cursor(Structure):
                     return c.get_resolved_cursor()
                 elif child.kind == CursorKind.ENUM_DECL:
                     return child
+                elif child.kind == CursorKind.TEMPLATE_REF:
+                    return self
         #if self.kind == CursorKind.TYPE_REF:
         #    return self.get_reference()
 

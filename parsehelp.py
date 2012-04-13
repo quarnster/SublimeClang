@@ -53,7 +53,24 @@ def collapse_brackets(before):
             before = "%s%s" % (before[:i+1], before[end:])
             end = -1
         i -= 1
-    #before = re.sub("[^\{}]+\((?!\))", "", before)
+    return before
+
+
+def collapse_ltgt(before):
+    i = len(before)-1
+    count = 0
+    end = -1
+    while i >= 0:
+        if before[i] == '>':
+            count += 1
+            if end == -1:
+                end = i
+        elif before[i] == '<':
+            count -= 1
+            if count == 0 and end != -1:
+                before = "%s%s" % (before[:i+1], before[end:])
+                end = -1
+        i -= 1
     return before
 
 
@@ -217,14 +234,24 @@ def extract_variables(data):
 
 
 def get_var_type(data, var):
-    regex = re.compile("(\w[^%s]+)[ \t\*\&]+(%s)[ \t]*(\(|\;|,|\)|=)" % (_invalid, var))
+    regex = re.compile("\\b([^%s]+)[ \t\*\&]+(%s)[ \t]*(\(|\;|,|\)|=)" % (_invalid, var))
 
+    origdata = data
+    data = collapse_ltgt(data)
     data = collapse_brackets(data)
     match = None
     for m in regex.finditer(data, re.MULTILINE):
         if m.group(1) in _keywords:
             continue
         match = m
+    if match and match.group(1):
+        if match.group(1).endswith("<>"):
+            regex = re.compile("\\b(%s<[^>]+>)\\s+(%s)" % (match.group(1)[:-2], var))
+            match = None
+            for m in regex.finditer(origdata, re.MULTILINE):
+                if m.group(1) in _keywords:
+                    continue
+                match = m
     return match
 
 
@@ -270,3 +297,4 @@ def get_type_definition(data, before):
     column = len(data[:match.start(2)].split("\n")[-1])+1
     typename = match.group(1)
     return line, column, typename, var, tocomplete
+
