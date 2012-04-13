@@ -532,17 +532,27 @@ class SQLiteCache:
                     returnId = "null"
                     returnCursor = child.get_returned_cursor()
                     templateCursor = None
-                    if not returnCursor is None and not returnCursor.kind.is_invalid():
-                        if child.spelling == "test":
-                            returnCursor.dump_self()
 
-                        if returnCursor.kind == cindex.CursorKind.FIELD_DECL:
+                    # child.dump_self()
+                    # for c in child.get_children():
+                    #     print "   - %s, %s" % (c.spelling, c.kind)
+                    #     #returnCursor.dump_self()
+                    if not returnCursor is None and not returnCursor.kind.is_invalid():
+                        # if child.spelling == "getTemp":
+                        #     child.dump_self()
+                        #     for c in child.get_children():
+                        #         print "   - %s, %s" % (c.spelling, c.kind)
+                        #     returnCursor.dump_self()
+
+                        if returnCursor == child:
                             # If we get here it's an instanced template.
-                            templateCursor = returnCursor
                             for c in returnCursor.get_children():
                                 if c.kind == cindex.CursorKind.TEMPLATE_REF:
+                                    templateCursor = returnCursor
                                     returnCursor = c.get_reference()
                                     break
+                            if templateCursor == returnCursor:
+                                print "hmm... need to tweak this"
                         returnId = data.get_class_id_from_cursor(returnCursor)
                     ret = parse_res(child.get_completion_string(), "")
                     static = False
@@ -561,6 +571,12 @@ class SQLiteCache:
 
                         for i in range(1, len(children)):
                             c = children[i]
+                            if c.kind == cindex.CursorKind.PARM_DECL or c.kind == cindex.CursorKind.COMPOUND_STMT:
+                                break
+                            print "child is %s, %s" % (c.spelling, c.kind)
+                            c.dump_self()
+                            print "end dump"
+
                             data.cacheCursor.execute("insert into templatedmembers (memberId, argumentClassId, argumentNumber) VALUES (%d, %s, %d)" % (memberId, data.get_class_id_from_cursor(c.get_resolved_cursor()), i))
                             data.cacheCursor.execute(sql)
 
