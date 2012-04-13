@@ -82,6 +82,8 @@ def createDB(cursor):
         name TEXT,
         insertionText TEXT,
         displayText TEXT,
+        static BOOL,
+        access INTEGER,
         FOREIGN KEY(classId) REFERENCES class(id),
         FOREIGN KEY(namespaceId) REFERENCES namespace(id),
         FOREIGN KEY(returnId) REFERENCES class(id),
@@ -134,7 +136,7 @@ class SQLiteCache:
         return True
 
     def lookup_sql(self, data, name, function):
-        sql = "select returnId from member where classId=%d and name='%s'" % (data.classId, name)
+        sql = "select returnId from member where classId=%d and name='%s' and access <=%d" % (data.classId, name, data.access)
         print "%d, %s" % (data.classId, name)
         self.cacheCursor.execute(sql)
         ret = self.cacheCursor.fetchone()
@@ -146,6 +148,10 @@ class SQLiteCache:
             if parents != None:
                 for id in parents:
                     data.classId = id[0]
+                    if data.access > 2:
+                        # Only have access to the protected
+                        # level in inheritance
+                        data.access = 2
                     if self.lookup_sql(data, name, function):
                         return True
             data.classId = -1
@@ -178,6 +184,7 @@ class SQLiteCache:
             def __init__(self):
                 self.type = None
                 self.member = None
+                self.access = 3
         data = Temp()
         data.type = type
         self.get_final_type(self.lookup_member, data, tocomplete)
@@ -214,8 +221,8 @@ class SQLiteCache:
                 ret.append((representation, insertion))
                 print "adding: %s" % (representation)
 
-    def complete_sql(self, classid, prefix, ret, parent=False):
-        self.cacheCursor.execute("select displayText, insertionText from member where classId=%s and name like '%s%%'" % (classid, prefix))
+    def complete_sql(self, classid, prefix, ret, parent=False, access=1):
+        self.cacheCursor.execute("select displayText, insertionText from member where classId=%s and name like '%s%%' and static=0 and access=%d" % (classid, prefix, access))
         members = self.cacheCursor.fetchall()
         print members
         if members:
@@ -266,6 +273,7 @@ class SQLiteCache:
                 def __init__(self):
                     self.classId = -1
                     self.namespace = -1
+                    self.access = 1  # public
             data = Temp()
             data.classId = classid
             data.namespace = ns
@@ -290,6 +298,7 @@ class SQLiteCache:
                 createDB(self.cacheCursor)
                 self.namespace = []
                 self.classes = []
+                self.access = [3]
 
             def get_namespace_id(self):
                 if len(self.namespace) > 0:
@@ -304,6 +313,8 @@ class SQLiteCache:
                 return "=%d" % ns
 
             def get_source_id(self, source):
+                if isinstance(source, cindex.Cursor):
+                    source = "<unknown>" if source.location.file is None else source.location.file.name
                 sql = "select id from source where name='%s'" % source
                 self.cacheCursor.execute(sql)
                 id = self.cacheCursor.fetchone()
@@ -354,7 +365,7 @@ class SQLiteCache:
                     sql2 = """insert into class (name, namespaceId,
                                 definitionSourceId, definitionLine, definitionColumn) VALUES ('%s', %s, %d, %d, %d)""" % \
                             (child.spelling, ns, \
-                             self.get_source_id(child.location.file.name), child.location.line, child.location.column)
+                             self.get_source_id(child), child.location.line, child.location.column)
                     self.cacheCursor.execute(sql2)
                     self.cacheCursor.execute(sql)
                     idx = self.cacheCursor.fetchone()
@@ -370,16 +381,24 @@ class SQLiteCache:
                 #child.dump_self()
                 if oldparent.kind == cindex.CursorKind.NAMESPACE:
                     data.namespace.pop()
-                elif oldparent.kind == cindex.CursorKind.CLASS_DECL or oldparent.kind == cindex.CursorKind.ENUM_DECL:
+                elif oldparent.kind == cindex.CursorKind.CLASS_DECL or \
+                        oldparent.kind == cindex.CursorKind.ENUM_DECL or \
+                        oldparent.kind == cindex.CursorKind.STRUCT_DECL:
                     data.classes.pop()
+                data.access.pop()
 
+            #child.dump_self()
             recurse = False
             if child.kind == cindex.CursorKind.NAMESPACE:
                 data.namespace.append(data.get_or_add_namespace_id(child.spelling))
                 recurse = True
-            elif child.kind == cindex.CursorKind.CLASS_DECL or child.kind == cindex.CursorKind.ENUM_DECL:
+            elif child.kind == cindex.CursorKind.CLASS_DECL or \
+                        child.kind == cindex.CursorKind.ENUM_DECL or \
+                        child.kind == cindex.CursorKind.STRUCT_DECL:
                 data.classes.append(data.get_or_add_class_id(child))
                 recurse = True
+            elif child.kind == cindex.CursorKind.CXX_ACCESS_SPEC_DECL:
+                data.access[-1] = child.get_cxx_access_specifier().kind
             elif child.kind == cindex.CursorKind.CXX_BASE_SPECIFIER:
                 chs = child.get_children()
                 for c in chs:
@@ -397,30 +416,59 @@ class SQLiteCache:
                             myId = data.get_class_id_from_cursor(child)
                             classId = data.get_class_id_from_cursor(cl)
                             data.cacheCursor.execute("insert into inheritance (classId, parentId) VALUES (%d, %d)" % (myId, classId))
-            elif child.kind == cindex.CursorKind.CXX_METHOD or child.kind == cindex.CursorKind.FUNCTION_DECL or child.kind == cindex.CursorKind.FIELD_DECL or child.kind == cindex.CursorKind.ENUM_CONSTANT_DECL:
+            elif child.kind == cindex.CursorKind.CXX_METHOD or \
+                    child.kind == cindex.CursorKind.FUNCTION_DECL or \
+                    child.kind == cindex.CursorKind.FIELD_DECL or \
+                    child.kind == cindex.CursorKind.VAR_DECL or \
+                    child.kind == cindex.CursorKind.ENUM_CONSTANT_DECL:
                 classId = "null"
                 if len(data.classes) > 0:
                     classId = data.classes[-1]
-                returnId = "null"  # TODO
-                returnCursor = child.get_returned_cursor()
-                if not returnCursor is None and not returnCursor.kind.is_invalid():
-                    returnId = data.get_class_id_from_cursor(returnCursor)
-                ret = parse_res(child.get_completion_string(), "")
+
                 sql = """select id from member where name='%s' and definitionSourceId=%d and definitionLine=%d and definitionColumn=%d and classId %s""" % \
-                    (child.spelling, data.get_source_id(child.location.file.name), child.location.line, child.location.column, data.get_namespace_id_query(classId))
+                    (child.spelling, data.get_source_id(child), child.location.line, child.location.column, data.get_namespace_id_query(classId))
                 data.cacheCursor.execute(sql)
                 if data.cacheCursor.fetchone():
                     # TODO. what?
                     pass
                 else:
-                    sql2 = """insert into member (namespaceId, classId, returnId, definitionSourceId, definitionLine, definitionColumn, name, displayText, insertionText) values (%s, %s, %s, %s, %d, %d, '%s', '%s', '%s')""" % \
+                    returnId = "null"
+                    returnCursor = child.get_returned_cursor()
+                    if not returnCursor is None and not returnCursor.kind.is_invalid():
+                        returnId = data.get_class_id_from_cursor(returnCursor)
+                    ret = parse_res(child.get_completion_string(), "")
+                    static = False
+                    if child.kind == cindex.CursorKind.CXX_METHOD:
+                        static = child.get_cxxmethod_is_static()
+
+                    sql2 = """insert into member (namespaceId, classId, returnId, definitionSourceId, definitionLine, definitionColumn, name, displayText, insertionText, static, access) values (%s, %s, %s, %s, %d, %d, '%s', '%s', '%s', %d, %d)""" % \
                         (data.get_namespace_id(), classId, returnId, \
-                         data.get_source_id(child.location.file.name), child.location.line, child.location.column, \
-                         child.spelling, ret[1], ret[2])
+                         data.get_source_id(child), child.location.line, child.location.column, \
+                         child.spelling, ret[1], ret[2], static, data.access[-1])
                     data.cacheCursor.execute(sql2)
                     data.cacheCursor.execute(sql)
+            elif child.kind == cindex.CursorKind.CLASS_TEMPLATE or \
+                    child.kind == cindex.CursorKind.FUNCTION_TEMPLATE or \
+                    child.kind == cindex.CursorKind.CXX_ACCESS_SPEC_DECL or \
+                    child.kind == cindex.CursorKind.FUNCTION_TEMPLATE or \
+                    child.kind == cindex.CursorKind.USING_DIRECTIVE or \
+                    child.kind == cindex.CursorKind.USING_DECLARATION or \
+                    child.kind == cindex.CursorKind.CONSTRUCTOR or \
+                    child.kind == cindex.CursorKind.DESTRUCTOR or \
+                    child.kind == cindex.CursorKind.TEMPLATE_REF or \
+                    child.kind == cindex.CursorKind.VAR_DECL or \
+                    child.kind == cindex.CursorKind.TYPE_REF:
+                pass
+            elif child.kind == cindex.CursorKind.UNEXPOSED_DECL:
+                # extern "C" for example
+                recurse = True
+            else:
+                #if child.location.file != None and "/GL/" in child.location.file.name:
+                #    child.dump_self()
+                pass
 
             if recurse:
+                data.access.append(3)
                 data.parents.append(child)
                 return 2
 
@@ -562,10 +610,21 @@ class SQLiteCache:
                 if classid != None:
                     classid = classid[0]
 
-                    self.cacheCursor.execute("select displayText, insertionText from member where classId=%s and namespaceId %s and name like '%s%%'" % (classid, ns, prefix))
+                    self.cacheCursor.execute("select displayText, insertionText from member where classId=%s and name like '%s%%'" % (classid, prefix))
                     members = self.cacheCursor.fetchall()
                     if members:
                         ret.extend(members)
+                    self.cacheCursor.execute("select parentId from inheritance where classId=%d" % classid)
+                    parents = self.cacheCursor.fetchall()
+                    if parents != None:
+                        for parent in parents:
+                            print parent
+                            self.cacheCursor.execute("select displayText, insertionText from member where classId=%d and access <=2 and name like '%s%%'" % (parent[0], prefix))
+                            members = self.cacheCursor.fetchall()
+                            print members
+                            if members:
+                                ret.extend(members)
+
             variables = extract_variables(data)
             for var in variables:
                 ret.append(("%s\t%s" % (var[1], var[0]), var[1]))
@@ -588,7 +647,7 @@ class SQLiteCache:
                 type = None
                 return ret
             elif type == "class":
-                self.cacheCursor.execute("select displayText, insertionText from member where classId=%s and name like '%s%%'" % (id, prefix))
+                self.cacheCursor.execute("select displayText, insertionText from member where classId=%s and static=1 and name like '%s%%'" % (id, prefix))
                 ret = []
                 members = self.cacheCursor.fetchall()
                 if members:

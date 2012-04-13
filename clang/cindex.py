@@ -982,6 +982,9 @@ class Cursor(Structure):
     def get_cxx_access_specifier(self):
         return _cxx_access_specifiers[_clang_getCXXAccessSpecifier(self)]
 
+    def get_cxxmethod_is_static(self):
+        return _clang_CXXMethod_isStatic(self)
+
     @property
     def availability(self):
         return _clang_getCursorAvailability(self)
@@ -1982,6 +1985,12 @@ _clang_getCXXAccessSpecifier.argtypes = [Cursor]
 _clang_getCXXAccessSpecifier.restype = c_int
 if isWin64:
     _clang_getCXXAccessSpecifier.argtypes = [POINTER(Cursor)]
+
+_clang_CXXMethod_isStatic = lib.clang_CXXMethod_isStatic
+_clang_CXXMethod_isStatic.argtypes = [Cursor]
+_clang_CXXMethod_isStatic.restype = c_int
+if isWin64:
+    _clang_CXXMethod_isStatic.argtypes = [POINTER(Cursor)]
 
 _clang_getCursorResultType = lib.clang_getCursorResultType
 _clang_getCursorResultType.argtypes = [Cursor]

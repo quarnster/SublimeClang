@@ -534,7 +534,7 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
                 sublime.status_message(timing)
 
             if not ret is None:
-                return ret
+                return self.return_completions(ret, view)
             enableClang = False  # TODO
             if enableClang:
                 if not locked:
