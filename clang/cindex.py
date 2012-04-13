@@ -1083,11 +1083,16 @@ class Cursor(Structure):
 
     def get_resolved_cursor(self):
         #print "get_type"
+        if self.result_type.kind == TypeKind.RECORD:
+            return self.get_children()[0].get_resolved_cursor()
         if self.kind == CursorKind.CLASS_DECL or self.kind == CursorKind.ENUM_DECL:
+            return self
+        elif self.kind == CursorKind.TEMPLATE_REF or self.kind == CursorKind.TEMPLATE_TYPE_PARAMETER:
             return self
         elif self.kind.is_reference():
             ref = self.get_reference()
             if ref == self:
+                print "none1"
                 return None
             return ref.get_resolved_cursor()
         elif self.kind.is_declaration():
@@ -1099,6 +1104,7 @@ class Cursor(Structure):
                     #print "will return this type: "
                     #self.dump(c)
                     if c == child:
+                        print "none3"
                         return None
                     return c.get_resolved_cursor()
                 elif child.kind == CursorKind.ENUM_DECL:
@@ -1111,10 +1117,13 @@ class Cursor(Structure):
         #if self.kind == CursorKind.TYPEDEF_DECL:
         #    print "here"
         #    self.dump_cursor(self)
-        # return self.get_type_from_cursor(self, self.get_reference())
-        if self.result_type.kind == TypeKind.POINTER:
+        # return self.get_type_from_:cursor(self, self.get_reference())
+        if self.result_type.kind == TypeKind.POINTER or self.result_type.kind == TypeKind.LVALUEREFERENCE:
             return self.result_type.get_pointee().get_declaration()
 
+        print "none2"
+        self.dump_self()
+        print "self dumped"
         return None #self
 
     def dump_self(self):
@@ -1142,6 +1151,22 @@ class Cursor(Structure):
 
     def get_returned_cursor(self):
         ret = None
+        if self.kind == CursorKind.FUNCTION_DECL or \
+                    self.kind == CursorKind.FIELD_DECL or \
+                    self.kind == CursorKind.CXX_METHOD or \
+                    self.kind == CursorKind.VAR_DECL:
+            children = self.get_children()
+            if len(children) > 0:
+                c = children[0]
+                if c.kind == CursorKind.TEMPLATE_REF:
+                    return self
+                elif c.kind.is_reference():
+                    return c.get_reference().get_resolved_cursor()
+            else:
+                print "none4"
+                return None
+
+        # TODO: cleanup
         #print "getting returned cursor of %s, %s, %s, %s" % (self.kind, self.spelling, self.type.kind, self.result_type.kind)
         if self.kind.is_declaration():
             ret = self #.get_resolved_cursor()
@@ -1161,6 +1186,7 @@ class Cursor(Structure):
         if not ret is None and not ret.kind.is_invalid():
             #ret.dump()
             return ret.get_resolved_cursor()
+        print "none5"
         return None
 
     def get_member(self, membername, function):
