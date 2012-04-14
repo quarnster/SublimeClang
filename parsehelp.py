@@ -199,7 +199,7 @@ def remove_includes(data):
             break
     return data
 
-_invalid = """\( \t\{,\*\&\-\+\/;=%\)\.\"!"""
+_invalid = """\(\\s\{,\*\&\-\+\/;=%\)\.\"!"""
 
 
 def extract_variables(data):
