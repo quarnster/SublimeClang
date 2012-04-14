@@ -180,15 +180,15 @@ class SQLiteCache:
                 if data.templateargs != None:
                     tempargs = data.templateargs
                     print tempargs
-                    data.templateargs = None
                     self.cacheCursor.execute("select argumentNumber from templatearguments where classId=%d and argumentClassId=%d" % (data.classId, ret[0]))
                     idx = self.cacheCursor.fetchone()[0]
 
-                    print "swapping %d for %d" % (ret[0], tempargs[idx])
-                    data.classId = tempargs[idx]
+                    print "swapping %d for %d" % (ret[0], tempargs[idx][0])
+                    data.templateargs = tempargs[idx][1]
+                    data.classId = tempargs[idx][0]
                     return True
                 else:
-                    sql = "select argumentClassId from templatedmembers where memberId=%d order by argumentNumber" % ret[1]
+                    sql = "select argumentClassId, argumentNumber from templatedmembers where memberId=%d order by argumentNumber" % ret[1]
                     print sql
                     self.cacheCursor.execute(sql)
                     data.templateargs = [x[0] for x in self.cacheCursor.fetchall()]
@@ -275,6 +275,29 @@ class SQLiteCache:
             for parent in parents:
                 self.complete_sql(parent[0], prefix, ret, True)
 
+    def resolve_template_class_ids(self, template, namespaces):
+        name, args = template
+        id = -1
+        for ns in namespaces:
+            if ns == None:
+                continue
+            self.cacheCursor.execute("select id from class where name='%s' and namespaceId %s and template=%d" % (name, ns, args != None))
+            id = self.cacheCursor.fetchone()
+            if id != None:
+                id = id[0]
+                break
+        if args != None:
+            for i in range(len(args)):
+                args[i] = self.resolve_template_class_ids(args[i], namespaces)
+
+        return id, args
+
+    def resolve_namespace_ids(self, namespaces):
+        namespaceids = []
+        for namespace in namespaces:
+            namespaceids.append(self.get_namespace_query(namespace))
+        return namespaceids
+
     def complete_members(self, tu, filename, data, before, prefix):
         ret = None
         # if tu != None:
@@ -298,25 +321,41 @@ class SQLiteCache:
         if typename == None:
             return None
 
-        template = re.search("([^<]+)(<([^>]+)>)?", typename)
         namespaces = extract_used_namespaces(data)
         namespaces.append("null")
         mynamespace = extract_namespace(data)
         if len(mynamespace):
             namespaces.append(mynamespace)
-        for namespace in namespaces:
-            ns = "is null"
-            if namespace != "null":
-                ns = self.get_namespace_query(namespace)
-                if ns == None:
-                    # Couldn't find that namespace
-                    continue
+        namespaces = self.resolve_namespace_ids(namespaces)
+        template = solve_template(typename)
+        template = self.resolve_template_class_ids(template, namespaces)
+        classid = template[0]
+        if classid != None:
+            class Temp:
+                def __init__(self):
+                    self.classId = -1
+                    self.namespace = -1
+                    self.access = 1  # public
+                    self.templateargs = []
+            data = Temp()
+            data.classId = classid
+            data.namespaces = namespaces
+            data.templateargs = template[1]
+            print "getting final type"
+            self.get_final_type(self.lookup_sql, data, tocomplete)
+            ret = []
+            classid = data.classId
+            print classid
+            if classid != -1:
+                self.complete_sql(classid, prefix, ret)
+        """
+        for ns in namespaces:
+            if ns == None:
+                # Couldn't find that namespace
+                continue
 
-            print template.groups()
-            print template.group(2)
-            print template.group(3)
+            sql = "select id from class where name='%s' and namespaceId %s and template=%d" % (template[0], ns, template[1] != None)
 
-            sql = "select id from class where name='%s' and namespaceId %s and template=%d" % (template.group(1), ns, template.group(2) != None)
             print sql
             self.cacheCursor.execute(sql)
 
@@ -333,18 +372,7 @@ class SQLiteCache:
                 data = Temp()
                 data.classId = classid
                 data.namespaces = namespaces
-                data.templateargs = template.group(3)
-                if data.templateargs:
-                    data.templateargs = [a.strip() for a in data.templateargs.split(",")]
-                    for i in range(len(data.templateargs)):
-                        for namespace in namespaces:
-                            sql = "select id from class where name='%s' and template=0 and namespaceId %s" % (data.templateargs[i], self.get_namespace_query(namespace))
-                            self.cacheCursor.execute(sql)
-
-                            id = self.cacheCursor.fetchone()
-                            if id != None:
-                                data.templateargs[i] = id[0]
-                                break
+                data.templateargs = template[1]
                 print "getting final type"
                 self.get_final_type(self.lookup_sql, data, tocomplete)
                 ret = []
@@ -354,6 +382,7 @@ class SQLiteCache:
                     self.complete_sql(classid, prefix, ret)
                 if len(ret) == 0:
                     ret = None
+        """
         return ret
 
     def index(self, cursor):
@@ -569,12 +598,21 @@ class SQLiteCache:
                         memberId = data.cacheCursor.fetchone()[0]
                         children = templateCursor.get_children()
 
-                        for i in range(1, len(children)):
+                        templateCursor.dump()
+                        print templateCursor.get_referenced_name_range()
+                        print templateCursor.extent
+                        #templateCursor.get_specialized_cursor_template().dump()
+                        for i in range(0, len(children)):
                             c = children[i]
                             if c.kind == cindex.CursorKind.PARM_DECL or c.kind == cindex.CursorKind.COMPOUND_STMT:
                                 break
                             print "child is %s, %s" % (c.spelling, c.kind)
                             c.dump_self()
+                            print c.get_referenced_name_range()
+                            print c.extent
+                            print c.get_canonical_cursor().dump_self()
+                            print c.get_semantic_parent().dump_self()
+                            print c.get_lexical_parent().dump_self()
                             print "end dump"
 
                             data.cacheCursor.execute("insert into templatedmembers (memberId, argumentClassId, argumentNumber) VALUES (%d, %s, %d)" % (memberId, data.get_class_id_from_cursor(c.get_resolved_cursor()), i))

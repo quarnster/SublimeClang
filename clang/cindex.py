@@ -968,6 +968,9 @@ class Cursor(Structure):
     def get_linkage(self):
         return Cursor_get_linkage(self)
 
+    def get_specialized_cursor_template(self):
+        return _clang_getSpecializedCursorTemplate(self)
+
     def get_usr(self):
         """Return the Unified Symbol Resultion (USR) for the entity referenced
         by the given cursor (or None).
@@ -984,6 +987,9 @@ class Cursor(Structure):
 
     def get_cxxmethod_is_static(self):
         return _clang_CXXMethod_isStatic(self)
+
+    def get_referenced_name_range(self):
+        return _clang_getCursorReferenceNameRange(self, 2, 0)
 
     @property
     def availability(self):
@@ -1130,7 +1136,7 @@ class Cursor(Structure):
         if self is None or self.kind.is_invalid():
             print "cursor: None"
             return
-        print "cursor: %s, %s, %s, %s, %s" % (self.kind, self.type.kind, self.result_type.kind, self.spelling, self.get_usr())
+        print "cursor: %s, %s, %s, %s, %s, %s" % (self.kind, self.type.kind, self.result_type.kind, self.spelling, self.displayname, self.get_usr())
         source = "<unknown>" if self.location.file is None else self.location.file.name
         print "defined at: %s, %d, %d" % (source, self.location.line, self.location.column)
 
@@ -1989,6 +1995,19 @@ Cursor_get_canonical.restype = Cursor
 Cursor_get_canonical.errcheck = Cursor.from_result
 if isWin64:
     Cursor_get_canonical.argtypes = [POINTER(Cursor)]
+
+_clang_getSpecializedCursorTemplate = lib.clang_getSpecializedCursorTemplate
+_clang_getSpecializedCursorTemplate.argtypes = [Cursor]
+_clang_getSpecializedCursorTemplate.restype = Cursor
+_clang_getSpecializedCursorTemplate.errcheck = Cursor.from_result
+if isWin64:
+    _clang_getSpecializationCursorTemplate.argtypes = [POINTER(Cursor)]
+
+_clang_getCursorReferenceNameRange = lib.clang_getCursorReferenceNameRange
+_clang_getCursorReferenceNameRange.argtypes = [Cursor, c_int, c_int]
+_clang_getCursorReferenceNameRange.restype = SourceRange
+if isWin64:
+    _clang_getCursorReferenceNameRange.argtypes = [POINTER(Cursor), c_int, c_int]
 
 Cursor_get_linkage = lib.clang_getCursorLinkage
 Cursor_get_linkage.argtypes = [Cursor]

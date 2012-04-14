@@ -199,7 +199,7 @@ def remove_includes(data):
             break
     return data
 
-_invalid = """( \t\{,\*\&\-\+\/;=%\)\.\"!"""
+_invalid = """\( \t\{,\*\&\-\+\/;=%\)\.\"!"""
 
 
 def extract_variables(data):
@@ -234,21 +234,23 @@ def extract_variables(data):
 
 
 def get_var_type(data, var):
-    regex = re.compile("\\b([^%s]+)[ \t\*\&]+(%s)[ \t]*(\(|\;|,|\)|=)" % (_invalid, var))
+    regex = re.compile("\\b([^%s]+)[ \s\*\&]+(%s)\s*(\(|\;|,|\)|=)" % (_invalid, var))
 
     origdata = data
     data = collapse_ltgt(data)
     data = collapse_brackets(data)
     match = None
-    for m in regex.finditer(data, re.MULTILINE):
+
+    for m in regex.finditer(data):
         if m.group(1) in _keywords:
             continue
         match = m
     if match and match.group(1):
-        if match.group(1).endswith("<>"):
-            regex = re.compile("\\b(%s<[^>]+>)\\s+(%s)" % (match.group(1)[:-2], var))
+        if match.group(1).endswith(">"):
+            print match.groups()
+            regex = re.compile("\\b(%s<.+>)\\s+(%s)" % (match.group(1)[:-2], var))
             match = None
-            for m in regex.finditer(origdata, re.MULTILINE):
+            for m in regex.finditer(origdata):
                 if m.group(1) in _keywords:
                     continue
                 match = m
@@ -298,3 +300,37 @@ def get_type_definition(data, before):
     typename = match.group(1)
     return line, column, typename, var, tocomplete
 
+
+def template_split(data):
+    if data == None:
+        return None
+    ret = []
+    comma = data.find(",")
+    pos = 0
+    start = 0
+    while comma != -1:
+        idx1 = data.find("<", pos)
+        idx2 = data.find(">", pos)
+        if (idx1 < comma and comma > idx2) or (idx1 > comma and comma < idx2):
+            ret.append(data[start:comma].strip())
+            pos = comma+1
+            start = pos+1
+        else:
+            pos = comma+1
+
+        comma = data.find(",", pos)
+    ret.append(data[start:].strip())
+    return ret
+
+
+def solve_template(typename):
+    args = []
+    template = re.search("([^<]+)(<(.+)>)?", typename)
+    args = template_split(template.group(3))
+    if args:
+        for i in range(len(args)):
+            if "<" in args[i]:
+                args[i] = solve_template(args[i])
+            else:
+                args[i] = (args[i], None)
+    return template.group(1), args
