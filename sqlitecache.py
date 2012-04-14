@@ -64,7 +64,7 @@ def createDB(cursor):
         definitionLine INTEGER,
         definitionColumn INTEGER,
         name TEXT,
-        template INTEGER,
+        typeId INTEGER,
         FOREIGN KEY(namespaceId) REFERENCES namespace(id),
         FOREIGN KEY(definitionSourceId) REFERENCES source(id)
         )""")
@@ -109,7 +109,18 @@ def createDB(cursor):
         FOREIGN KEY(memberId) REFERENCES member(id),
         FOREIGN KEY(argumentClassId) REFERENCES class(id))
         """)
+    cursor.execute("""create table if not exists typedef(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        classId INTEGER,
+        name TEXT,
+        FOREIGN KEY(classId) REFERENCES class(id))""")
 
+
+class DbClassType:
+    NORMAL = 0
+    TEMPLATE_CLASS = 1
+    TEMPLATE_TYPE = 2
+    TYPEDEF = 3
 
 
 class SQLiteCache:
@@ -143,123 +154,101 @@ class SQLiteCache:
             if not lookup_function(lookup_data, match.group(1), function):
                 return
 
-    def lookup_member(self, data, name, function):
-        data.member = data.type.get_member(name, function)
-        if data.member is None or data.member.kind.is_invalid():
-            data.type = None
-            return False
-        data.type = data.member.get_returned_cursor()
-        if data.type is None:
-            return False
+    def resolve_class_id(self, id, args):
+        sql = "select id, typeId, name from class where id=%d" % id
+        self.cacheCursor.execute(sql)
+        res = self.cacheCursor.fetchone()
+        print sql, res
+        if res != None:
+            if res[1] == DbClassType.TYPEDEF:
+                sql = "select name from typedef where classId=%d" % (id)
+                self.cacheCursor.execute(sql)
+                tmp = solve_template(self.cacheCursor.fetchone()[0])
+                print sql, tmp
+                classId, newargs = self.resolve_template_class_ids(tmp, data.namespaces)
+                print "resolved to1: %d, %s" % (classId, newargs)
+                return self.resolve_class_id(classId, newargs)  # Proper memberId?
+                #TODO data.templateargs = newargs
+        else:
+            return None
+        return res[0]
+
+    def lookup(self, data, args):
+        print data.ret
+        sql = "select id, typeId, name from class where id=%d" % data.ret[0]
+        self.cacheCursor.execute(sql)
+        res = self.cacheCursor.fetchone()
+        print sql, res
+        if res != None and res[1] != DbClassType.NORMAL:
+            if res[1] == DbClassType.TEMPLATE_TYPE:
+                if data.templateargs != None:
+                    tempargs = data.templateargs
+                    print tempargs
+                    sql = "select argumentNumber from templatearguments where classId=%d and argumentClassId=%d order by argumentNumber" % (data.classId, data.ret[0])
+                    sql = "select argumentNumber,argumentClassId from templatearguments where classId=%d order by argumentNumber" % (data.classId)
+                    self.cacheCursor.execute(sql)
+                    idx = 0
+                    for c in self.cacheCursor:
+                        idx = c[0]
+                        if idx >= len(tempargs):
+                            idx-=1
+                            break
+                        print "swapping %d for %d" % (data.ret[0], tempargs[idx][0])
+                        data.classId = tempargs[idx][0]
+                        data.ret = (data.classId, 0)
+                    data.templateargs = tempargs[idx][1]
+                    #data.classId = tempargs[idx][0]
+
+                    return self.lookup(data, args)
+                else:
+                    sql = "select argumentClassId, argumentNumber from templatedmembers where memberId=%d order by argumentNumber" % data.ret[1]
+                    self.cacheCursor.execute(sql)
+                    res = self.cacheCursor.fetchall()
+                    print sql, res
+                    data.templateargs = [x[0] for x in res]
+                    print "down here... Will break"
+                    print data.templateargs
+            elif res[1] == DbClassType.TYPEDEF:
+                sql = "select name from typedef where classId=%d" % (data.ret[0])
+                self.cacheCursor.execute(sql)
+                name = self.cacheCursor.fetchone()[0]
+                tmp = solve_template(name)
+                print sql, name, tmp
+                classId, newargs = self.resolve_template_class_ids(tmp, data.namespaces)
+                print "resolved to2: %d, %s" % (classId, data.templateargs)
+                data.ret = (classId, data.ret[1])
+                return self.lookup(data, newargs)  # Proper memberId?
+                #TODO data.templateargs = newargs
+
+        data.classId = data.ret[0]
         return True
 
     def lookup_sql(self, data, name, function):
         sql = "select returnId, id from member where classId=%d and name='%s' and access <=%d" % (data.classId, name, data.access)
         self.cacheCursor.execute(sql)
-        ret = self.cacheCursor.fetchone()
-        if ret == None or ret[0] == None:
+        data.ret = self.cacheCursor.fetchone()
+        print sql, data.ret
+        if data.ret == None or data.ret[0] == None:
             self.cacheCursor.execute("select parentId from inheritance where classId=%d" % data.classId)
 
             parents = self.cacheCursor.fetchall()
             if parents != None:
                 for id in parents:
                     data.classId = id[0]
-                    if data.access > 2:
+                    if data.access > cindex.CXXAccessSpecifier.PROTECTED:
                         # Only have access to the protected
                         # level in inheritance
-                        data.access = 2
+                        data.access = cindex.CXXAccessSpecifier.PROTECTED
                     if self.lookup_sql(data, name, function):
                         return True
             data.classId = -1
             return False
         else:
-
-            self.cacheCursor.execute("select id, template from class where id=%d" % ret[0])
-            res = self.cacheCursor.fetchone()
-            if res != None and res[1] != 0:
-                if data.templateargs != None:
-                    tempargs = data.templateargs
-                    print tempargs
-                    self.cacheCursor.execute("select argumentNumber from templatearguments where classId=%d and argumentClassId=%d" % (data.classId, ret[0]))
-                    idx = self.cacheCursor.fetchone()[0]
-
-                    print "swapping %d for %d" % (ret[0], tempargs[idx][0])
-                    data.templateargs = tempargs[idx][1]
-                    data.classId = tempargs[idx][0]
-                    return True
-                else:
-                    sql = "select argumentClassId, argumentNumber from templatedmembers where memberId=%d order by argumentNumber" % ret[1]
-                    print sql
-                    self.cacheCursor.execute(sql)
-                    data.templateargs = [x[0] for x in self.cacheCursor.fetchall()]
-                    print data.templateargs
-            data.classId = ret[0]
+            return self.lookup(data, data.templateargs)
         return True
 
-    def complete_cursors(self, tu, filename, data, before, prefix):
-        typedef = get_type_definition(data, before)
-        if typedef == None:
-            return None
-        line, column, typename, var, tocomplete = typedef
-        if line <= 0 or column <= 0:
-            return None
-        start = time.time()
-        type = cindex.Cursor.get(tu, filename, line, column)
-        print type.kind
-        print type.displayname
-        if type is None or type.kind.is_invalid() or type.displayname != var:
-            return None
-        print "resolving"
-        type = type.get_resolved_cursor()
-        if type is None or type.kind.is_invalid() or type.kind == cindex.CursorKind.CLASS_TEMPLATE:
-            # templates are scary, lets not go there right now
-            return None
-        print "base type is:"
-        type.dump_self()
-
-        class Temp:
-            def __init__(self):
-                self.type = None
-                self.member = None
-                self.access = 3
-        data = Temp()
-        data.type = type
-        self.get_final_type(self.lookup_member, data, tocomplete)
-        type = data.type
-        end = time.time()
-        print "took: %f ms" % ((end-start)*1000)
-
-        if not type is None:
-            print "type is"
-            type.dump_self()
-        if not type is None and not type.kind.is_invalid() and \
-                        not type.kind == cindex.CursorKind.CLASS_TEMPLATE:
-            ret = []
-            self.complete_cursor(type, prefix, ret)
-            end = time.time()
-            print "%f ms" % ((end-start)*1000)
-            return sorted(ret)
-        else:
-            return None
-
-    def complete_cursor(self, cursor, prefix, ret):
-        for child in cursor.get_children():
-            print "%s, %s, %d" % (child.kind, child.displayname, child.availability)
-            if child.kind == cindex.CursorKind.CXX_BASE_SPECIFIER:
-                self.complete_cursor(child.get_reference(), prefix, ret)
-            elif child.kind == cindex.CursorKind.CXX_ACCESS_SPEC_DECL:
-                access = child.get_cxx_access_specifier()
-                print "%s, %d, %d, %d" % (access, access.is_public(), access.is_protected(), access.is_private())
-                child.dump()
-            if not (child.kind == cindex.CursorKind.CXX_METHOD or child.kind == cindex.CursorKind.FIELD_DECL):
-                continue
-            add, representation, insertion = parse_res(child.get_completion_string(), prefix)
-            if add:
-                ret.append((representation, insertion))
-                print "adding: %s" % (representation)
-
-    def complete_sql(self, classid, prefix, ret, parent=False, access=1):
-        self.cacheCursor.execute("select displayText, insertionText from member where classId=%s and name like '%s%%' and static=0 and access=%d" % (classid, prefix, access))
+    def complete_sql(self, classid, prefix, ret, parent=False, access=cindex.CXXAccessSpecifier.PUBLIC):
+        self.cacheCursor.execute("select displayText, insertionText from member where classId=%s and name like '%s%%' and static=0 and access<=%d" % (classid, prefix, access))
         members = self.cacheCursor.fetchall()
         print members
         if members:
@@ -275,16 +264,69 @@ class SQLiteCache:
             for parent in parents:
                 self.complete_sql(parent[0], prefix, ret, True)
 
-    def resolve_template_class_ids(self, template, namespaces):
-        name, args = template
-        id = -1
-        for ns in namespaces:
-            if ns == None:
-                continue
-            self.cacheCursor.execute("select id from class where name='%s' and namespaceId %s and template=%d" % (name, ns, args != None))
+    def get_namespace_id(self, data, namespaces):
+        ns = data.split("::")
+        if len(ns) == 0:
+            return None
+        if ns[0].strip() == "":
+            return None
+        ret = None
+        parent = "is null"
+        for name in namespaces:
+            self.cacheCursor.execute("select id from namespace where parentId %s and name='%s'" % (parent, ns[0]))
             id = self.cacheCursor.fetchone()
             if id != None:
-                id = id[0]
+                parent = "=%d" % id[0]
+                ret = id[0]
+                break
+        ns.pop(0)
+
+        while len(ns) > 0:
+            self.cacheCursor.execute("select id from namespace where parentId %s and name='%s'" % (parent, ns[0]))
+            id = self.cacheCursor.fetchone()
+            if id != None:
+                parent = "=%d" % id[0]
+                ret = id[0]
+            else:
+                return None
+            ns.pop(0)
+        return ret
+
+    def resolve_template_class_ids(self, template, namespaces):
+        name, args = template
+        print "args: %s" % args
+        id = -1
+        ns = name.split("::")
+        name = ns.pop()
+        used_ns = namespaces
+        ns = self.get_namespace_id("::".join(ns), namespaces)
+        print used_ns
+        if ns != None:
+            used_ns = ["=%d" % ns]
+
+        for ns in used_ns:
+            if ns == None:
+                continue
+            sql = "select id, typeId from class where name='%s' and namespaceId %s and (typeId=%d or typeId=%d)" % (name, ns, DbClassType.NORMAL if args == None else DbClassType.TEMPLATE_CLASS, DbClassType.TYPEDEF)
+            self.cacheCursor.execute(sql)
+            ret = self.cacheCursor.fetchone()
+            if ret == None and args == None:
+                sql = "select id, typeId from class where name='%s' and namespaceId %s and typeId=%d" % (name, ns, DbClassType.TEMPLATE_TYPE)
+                self.cacheCursor.execute(sql)
+                ret = self.cacheCursor.fetchone()
+
+            print sql, ret
+            if ret != None:
+                id = ret[0]
+                if ret[1] == DbClassType.TYPEDEF:
+                    sql = "select name from typedef where classId=%d" % id
+                    self.cacheCursor.execute(sql)
+                    ret = self.cacheCursor.fetchone()
+                    if ret == None:
+                        return None, None
+                    tmp = solve_template(ret[0])
+                    id, arg = self.resolve_template_class_ids(tmp, namespaces)
+                    return id, arg
                 break
         if args != None:
             for i in range(len(args)):
@@ -327,15 +369,18 @@ class SQLiteCache:
         if len(mynamespace):
             namespaces.append(mynamespace)
         namespaces = self.resolve_namespace_ids(namespaces)
+        namespaces.append("like '%%'")
         template = solve_template(typename)
+        print template
         template = self.resolve_template_class_ids(template, namespaces)
+        print template
         classid = template[0]
         if classid != None:
             class Temp:
                 def __init__(self):
                     self.classId = -1
                     self.namespace = -1
-                    self.access = 1  # public
+                    self.access = cindex.CXXAccessSpecifier.PUBLIC
                     self.templateargs = []
             data = Temp()
             data.classId = classid
@@ -348,41 +393,6 @@ class SQLiteCache:
             print classid
             if classid != -1:
                 self.complete_sql(classid, prefix, ret)
-        """
-        for ns in namespaces:
-            if ns == None:
-                # Couldn't find that namespace
-                continue
-
-            sql = "select id from class where name='%s' and namespaceId %s and template=%d" % (template[0], ns, template[1] != None)
-
-            print sql
-            self.cacheCursor.execute(sql)
-
-            classid = self.cacheCursor.fetchone()
-            if classid != None:
-                classid = classid[0]
-
-                class Temp:
-                    def __init__(self):
-                        self.classId = -1
-                        self.namespace = -1
-                        self.access = 1  # public
-                        self.templateargs = []
-                data = Temp()
-                data.classId = classid
-                data.namespaces = namespaces
-                data.templateargs = template[1]
-                print "getting final type"
-                self.get_final_type(self.lookup_sql, data, tocomplete)
-                ret = []
-                classid = data.classId
-                print classid
-                if classid != -1:
-                    self.complete_sql(classid, prefix, ret)
-                if len(ret) == 0:
-                    ret = None
-        """
         return ret
 
     def index(self, cursor):
@@ -397,7 +407,7 @@ class SQLiteCache:
                 createDB(self.cacheCursor)
                 self.namespace = []
                 self.classes = []
-                self.access = [3]
+                self.access = [cindex.CXXAccessSpecifier.PRIVATE]
                 self.templates = []
                 self.templateParameter = []
 
@@ -441,6 +451,8 @@ class SQLiteCache:
                 return idx
 
             def get_class_id_from_cursor(self, cursor):
+                if cursor is None:
+                    return "null"
                 path = []
                 c3 = cursor.get_lexical_parent()
                 while not c3 is None and not c3.kind.is_invalid():
@@ -457,24 +469,27 @@ class SQLiteCache:
                 return data.get_or_add_class_id(cursor, ns)
 
             def get_or_add_class_id(self, child, ns=None):
-                template = 0
-                if child.kind == cindex.CursorKind.CLASS_TEMPLATE:
-                    template = 1
-                elif child.kind == cindex.CursorKind.TEMPLATE_TYPE_PARAMETER:
-                    template = 2
+                typeId = DbClassType.NORMAL
+                real = child
+                if child.kind == cindex.CursorKind.TYPEDEF_DECL:
+                    typeId = DbClassType.TYPEDEF
+                elif real.kind == cindex.CursorKind.CLASS_TEMPLATE:
+                    typeId = DbClassType.TEMPLATE_CLASS
+                elif real.kind == cindex.CursorKind.TEMPLATE_TYPE_PARAMETER:
+                    typeId = DbClassType.TEMPLATE_TYPE
                 if ns == None:
-                    if not template:
+                    if typeId != DbClassType.TEMPLATE_TYPE:
                         ns = self.get_namespace_id()
                     else:
                         ns = "null"
-                sql = "select id from class where name='%s' and namespaceId %s and template=%d" % (child.spelling, self.get_namespace_id_query(ns), template)
+                sql = "select id from class where name='%s' and namespaceId %s and typeId=%d" % (child.spelling, self.get_namespace_id_query(ns), typeId)
                 self.cacheCursor.execute(sql)
                 idx = self.cacheCursor.fetchone()
                 if idx == None:
                     sql2 = """insert into class (name, namespaceId,
-                                definitionSourceId, definitionLine, definitionColumn, template) VALUES ('%s', %s, %d, %d, %d, %d)""" % \
+                                definitionSourceId, definitionLine, definitionColumn, typeId) VALUES ('%s', %s, %d, %d, %d, %d)""" % \
                             (child.spelling, ns, \
-                             self.get_source_id(child), child.location.line, child.location.column, template)
+                             self.get_source_id(child), child.location.line, child.location.column, typeId)
                     self.cacheCursor.execute(sql2)
                     self.cacheCursor.execute(sql)
                     idx = self.cacheCursor.fetchone()
@@ -526,22 +541,28 @@ class SQLiteCache:
             elif child.kind == cindex.CursorKind.CXX_ACCESS_SPEC_DECL:
                 data.access[-1] = child.get_cxx_access_specifier().kind
             elif child.kind == cindex.CursorKind.CXX_BASE_SPECIFIER:
-                chs = child.get_children()
-                for c in chs:
+                for c in child.get_children():
                     if c.kind == cindex.CursorKind.TYPE_REF:
                         cl = c.get_reference()
+                        classId = None
                         if cl.kind == cindex.CursorKind.CLASS_DECL:
                             classId = data.get_class_id_from_cursor(cl)
                             data.cacheCursor.execute("insert into inheritance (classId, parentId) VALUES (%d, %d)" % (data.classes[-1], classId))
             elif child.kind == cindex.CursorKind.TYPEDEF_DECL:
-                chs = child.get_children()
-                for c in chs:
-                    if c.kind == cindex.CursorKind.TYPE_REF:
-                        cl = c.get_reference()
-                        if cl.kind == cindex.CursorKind.CLASS_DECL:
-                            myId = data.get_class_id_from_cursor(child)
-                            classId = data.get_class_id_from_cursor(cl)
-                            data.cacheCursor.execute("insert into inheritance (classId, parentId) VALUES (%d, %d)" % (myId, classId))
+                id = data.get_class_id_from_cursor(child)
+                if child.location.file != None:
+                    f = open(child.location.file.name)
+                    fdata = f.read()[child.extent.start.offset:child.extent.end.offset+1]
+                    f.close()
+                    regex = re.search("typedef\s+(.*)\s+(.*);", fdata, re.DOTALL)
+                    if regex:
+                        #print regex.groups()
+                        try:
+                            data.cacheCursor.execute("insert into typedef (classId, name) VALUES (%d, '%s')" % (id, regex.group(1)))
+                        except:
+                            pass
+                    else:
+                        print "failed regex: %s" % (fdata)
             elif child.kind == cindex.CursorKind.CXX_METHOD or \
                     child.kind == cindex.CursorKind.FUNCTION_DECL or \
                     child.kind == cindex.CursorKind.FIELD_DECL or \
@@ -572,21 +593,30 @@ class SQLiteCache:
                         #     for c in child.get_children():
                         #         print "   - %s, %s" % (c.spelling, c.kind)
                         #     returnCursor.dump_self()
-
-                        if returnCursor == child:
-                            # If we get here it's an instanced template.
+                        #if child.spelling == "front":
+                        #    returnCursor.dump()
+                        if child == returnCursor:
                             for c in returnCursor.get_children():
                                 if c.kind == cindex.CursorKind.TEMPLATE_REF:
                                     templateCursor = returnCursor
                                     returnCursor = c.get_reference()
                                     break
-                            if templateCursor == returnCursor:
-                                print "hmm... need to tweak this"
+                        # if templateCursor == returnCursor:
+                        #         print "hmm... need to tweak this"
                         returnId = data.get_class_id_from_cursor(returnCursor)
+                    if child.spelling == "front":
+                        child.dump()
+                        print "return is "
+                        returnCursor.dump()
+                        data.cacheCursor.execute("select name, id, typeId from class where id=%d" % returnId)
+                        print data.cacheCursor.fetchone()
+
                     ret = parse_res(child.get_completion_string(), "")
                     static = False
                     if child.kind == cindex.CursorKind.CXX_METHOD:
                         static = child.get_cxxmethod_is_static()
+                        # if child.spelling == "front":
+                        #     child.dump()
 
                     sql2 = """insert into member (namespaceId, classId, returnId, definitionSourceId, definitionLine, definitionColumn, name, displayText, insertionText, static, access) values (%s, %s, %s, %s, %d, %d, '%s', '%s', '%s', %d, %d)""" % \
                         (data.get_namespace_id(), classId, returnId, \
@@ -598,26 +628,26 @@ class SQLiteCache:
                         memberId = data.cacheCursor.fetchone()[0]
                         children = templateCursor.get_children()
 
-                        templateCursor.dump()
-                        print templateCursor.get_referenced_name_range()
-                        print templateCursor.extent
+                        if child.spelling == "front":
+                            templateCursor.dump()
+                        # print templateCursor.get_referenced_name_range()
+                        # print templateCursor.extent
                         #templateCursor.get_specialized_cursor_template().dump()
                         for i in range(0, len(children)):
                             c = children[i]
                             if c.kind == cindex.CursorKind.PARM_DECL or c.kind == cindex.CursorKind.COMPOUND_STMT:
                                 break
-                            print "child is %s, %s" % (c.spelling, c.kind)
-                            c.dump_self()
-                            print c.get_referenced_name_range()
-                            print c.extent
-                            print c.get_canonical_cursor().dump_self()
-                            print c.get_semantic_parent().dump_self()
-                            print c.get_lexical_parent().dump_self()
-                            print "end dump"
+                            # print "child is %s, %s" % (c.spelling, c.kind)
+                            # c.dump_self()
+                            # print c.get_referenced_name_range()
+                            # print c.extent
+                            # print c.get_canonical_cursor().dump_self()
+                            # print c.get_semantic_parent().dump_self()
+                            # print c.get_lexical_parent().dump_self()
+                            # print "end dump"
 
                             data.cacheCursor.execute("insert into templatedmembers (memberId, argumentClassId, argumentNumber) VALUES (%d, %s, %d)" % (memberId, data.get_class_id_from_cursor(c.get_resolved_cursor()), i))
                             data.cacheCursor.execute(sql)
-
 
             # elif child.kind == cindex.CursorKind.CLASS_TEMPLATE or \
             #         child.kind == cindex.CursorKind.FUNCTION_TEMPLATE or \
@@ -640,7 +670,7 @@ class SQLiteCache:
                 pass
 
             if recurse:
-                data.access.append(3)
+                data.access.append(cindex.CXXAccessSpecifier.PUBLIC)
                 data.parents.append(child)
                 return 2
 
@@ -693,22 +723,25 @@ class SQLiteCache:
                 if ns == None:
                     # Couldn't find that namespace
                     continue
-            self.cacheCursor.execute("select id from class where namespaceId %s and name='%s'" % (ns, first))
-            id = self.cacheCursor.fetchone()
-            if id != None:
-                id = id[0]
-                type = "class"
-                break
-
             self.cacheCursor.execute("select id from namespace where parentId %s and name='%s'" % (ns, first))
             id = self.cacheCursor.fetchone()
+            print "namespace: ", id, ns, first
             if id != None:
                 id = id[0]
                 type = "ns"
                 break
+            self.cacheCursor.execute("select id from class where namespaceId %s and name='%s'" % (ns, first))
+            id = self.cacheCursor.fetchone()
+            print "class: ", id, ns, first
+            if id != None:
+                id = id[0]
+                type = "class"
+                break
         if type == None:
             return type, id
         for item in tofind:
+            if len(item) == 0:
+                continue
             if type == "ns":
                 self.cacheCursor.execute("select id from class where namespaceId= %d and name='%s'" % (id, item))
                 newid = self.cacheCursor.fetchone()
@@ -761,7 +794,7 @@ class SQLiteCache:
                         # Couldn't find that namespace
                         continue
 
-                self.cacheCursor.execute("select name from class where namespaceId %s and name like '%s%%'" % (ns, prefix))
+                self.cacheCursor.execute("select name from class where namespaceId %s and name like '%s%%' and typeId != %d" % (ns, prefix, DbClassType.TEMPLATE_TYPE))
                 for c in self.cacheCursor:
                     ret.append(("%s\tclass" % c[0], c[0]))
                 self.cacheCursor.execute("select name from namespace where parentId %s and name like '%s%%'" % (ns, prefix))
@@ -791,7 +824,7 @@ class SQLiteCache:
                     if parents != None:
                         for parent in parents:
                             print parent
-                            self.cacheCursor.execute("select displayText, insertionText from member where classId=%d and access <=2 and name like '%s%%'" % (parent[0], prefix))
+                            self.cacheCursor.execute("select displayText, insertionText from member where classId=%d and access <=%d and name like '%s%%'" % (parent[0], cindex.CXXAccessSpecifier.PROTECTED, prefix))
                             members = self.cacheCursor.fetchall()
                             print members
                             if members:
@@ -804,6 +837,7 @@ class SQLiteCache:
             return ret
         elif re.search("::$", before):
             type, id = self.get_colon_colon_base(data, before)
+            print type, id
 
             if not type:
                 return None
