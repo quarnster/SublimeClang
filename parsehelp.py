@@ -62,7 +62,7 @@ def collapse_ltgt(before):
     end = -1
     while i >= 0:
         if before[i] == '>':
-            if i > 0 and before[i-1] == '>':
+            if i > 0 and (before[i-1] == '>' or before[i-1] == '-'):
                 i -= 1
             else:
                 count += 1

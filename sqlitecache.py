@@ -134,7 +134,7 @@ class SQLiteCache:
         count = 0
         while len(tocomplete) and count < 100:
             count += 1
-            match = re.search("([^\.\-\(]+)(\(|\.|->)(.*)", tocomplete)
+            match = re.search("([^\.\-\(]+)?(\(|\.|->)(.*)", tocomplete)
             if match == None:
                 break
 
@@ -151,8 +151,11 @@ class SQLiteCache:
                         if count == 0:
                             tocomplete = tocomplete[i+1:]
                             break
-            tocomplete = re.match("(\.|\->)?(.*)", tocomplete).group(2)
-            if not lookup_function(lookup_data, match.group(1), function):
+            left = re.match("(\.|\->)?(.*)", tocomplete)
+            tocomplete = left.group(2)
+            if left.group(1) != None:
+                tocomplete = left.group(1) + tocomplete
+            if not lookup_function(lookup_data, match.group(1), match.group(2), function):
                 return
 
     def resolve_class_id(self, id, args):
@@ -229,10 +232,20 @@ class SQLiteCache:
         data.classId = data.ret[0]
         return True
 
-    def lookup_sql(self, data, name, function):
-        sql = "select returnId, id from member where classId=%d and name='%s' and access <=%d" % (data.classId, name, data.access)
-        self.cacheCursor.execute(sql)
-        data.ret = self.cacheCursor.fetchone()
+    def lookup_sql(self, data, name, pointer, function):
+        if name != None:
+            sql = "select returnId, id from member where classId=%d and name='%s' and access <=%d" % (data.classId, name, data.access)
+            self.cacheCursor.execute(sql)
+            data.ret = self.cacheCursor.fetchone()
+        elif pointer == "->":
+            sql = "select returnId, id from member where classId=%d and name='operator->' and access <=%d" % (data.classId, data.access)
+            self.cacheCursor.execute(sql)
+            ret = self.cacheCursor.fetchone()
+            if ret == None:
+                return True
+            data.ret = ret
+        else:
+            return True
         print sql, data.ret
         if data.ret == None or data.ret[0] == None:
             self.cacheCursor.execute("select parentId from inheritance where classId=%d" % data.classId)
@@ -357,6 +370,8 @@ class SQLiteCache:
         if typedef == None:
             return None
         line, column, typename, var, tocomplete = typedef
+        if before[-2:] == "->":
+            tocomplete += "->"
         if typename == None and var != None:
             # Try and see if we're in a class and var
             # thus might be a member of "this"
