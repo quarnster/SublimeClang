@@ -36,8 +36,6 @@ class TranslationUnitCache(Worker):
     class LockedTranslationUnit(LockedVariable):
         def __init__(self, var):
             LockedVariable.__init__(self, var)
-            self.sqlCache = sqlitecache.SQLiteCache()
-            self.sqlCache.index(var.cursor)
 
     def __init__(self):
         self.as_super = super(TranslationUnitCache, self)
@@ -124,7 +122,8 @@ class TranslationUnitCache(Worker):
                 tu.lock()
                 try:
                     tu.var.reparse(unsaved_files)
-                    tu.sqlCache.index(tu.var.cursor)
+                    index = sqlitecache.Indexer()
+                    index.index(tu.var.cursor, filename)
                     self.set_status("Reparsing %s done" % filename)
                 finally:
                     tu.unlock()

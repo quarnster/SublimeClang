@@ -1177,7 +1177,13 @@ class Cursor(Structure):
                 if c.kind == CursorKind.TEMPLATE_REF:
                     return self
                 elif c.kind.is_reference():
-                    return c.get_reference().get_resolved_cursor()
+                    i = 0
+                    while i < len(children):
+                        c = children[i]
+                        if c.kind != CursorKind.NAMESPACE_REF:
+                            return c.get_reference().get_resolved_cursor()
+                        i += 1
+                    return None
                 else:
                     return None
             else:

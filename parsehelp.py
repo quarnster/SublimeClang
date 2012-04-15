@@ -253,8 +253,8 @@ def get_var_type(data, var):
         match = m
     if match and match.group(1):
         if match.group(1).endswith(">"):
-            print match.groups()
-            regex = re.compile("\\b(%s<.+>)\\s+(%s)" % (match.group(1)[:-2], var))
+            name = match.group(1)[:match.group(1).find("<")]
+            regex = re.compile("\\b(%s<.+>)\\s+(%s)" % (name, var))
             match = None
             for m in regex.finditer(origdata):
                 if m.group(1) in _keywords:
