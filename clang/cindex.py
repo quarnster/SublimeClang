@@ -1147,7 +1147,7 @@ class Cursor(Structure):
 
     def dump(self, once=True):
         indent = "" if once else "    "
-        print "%s this: %s, %s, %s, %s, %s" % (indent, self.kind, self.spelling, self.displayname, self.type.kind, self.result_type.kind)
+        print "%s this: %s, %s, %s, %s, %s, %s" % (indent, self.kind, self.spelling, self.displayname, self.type.kind, self.result_type.kind, self.location)
         children = self.get_children()
         for i in range(len(children)):
             child = children[i]
@@ -1178,6 +1178,8 @@ class Cursor(Structure):
                     return self
                 elif c.kind.is_reference():
                     return c.get_reference().get_resolved_cursor()
+                else:
+                    return None
             else:
                 #print "none4"
                 return None

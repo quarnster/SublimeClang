@@ -62,14 +62,20 @@ def collapse_ltgt(before):
     end = -1
     while i >= 0:
         if before[i] == '>':
-            count += 1
-            if end == -1:
-                end = i
+            if i > 0 and before[i-1] == '>':
+                i -= 1
+            else:
+                count += 1
+                if end == -1:
+                    end = i
         elif before[i] == '<':
-            count -= 1
-            if count == 0 and end != -1:
-                before = "%s%s" % (before[:i+1], before[end:])
-                end = -1
+            if i > 0 and before[i-1] == '<':
+                i -= 1
+            else:
+                count -= 1
+                if count == 0 and end != -1:
+                    before = "%s%s" % (before[:i+1], before[end:])
+                    end = -1
         i -= 1
     return before
 
@@ -99,7 +105,7 @@ def extract_completion(before):
     before = before[m.start(1):m.end(2)]
     return before
 
-_keywords = ["return", "new", "delete", "class", "define", "using", "void", "template", "public:", "protected:", "private:", "public", "private", "protected"]
+_keywords = ["return", "new", "delete", "class", "define", "using", "void", "template", "public:", "protected:", "private:", "public", "private", "protected", "typename"]
 
 
 def extract_used_namespaces(data):
