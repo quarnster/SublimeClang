@@ -121,6 +121,7 @@ class DbClassType:
     TEMPLATE_CLASS = 1
     TEMPLATE_TYPE = 2
     TYPEDEF = 3
+    RETURNED_COMPLEX_TEMPLATE = 4
 
 
 class SQLiteCache:
@@ -218,8 +219,13 @@ class SQLiteCache:
                 print "resolved to2: %d, %s" % (classId, data.templateargs)
                 data.ret = (classId, data.ret[1])
                 return self.lookup(data, newargs)  # Proper memberId?
-                #TODO data.templateargs = newargs
-
+            elif res[1] == DbClassType.RETURNED_COMPLEX_TEMPLATE:
+                tmp = solve_template(res[2])
+                classId, newargs = self.resolve_template_class_ids(tmp, data.namespaces)
+                print "resolved to3: %d, %s" % (classId, newargs)
+                data.ret = (classId, data.ret[1])
+                data.templateargs = newargs
+                return self.lookup(data, newargs)
         data.classId = data.ret[0]
         return True
 
@@ -515,10 +521,6 @@ class SQLiteCache:
                     data.templates.pop()
                     data.templateParameter.pop()
 
-            #if parent and parent.kind == cindex.CursorKind.CLASS_TEMPLATE:
-            #if child.spelling == "test":
-            #    child.dump()
-
             recurse = False
             if child.kind == cindex.CursorKind.NAMESPACE:
                 data.namespace.append(data.get_or_add_namespace_id(child.spelling))
@@ -596,28 +598,53 @@ class SQLiteCache:
                         #if child.spelling == "front":
                         #    returnCursor.dump()
                         if child == returnCursor:
-                            for c in returnCursor.get_children():
-                                if c.kind == cindex.CursorKind.TEMPLATE_REF:
-                                    templateCursor = returnCursor
-                                    returnCursor = c.get_reference()
-                                    break
-                        # if templateCursor == returnCursor:
-                        #         print "hmm... need to tweak this"
-                        returnId = data.get_class_id_from_cursor(returnCursor)
-                    if child.spelling == "front":
-                        child.dump()
-                        print "return is "
-                        returnCursor.dump()
-                        data.cacheCursor.execute("select name, id, typeId from class where id=%d" % returnId)
-                        print data.cacheCursor.fetchone()
+                            if child.location.file != None:
+                                children = returnCursor.get_children()
+                                templateCount = 0
+                                for c in children:
+                                    if c.kind == cindex.CursorKind.TEMPLATE_REF:
+                                        if templateCount == 0:
+                                            templateCursor = returnCursor
+                                            returnCursor = c.get_reference()
+                                        templateCount += 1
+                                    elif c.kind != cindex.CursorKind.TYPE_REF:
+                                        break
 
+                                if templateCount > 1:
+                                    f = open(child.location.file.name)
+                                    f.seek(child.extent.start.offset)
+                                    fdata = f.read(child.extent.end.offset-child.extent.start.offset+1)
+                                    f.close()
+                                    name = ""
+                                    if fdata.startswith("template"):
+                                        d = collapse_ltgt(collapse_parenthesis(collapse_brackets(fdata)))
+                                        regex = re.search("template<>\\s+((const\s+)?typename\\s+)?(.+?)\\s+([^\\s]+)::", d, re.DOTALL)
+                                        if regex == None:
+                                            print d
+                                        name = regex.group(3).strip()
+                                        if "<" in name:
+                                            regex = re.search("(%s.*?%s)" % (name[:name.find("<")+1], name[name.find(">"):]), fdata, re.DOTALL)
+                                            name = regex.group(1)
+                                    else:
+                                        regex = re.search("(.+)\s+(.+);", fdata, re.DOTALL)
+                                        name = regex.group(1).strip()
+                                    #print name
+
+                                    sql = "select id from class where namespaceId %s and typeId=%d and name='%s'" % (data.get_namespace_id_query(classId), DbClassType.RETURNED_COMPLEX_TEMPLATE, name)
+                                    data.cacheCursor.execute(sql)
+                                    res = data.cacheCursor.fetchone()
+                                    if res == None:
+                                        data.cacheCursor.execute("insert into class (name, namespaceId, typeId) VALUES ('%s', %s, %d)" % (name, classId, DbClassType.RETURNED_COMPLEX_TEMPLATE))
+                                        data.cacheCursor.execute(sql)
+                                        res = data.cacheCursor.fetchone()
+                                    returnId = res[0]
+                                    templateCursor = None
+                        if returnId == "null":
+                            returnId = data.get_class_id_from_cursor(returnCursor)
                     ret = parse_res(child.get_completion_string(), "")
                     static = False
                     if child.kind == cindex.CursorKind.CXX_METHOD:
                         static = child.get_cxxmethod_is_static()
-                        # if child.spelling == "front":
-                        #     child.dump()
-
                     sql2 = """insert into member (namespaceId, classId, returnId, definitionSourceId, definitionLine, definitionColumn, name, displayText, insertionText, static, access) values (%s, %s, %s, %s, %d, %d, '%s', '%s', '%s', %d, %d)""" % \
                         (data.get_namespace_id(), classId, returnId, \
                          data.get_source_id(child), child.location.line, child.location.column, \
@@ -628,24 +655,10 @@ class SQLiteCache:
                         memberId = data.cacheCursor.fetchone()[0]
                         children = templateCursor.get_children()
 
-                        if child.spelling == "front":
-                            templateCursor.dump()
-                        # print templateCursor.get_referenced_name_range()
-                        # print templateCursor.extent
-                        #templateCursor.get_specialized_cursor_template().dump()
                         for i in range(0, len(children)):
                             c = children[i]
                             if c.kind == cindex.CursorKind.PARM_DECL or c.kind == cindex.CursorKind.COMPOUND_STMT:
                                 break
-                            # print "child is %s, %s" % (c.spelling, c.kind)
-                            # c.dump_self()
-                            # print c.get_referenced_name_range()
-                            # print c.extent
-                            # print c.get_canonical_cursor().dump_self()
-                            # print c.get_semantic_parent().dump_self()
-                            # print c.get_lexical_parent().dump_self()
-                            # print "end dump"
-
                             data.cacheCursor.execute("insert into templatedmembers (memberId, argumentClassId, argumentNumber) VALUES (%d, %s, %d)" % (memberId, data.get_class_id_from_cursor(c.get_resolved_cursor()), i))
                             data.cacheCursor.execute(sql)
 
