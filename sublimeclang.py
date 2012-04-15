@@ -42,6 +42,7 @@ from errormarkers import clear_error_marks, add_error_mark, show_error_marks, \
                          update_statusbar, erase_error_marks, set_clang_view
 from common import get_setting, get_settings, parse_res, is_supported_language, get_language
 from translationunitcache import TranslationUnitCache
+from sqlitecache import sqlCache
 
 
 def warm_up_cache(view, filename=None):
@@ -291,6 +292,7 @@ class ClangClearCache(sublime_plugin.TextCommand):
     def run(self, edit):
         global tuCache
         tuCache.clear()
+        sqlCache.clear()
         sublime.status_message("Cache cleared!")
 
 
@@ -501,101 +503,27 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         timing = ""
         tot = 0
         start = time.time()
-        tu = get_translation_unit(view)
-        if tu == None:
-            return self.return_completions([], view)
-        # Prefix should be removed as stated in the documentation:
-        # http://clang.llvm.org/doxygen/group__CINDEX__CODE__COMPLET.html#ga50fedfa85d8d1517363952f2e10aa3bf
-        row, col = view.rowcol(locations[0] - len(prefix))
-        unsaved_files = []
-        if view.is_dirty():
-            unsaved_files.append((view.file_name(),
-                                  view.substr(Region(0, view.size()))))
-        res = None
-        locked = False
-        try:
-            locked = tu.try_lock()
-            if self.time_completions:
-                curr = (time.time() - start)*1000
-                tot += curr
-                timing += "TU: %f" % (curr)
-                start = time.time()
-
-            line = view.substr(sublime.Region(view.full_line(locations[0]).begin(), locations[0]))
-            ret = tu.sqlCache.test(tu.var if locked else None, view, line, prefix, locations)
-
-            if self.time_completions:
-                # TODO
-                curr = (time.time() - start)*1000
-                tot += curr
-                timing += ", Comp: %f" % (curr)
-                timing += ", Tot: %f ms" % (tot)
-                print timing
-                sublime.status_message(timing)
-
-            if not ret is None:
-                return self.return_completions(ret, view)
-            enableClang = False  # TODO
-            if enableClang:
-                if not locked:
-                    locked = True
-                    tu.lock()
-                res = tu.var.codeComplete(view.file_name(), row + 1, col + 1,
-                                          unsaved_files, 3)
-            else:
-                return self.return_completions([], view)
-        finally:
-            if locked:
-                tu.unlock()
         if self.time_completions:
-            # Unfortunately if this takes a long time it is libclang doing its thing
-            # so I'm not sure if there's anything that can be done to speed it up.
-            # If you have a pull request that does indeed provide a significant
-            # speed up here, I'd be very grateful.
+            curr = (time.time() - start)*1000
+            tot += curr
+            timing += "TU: %f" % (curr)
+            start = time.time()
+
+        line = view.substr(sublime.Region(view.full_line(locations[0]).begin(), locations[0]))
+        ret =sqlCache.test(None, view, line, prefix, locations)
+
+        if self.time_completions:
+            # TODO
             curr = (time.time() - start)*1000
             tot += curr
             timing += ", Comp: %f" % (curr)
-            start = time.time()
-        ret = []
-        if res != None:
-            res.sort()
-            if self.time_completions:
-                curr = (time.time() - start)*1000
-                tot += curr
-                timing += ", Sort: %f" % (curr)
-                start = time.time()
-            onlyMembers = self.is_member_completion(view,
-                                                    locations[0] - len(prefix))
-            s, e = self.find_prefix_range(prefix, res.results)
-            if self.time_completions:
-                curr = (time.time() - start)*1000
-                tot += curr
-                timing += ", Range: %f" % (curr)
-                start = time.time()
-            if not (s == -1 or e == -1):
-                for idx in range(s, e + 1):
-                    compRes = res.results[idx]
-                    string = compRes.string
-                    if string.isAvailabilityNotAccessible() or (
-                             onlyMembers and
-                             not self.is_member_kind(compRes.kind)):
-                        continue
-
-                    add, representation, insertion = parse_res(
-                                    string, prefix,
-                                    self.dont_complete_startswith
-                                    )
-                    if add:
-                        #print compRes.kind, compRes.string
-                        ret.append((representation, insertion))
-        ret = sorted(ret)
-        if self.time_completions:
-            curr = (time.time() - start)*1000
-            tot += curr
-            timing += ", Post: %f" % (curr)
             timing += ", Tot: %f ms" % (tot)
+            print timing
             sublime.status_message(timing)
-        return self.return_completions(ret, view)
+
+        if not ret is None:
+            return self.return_completions(ret, view)
+        return self.return_completions([], view)
 
     def restart_complete_timer(self, view):
         if self.complete_timer != None:
