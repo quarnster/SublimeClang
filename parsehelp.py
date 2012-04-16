@@ -274,6 +274,8 @@ def get_type_definition(data, before):
     match = re.search("([^\.\[\-:]+)[^\.\-:]*(\.|->|::)(.*)", before)
     var = match.group(1)
     tocomplete = match.group(3)
+    if match.group(2) == "->":
+        tocomplete = "%s%s" % (match.group(2), tocomplete)
     end = time.time()
     print "var is %s (%f ms) " % (var, (end-start)*1000)
 

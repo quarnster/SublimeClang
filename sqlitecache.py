@@ -307,10 +307,11 @@ class Indexer:
             children = child.get_children()
             if len(children) == 1:
                 c = children[0].get_reference()
-                pid = data.get_class_id_from_cursor(c)
-                data.cacheCursor.execute("select id from inheritance where classId=%d and parentId=%d" % (id, pid))
-                if data.cacheCursor.fetchone() == None:
-                    data.cacheCursor.execute("insert into inheritance (classId, parentId) values (%d, %d)" % (id, pid))
+                if not c is None:
+                    pid = data.get_class_id_from_cursor(c)
+                    data.cacheCursor.execute("select id from inheritance where classId=%d and parentId=%d" % (id, pid))
+                    if data.cacheCursor.fetchone() == None:
+                        data.cacheCursor.execute("insert into inheritance (classId, parentId) values (%d, %d)" % (id, pid))
             elif child.location.file != None:
                 f = open(child.location.file.name)
                 fdata = f.read()[child.extent.start.offset:child.extent.end.offset+1]
@@ -381,6 +382,7 @@ class Indexer:
                                 elif c.kind != cindex.CursorKind.TYPE_REF:
                                     break
 
+
                             if templateCount > 1:
                                 f = open(child.location.file.name)
                                 f.seek(child.extent.start.offset)
@@ -427,12 +429,18 @@ class Indexer:
                     memberId = data.cacheCursor.fetchone()[0]
                     children = templateCursor.get_children()
 
+                    off = 0
                     for i in range(0, len(children)):
                         c = children[i]
+                        #c.dump()
                         if c.kind == cindex.CursorKind.PARM_DECL or c.kind == cindex.CursorKind.COMPOUND_STMT:
                             break
-                        data.cacheCursor.execute("insert into templatedmembers (memberId, argumentClassId, argumentNumber) VALUES (%d, %s, %d)" % (memberId, data.get_class_id_from_cursor(c.get_resolved_cursor()), i))
-                        data.cacheCursor.execute(sql)
+                        if c.kind != cindex.CursorKind.TYPE_REF:
+                            continue
+                        sql2 = "insert into templatedmembers (memberId, argumentClassId, argumentNumber) VALUES (%d, %s, %d)" % (memberId, data.get_class_id_from_cursor(c.get_resolved_cursor()), off)
+                        off += 1
+                        data.cacheCursor.execute(sql2)
+                        #data.cacheCursor.execute(sql)
 
         # elif child.kind == cindex.CursorKind.CLASS_TEMPLATE or \
         #         child.kind == cindex.CursorKind.FUNCTION_TEMPLATE or \
@@ -525,13 +533,19 @@ class SQLiteCache:
 
 
     def lookup(self, data, args):
-        print data.ret
+        print data.ret, args
         sql = "select id, typeId, name from class where id=%d" % data.ret[0]
         self.cacheCursor.execute(sql)
         res = self.cacheCursor.fetchone()
         print sql, res
         if res != None and res[1] != DbClassType.NORMAL:
-            if res[1] == DbClassType.TEMPLATE_TYPE:
+            if res[1] == DbClassType.TEMPLATE_CLASS:
+                sql = "select argumentClassId, argumentNumber from templatedmembers where memberId=%d order by argumentNumber" % data.ret[1]
+                self.cacheCursor.execute(sql)
+                res = self.cacheCursor.fetchall()
+                print sql, res
+                data.templateargs = [(x[0], None) for x in res]
+            elif res[1] == DbClassType.TEMPLATE_TYPE:
                 if data.templateargs != None:
                     tempargs = data.templateargs
                     print tempargs
@@ -724,8 +738,6 @@ class SQLiteCache:
         if typedef == None:
             return None
         line, column, typename, var, tocomplete = typedef
-        if before[-2:] == "->":
-            tocomplete += "->"
         if typename == None and var != None:
             # Try and see if we're in a class and var
             # thus might be a member of "this"
@@ -757,11 +769,14 @@ class SQLiteCache:
                     self.namespace = -1
                     self.access = cindex.CXXAccessSpecifier.PUBLIC
                     self.templateargs = []
+
+                def __str__(self):
+                    return "(%d, %d, %d, %s)" % (self.classId, self.namespace, self.access, self.templateargs)
             data = Temp()
             data.classId = classid
             data.namespaces = namespaces
             data.templateargs = template[1]
-            print "getting final type"
+            print "getting final type: %s, %s" % (data, tocomplete)
             self.get_final_type(self.lookup_sql, data, tocomplete)
             ret = []
             classid = data.classId
