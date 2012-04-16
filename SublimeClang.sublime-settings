@@ -142,7 +142,7 @@
     //
     // If "sublimeclang_options" exists in your project settings, it'll override
     // rather than add to the "options" defined in SublimeClang.sublime-settings.
-    // 
+    //
     // Note that the project settings aren't applied for already cached files,
     // so to make them take effect you'll have to clear the cache first. The
     // default keybinding for clearing the cache is alt+d,alt+c.
@@ -218,6 +218,8 @@
     //    "-I/path/to/myproject/includes/evenmorethings",
     //
     //  Notice that the both the myproject/includes directory and any directories more than one level deep are skipped
+    //
+    // Set "debug_options" (defined below) to true to print the final options used for compilation to the python console
     "options":
     [
         "-Wall",
@@ -233,6 +235,9 @@
         "-I/path/to/sources/1",
         "-I/path/to/sources/2"
     ],
+
+    // When set to true will output the final options used to the python console
+    "debug_options": false,
 
     // Scope used for markers in the clang output panel
     "marker_analyzer_output_panel_scope": "invalid",
