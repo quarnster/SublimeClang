@@ -216,7 +216,7 @@ def extract_variables(data):
     data = remove_namespaces(data)
     data = remove_classes(data)
 
-    pattern = "(\\b\\w[^%s]+[ \t\*\&]+(const)?[ \t\*\&]*)(\w[^%s\>]+)[ \t]*(\;|,|\)|=)" % (_invalid, _invalid)
+    pattern = "(\\b\\w[^%s]+[ \t\*\&]+(const)?[ \t\*\&]*)(\w[^%s\[\>]+)[ \t]*(\;|,|\)|=|\[)" % (_invalid, _invalid)
     regex = re.compile(pattern)
     regex2 = re.compile("[^)]+\)+\s+\{")
     ret = []
