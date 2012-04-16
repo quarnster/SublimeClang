@@ -1147,11 +1147,11 @@ class Cursor(Structure):
 
     def dump(self, once=True):
         indent = "" if once else "    "
-        print "%s this: %s, %s, %s, %s, %s, %s" % (indent, self.kind, self.spelling, self.displayname, self.type.kind, self.result_type.kind, self.location)
+        print "%s this: %s, %s, %s, %s, %s, %s, %s" % (indent, self.kind, self.spelling, self.displayname, self.type.kind, self.result_type.kind, self.get_usr(), self.location)
         children = self.get_children()
         for i in range(len(children)):
             child = children[i]
-            print "%s    %d: %s, %s, %s, %s, %s" % (indent, i, child.kind, child.spelling, child.displayname, child.type.kind, child.result_type.kind)
+            print "%s    %d: %s, %s, %s, %s, %s, %s" % (indent, i, child.kind, child.spelling, child.displayname, child.type.kind, child.result_type.kind, child.get_usr())
             if child.result_type.kind == TypeKind.POINTER:
                 pointee = child.result_type.get_pointee()
                 c3 = pointee.get_declaration()
