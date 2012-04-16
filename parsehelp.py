@@ -135,7 +135,7 @@ def extract_class_from_function(data):
     data = collapse_brackets(data)
     data = remove_functions(data)
     ret = None
-    for match in re.finditer("(\w+\s+)?(\w+)::~?(\w+)\([^)]*\)\s*\{", data, re.MULTILINE):
+    for match in re.finditer("(.*?)(\w+)::~?(\w+)\([^)]*\)\s*(const)?\s*\{", data, re.MULTILINE):
         ret = match.group(2)
     return ret
 
@@ -216,7 +216,7 @@ def extract_variables(data):
     data = remove_namespaces(data)
     data = remove_classes(data)
 
-    pattern = "(\\b\\w[^%s]+[ \t\*\&]+(const)?[ \t\*\&]*)(\w[^%s\>]+)[ \t]*(\(|\;|,|\)|=)" % (_invalid, _invalid)
+    pattern = "(\\b\\w[^%s]+[ \t\*\&]+(const)?[ \t\*\&]*)(\w[^%s\>]+)[ \t]*(\;|,|\)|=)" % (_invalid, _invalid)
     regex = re.compile(pattern)
     regex2 = re.compile("[^)]+\)+\s+\{")
     ret = []

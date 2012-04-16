@@ -335,6 +335,8 @@ class Indexer:
             classId = "null"
             if len(data.classes) > 0:
                 classId = data.classes[-1]
+            elif child.kind == cindex.CursorKind.CXX_METHOD:
+                classId = data.get_class_id_from_cursor(child.get_semantic_parent())
 
             implementation = False
             if child.kind == cindex.CursorKind.CXX_METHOD or \
@@ -574,7 +576,7 @@ class SQLiteCache:
                     print "down here... Will break"
                     print data.templateargs
             elif res[1] == DbClassType.SIMPLE_TYPEDEF:
-                sql = "select parentId from inheritance where classId=%d" % id
+                sql = "select parentId from inheritance where classId=%d" % data.ret[0]
                 self.cacheCursor.execute(sql)
                 data.ret = (self.cacheCursor.fetchone()[0], data.ret[1])
                 return self.lookup(data, data.templateargs)
@@ -957,35 +959,69 @@ class SQLiteCache:
     def goto_def(self, view, columnnames="definitionSourceId, definitionLine, definitionColumn"):
         caret = view.sel()[0].a
         scope = view.scope_name(caret)
-        print scope
+        data = view.substr(sublime.Region(0, caret))
+
+        line = view.substr(view.line(caret))
+        extended_word = re.search("([^\\s&*]+$)", view.substr(sublime.Region(view.line(caret).begin(), view.word(caret).end())))
+        if extended_word == None:
+            return ""
+        extended_word = extended_word.group(1)
         word = view.substr(view.word(caret))
+
         if "function-call" in scope or "entity.name.function." in scope:
-            # TODO if it's a member function
-            sql = "select name, %s from member where name='%s'" % (columnnames, word)
-            self.cacheCursor.execute(sql)
-            res = self.cacheCursor.fetchall()
-            print sql, res
-            if res:
-                # TODO if there are multiple entries
-                name, definitionSourceId, line, col = res[0]
-                if definitionSourceId != None:
-                    self.cacheCursor.execute("select name from source where id=%d" % definitionSourceId)
+            classes = []
+            if "::" in line:
+                clazz, extended_word = extended_word.split("::")
+                self.cacheCursor.execute("select id from class where name='%s'" % clazz)
+                for c in self.cacheCursor:
+                    classes.append("=%d" % c[0])
+            classes.append(" is null")
+            for clazz in classes:
+                # TODO if it's a member function
+                sql = "select name, %s from member where name='%s' and classId %s" % (columnnames, word, clazz)
+                self.cacheCursor.execute(sql)
+                res = self.cacheCursor.fetchall()
+                print sql, res
+                if res:
+                    # TODO if there are multiple entries
+                    name, definitionSourceId, line, col = res[0]
+                    if definitionSourceId != None:
+                        self.cacheCursor.execute("select name from source where id=%d" % definitionSourceId)
 
-                    return "%s:%d:%d" % (self.cacheCursor.fetchone()[0], line, col)
+                        return "%s:%d:%d" % (self.cacheCursor.fetchone()[0], line, col)
         else:
-            sql = """select name, %s from class where name='%s'
-                     union
-                     select name, %s from member where name='%s'""" % (columnnames, word, columnnames, word)
-            self.cacheCursor.execute(sql)
-            res = self.cacheCursor.fetchall()
-            print sql, res
-            if res:
-                # TODO if there are multiple entries
-                name, definitionSourceId, line, col = res[0]
-                if definitionSourceId != None:
-                    self.cacheCursor.execute("select name from source where id=%d" % definitionSourceId)
+            variables = extract_variables(data)
+            for type, name in variables:
+                if name == word:
+                    type = type.replace("*", "\*")
+                    pos = caret
+                    for match in re.finditer("(%s)\\s*(%s)" % (type, name), data):
+                        pos = match.start(2)
+                    row,col = view.rowcol(pos)
+                    return "%s:%d:%d" % (view.file_name(), row+1, col+1)
+            clazz = extract_class(data)
+            if clazz == None:
+                clazz = extract_class_from_function(data)
 
-                    return "%s:%d:%d" % (self.cacheCursor.fetchone()[0], line, col)
+            classes = []
+            if clazz:
+                self.cacheCursor.execute("select id from class where name='%s'" % clazz)
+                for c in self.cacheCursor:
+                    classes.append("=%d" % c[0])
+            classes.append(" is null")
+
+            for clazz in classes:
+                sql = """select name, %s from member where name='%s' and classId %s""" % (columnnames, word, clazz)
+                self.cacheCursor.execute(sql)
+                res = self.cacheCursor.fetchall()
+                print sql, res
+                if res:
+                    # TODO if there are multiple entries
+                    name, definitionSourceId, line, col = res[0]
+                    if definitionSourceId != None:
+                        self.cacheCursor.execute("select name from source where id=%d" % definitionSourceId)
+
+                        return "%s:%d:%d" % (self.cacheCursor.fetchone()[0], line, col)
         return ""
 
 
