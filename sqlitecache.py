@@ -65,6 +65,7 @@ def createDB(cursor):
         definitionColumn INTEGER,
         name TEXT,
         typeId INTEGER,
+        usr TEXT,
         FOREIGN KEY(namespaceId) REFERENCES namespace(id),
         FOREIGN KEY(definitionSourceId) REFERENCES source(id)
         )""")
@@ -85,6 +86,7 @@ def createDB(cursor):
         displayText TEXT,
         static BOOL,
         access INTEGER,
+        usr TEXT,
         FOREIGN KEY(classId) REFERENCES class(id),
         FOREIGN KEY(namespaceId) REFERENCES namespace(id),
         FOREIGN KEY(returnId) REFERENCES class(id),
@@ -120,8 +122,10 @@ class DbClassType:
     NORMAL = 0
     TEMPLATE_CLASS = 1
     TEMPLATE_TYPE = 2
-    TYPEDEF = 3
-    RETURNED_COMPLEX_TEMPLATE = 4
+    RETURNED_COMPLEX_TEMPLATE = 3
+    SIMPLE_TYPEDEF = 101
+    COMPLEX_TYPEDEF = 102
+
 
 
 class Indexer:
@@ -129,7 +133,7 @@ class Indexer:
         def __init__(self):
             self.count = 0
             self.parents = []
-            self.cache = sqlite3.connect("%s/cache.db" % scriptdir, check_same_thread=False)
+            self.cache = sqlite3.connect("%s/cache.db" % scriptdir, timeout=90, check_same_thread=False)
             self.cacheCursor = self.cache.cursor()
             createDB(self.cacheCursor)
             self.namespace = []
@@ -202,7 +206,10 @@ class Indexer:
             typeId = DbClassType.NORMAL
             real = child
             if child.kind == cindex.CursorKind.TYPEDEF_DECL:
-                typeId = DbClassType.TYPEDEF
+                if len(child.get_children()) == 1:
+                    typeId = DbClassType.SIMPLE_TYPEDEF
+                else:
+                    typeId = DbClassType.COMPLEX_TYPEDEF
             elif real.kind == cindex.CursorKind.CLASS_TEMPLATE:
                 typeId = DbClassType.TEMPLATE_CLASS
             elif real.kind == cindex.CursorKind.TEMPLATE_TYPE_PARAMETER:
@@ -212,14 +219,14 @@ class Indexer:
                     ns = self.get_namespace_id()
                 else:
                     ns = "null"
-            sql = "select id from class where name='%s' and namespaceId %s and typeId=%d" % (child.spelling, self.get_namespace_id_query(ns), typeId)
+            sql = "select id from class where name='%s' and namespaceId %s and typeId=%d and usr='%s'" % (child.spelling, self.get_namespace_id_query(ns), typeId, child.get_usr())
             self.cacheCursor.execute(sql)
             idx = self.cacheCursor.fetchone()
             if idx == None:
                 sql2 = """insert into class (name, namespaceId,
-                            definitionSourceId, definitionLine, definitionColumn, typeId) VALUES ('%s', %s, %d, %d, %d, %d)""" % \
+                            definitionSourceId, definitionLine, definitionColumn, typeId, usr) VALUES ('%s', %s, %d, %d, %d, %d, '%s')""" % \
                         (child.spelling, ns, \
-                         self.get_source_id(child), child.location.line, child.location.column, typeId)
+                         self.get_source_id(child), child.location.line, child.location.column, typeId, child.get_usr())
                 self.cacheCursor.execute(sql2)
                 self.cacheCursor.execute(sql)
                 idx = self.cacheCursor.fetchone()
@@ -249,19 +256,20 @@ class Indexer:
         data.count = data.count + 1
         while len(data.parents) > 0 and data.parents[-1] != parent:
             oldparent = data.parents.pop()
-            #child.dump_self()
             if oldparent.kind == cindex.CursorKind.NAMESPACE:
                 data.namespace.pop()
             elif oldparent.kind == cindex.CursorKind.CLASS_DECL or \
                     oldparent.kind == cindex.CursorKind.ENUM_DECL or \
                     oldparent.kind == cindex.CursorKind.STRUCT_DECL:
                 data.classes.pop()
+                # TODO: here would be a good place to purge removed
+                #       members
             data.access.pop()
             if oldparent.kind == cindex.CursorKind.CLASS_TEMPLATE:
                 data.classes.pop()
                 data.templates.pop()
                 data.templateParameter.pop()
-        #child.dump_self()
+        #child.dump()
 
         recurse = False
         if child.kind == cindex.CursorKind.NAMESPACE:
@@ -296,7 +304,14 @@ class Indexer:
                         data.cacheCursor.execute("insert into inheritance (classId, parentId) VALUES (%d, %d)" % (data.classes[-1], classId))
         elif child.kind == cindex.CursorKind.TYPEDEF_DECL:
             id = data.get_class_id_from_cursor(child)
-            if child.location.file != None:
+            children = child.get_children()
+            if len(children) == 1:
+                c = children[0].get_reference()
+                pid = data.get_class_id_from_cursor(c)
+                data.cacheCursor.execute("select id from inheritance where classId=%d and parentId=%d" % (id, pid))
+                if data.cacheCursor.fetchone() == None:
+                    data.cacheCursor.execute("insert into inheritance (classId, parentId) values (%d, %d)" % (id, pid))
+            elif child.location.file != None:
                 f = open(child.location.file.name)
                 fdata = f.read()[child.extent.start.offset:child.extent.end.offset+1]
                 f.close()
@@ -320,11 +335,21 @@ class Indexer:
             if len(data.classes) > 0:
                 classId = data.classes[-1]
 
-            sql = """select id from member where name='%s' and definitionSourceId=%d and definitionLine=%d and definitionColumn=%d and classId %s""" % \
-                (child.spelling, data.get_source_id(child), child.location.line, child.location.column, data.get_namespace_id_query(classId))
+            implementation = False
+            if child.kind == cindex.CursorKind.CXX_METHOD or \
+                    child.kind == cindex.CursorKind.FUNCTION_DECL:
+                for c in child.get_children():
+                    if c.kind == cindex.CursorKind.COMPOUND_STMT:
+                        implementation = True
+                        break
+            sql = """select id from member where name='%s' and classId %s and usr='%s'""" % \
+                (child.spelling, data.get_namespace_id_query(classId), child.get_usr())
             data.cacheCursor.execute(sql)
-            if data.cacheCursor.fetchone():
-                # TODO. what?
+            memberId = data.cacheCursor.fetchone()
+            if memberId:
+                if implementation:
+                    sql = "update member set implementationSourceId=%d, implementationLine=%d, implementationColumn=%d where id=%d" % (data.get_source_id(child), child.location.line, child.location.column, memberId[0])
+                    data.cacheCursor.execute(sql)
                 pass
             else:
                 returnId = "null"
@@ -387,14 +412,15 @@ class Indexer:
                                 templateCursor = None
                     if returnId == "null":
                         returnId = data.get_class_id_from_cursor(returnCursor)
-                ret = parse_res(child.get_completion_string(), "")
+
                 static = False
                 if child.kind == cindex.CursorKind.CXX_METHOD:
                     static = child.get_cxxmethod_is_static()
-                sql2 = """insert into member (namespaceId, classId, returnId, definitionSourceId, definitionLine, definitionColumn, name, displayText, insertionText, static, access) values (%s, %s, %s, %s, %d, %d, '%s', '%s', '%s', %d, %d)""" % \
+                comp_string = parse_res(child.get_completion_string(), "")
+                sql2 = """insert into member (namespaceId, classId, returnId, definitionSourceId, definitionLine, definitionColumn, name, displayText, insertionText, static, access, usr) values (%s, %s, %s, %s, %d, %d, '%s', '%s', '%s', %d, %d, '%s')""" % \
                     (data.get_namespace_id(), classId, returnId, \
                      data.get_source_id(child), child.location.line, child.location.column, \
-                     child.spelling, ret[1], ret[2], static, data.access[-1])
+                     child.spelling, comp_string[1], comp_string[2], static, data.access[-1], child.get_usr())
                 data.cacheCursor.execute(sql2)
                 if not templateCursor is None:
                     data.cacheCursor.execute(sql)
@@ -452,7 +478,7 @@ class Indexer:
 
 class SQLiteCache:
     def __init__(self):
-        self.cache = sqlite3.connect("%s/cache.db" % scriptdir, timeout=0.5,check_same_thread=False)
+        self.cache = sqlite3.connect("%s/cache.db" % scriptdir, timeout=0.5, check_same_thread=False)
         self.cacheCursor = self.cache.cursor()
         createDB(self.cacheCursor)
 
@@ -497,24 +523,6 @@ class SQLiteCache:
             if not lookup_function(lookup_data, match.group(1), match.group(2), function):
                 return
 
-    def resolve_class_id(self, id, args):
-        sql = "select id, typeId, name from class where id=%d" % id
-        self.cacheCursor.execute(sql)
-        res = self.cacheCursor.fetchone()
-        print sql, res
-        if res != None:
-            if res[1] == DbClassType.TYPEDEF:
-                sql = "select name from typedef where classId=%d" % (id)
-                self.cacheCursor.execute(sql)
-                tmp = solve_template(self.cacheCursor.fetchone()[0])
-                print sql, tmp
-                classId, newargs = self.resolve_template_class_ids(tmp, data.namespaces)
-                print "resolved to1: %d, %s" % (classId, newargs)
-                return self.resolve_class_id(classId, newargs)  # Proper memberId?
-                #TODO data.templateargs = newargs
-        else:
-            return None
-        return res[0]
 
     def lookup(self, data, args):
         print data.ret
@@ -551,7 +559,12 @@ class SQLiteCache:
                     data.templateargs = [x[0] for x in res]
                     print "down here... Will break"
                     print data.templateargs
-            elif res[1] == DbClassType.TYPEDEF:
+            elif res[1] == DbClassType.SIMPLE_TYPEDEF:
+                sql = "select parentId from inheritance where classId=%d" % id
+                self.cacheCursor.execute(sql)
+                data.ret = (self.cacheCursor.fetchone()[0], data.ret[1])
+                return self.lookup(data, data.templateargs)
+            elif res[1] == DbClassType.COMPLEX_TYPEDEF:
                 sql = "select name from typedef where classId=%d" % (data.ret[0])
                 self.cacheCursor.execute(sql)
                 name = self.cacheCursor.fetchone()[0]
@@ -665,7 +678,7 @@ class SQLiteCache:
         for ns in used_ns:
             if ns == None:
                 continue
-            sql = "select id, typeId from class where name='%s' and namespaceId %s and (typeId=%d or typeId=%d)" % (name, ns, DbClassType.NORMAL if args == None else DbClassType.TEMPLATE_CLASS, DbClassType.TYPEDEF)
+            sql = "select id, typeId from class where name='%s' and namespaceId %s and (typeId=%d or typeId>=%d)" % (name, ns, DbClassType.NORMAL if args == None else DbClassType.TEMPLATE_CLASS, DbClassType.SIMPLE_TYPEDEF)
             self.cacheCursor.execute(sql)
             ret = self.cacheCursor.fetchone()
             if ret == None and args == None:
@@ -676,16 +689,21 @@ class SQLiteCache:
             print sql, ret
             if ret != None:
                 id = ret[0]
-                if ret[1] == DbClassType.TYPEDEF:
-                    sql = "select name from typedef where classId=%d" % id
+                if ret[1] == DbClassType.COMPLEX_TYPEDEF:
+                    sql = "select name from typedef where classId=%d" % (id)
                     self.cacheCursor.execute(sql)
-                    ret = self.cacheCursor.fetchone()
-                    print sql, ret
-                    if ret == None:
-                        return None, None
-                    tmp = solve_template(ret[0])
-                    id, arg = self.resolve_template_class_ids(tmp, namespaces)
-                    return id, arg
+                    tmp = solve_template(self.cacheCursor.fetchone()[0])
+                    print sql, tmp
+                    classId, newargs = self.resolve_template_class_ids(tmp, namespaces)
+                    print "resolved to1: %d, %s" % (classId, newargs)
+                    return classId, newargs
+                elif ret[1] == DbClassType.SIMPLE_TYPEDEF:
+                    sql = "select parentId from inheritance where classId=%d" % id
+                    self.cacheCursor.execute(sql)
+                    classId = self.cacheCursor.fetchone()[0]
+                    print sql, classId
+                    return classId, None
+                    #return self.resolve_template_class_ids(classId, template, namespaces)
                 break
         if args != None:
             for i in range(len(args)):
@@ -699,12 +717,8 @@ class SQLiteCache:
             namespaceids.append(self.get_namespace_query(namespace))
         return namespaceids
 
-    def complete_members(self, tu, filename, data, before, prefix):
+    def complete_members(self, filename, data, before, prefix):
         ret = None
-        # if tu != None:
-        #     ret = self.complete_cursors(tu, filename, data, before, prefix)
-        #     if ret != None:
-        #         return ret
 
         typedef = get_type_definition(data, before)
         if typedef == None:
@@ -833,12 +847,40 @@ class SQLiteCache:
                 print "id, type: %d, %s" % (id, type)
         return type, id
 
-    def test(self, tu, view, line, prefix, locations):
+    def complete(self, view, line, prefix, locations):
         data = view.substr(sublime.Region(0, locations[0]))
         before = line
         if len(prefix) > 0:
             before = line[:-len(prefix)]
-        if re.search("[ \t]+$", before) or len(before.strip()) == 0:
+
+        if re.search("::$", before):
+            type, id = self.get_colon_colon_base(data, before)
+            print type, id
+
+            if not type:
+                return None
+
+            if type == "ns":
+                ret = []
+                self.cacheCursor.execute("select name from class where namespaceId=%d and name like '%s%%'" % (id, prefix))
+                for n in self.cacheCursor:
+                    ret.append(("%s\tclass" % n[0], n[0]))
+                self.cacheCursor.execute("select name from namespace where parentId= %d and name like '%s%%'" % (id, prefix))
+                for n in self.cacheCursor:
+                    ret.append(("%s\tnamespace" % n[0], n[0]))
+                type = None
+                return ret
+            elif type == "class":
+                self.cacheCursor.execute("select displayText, insertionText from member where classId=%s and static=1 and name like '%s%%'" % (id, prefix))
+                ret = []
+                members = self.cacheCursor.fetchall()
+                if members:
+                    ret.extend(members)
+                return ret
+            return None
+        elif re.search("([^ \t]+)(\.|\->)$", before):
+            return self.complete_members(view.file_name(), data, before, prefix)
+        else:
             ret = []
             namespaces = extract_used_namespaces(data)
             namespaces.append("null")
@@ -895,33 +937,45 @@ class SQLiteCache:
                 ret.append(("%s\t%s" % (var[1], var[0]), var[1]))
             ret = sorted(ret, key=lambda a: a[1])
             return ret
-        elif re.search("::$", before):
-            type, id = self.get_colon_colon_base(data, before)
-            print type, id
-
-            if not type:
-                return None
-
-            if type == "ns":
-                ret = []
-                self.cacheCursor.execute("select name from class where namespaceId=%d and name like '%s%%'" % (id, prefix))
-                for n in self.cacheCursor:
-                    ret.append(("%s\tclass" % n[0], n[0]))
-                self.cacheCursor.execute("select name from namespace where parentId= %d and name like '%s%%'" % (id, prefix))
-                for n in self.cacheCursor:
-                    ret.append(("%s\tnamespace" % n[0], n[0]))
-                type = None
-                return ret
-            elif type == "class":
-                self.cacheCursor.execute("select displayText, insertionText from member where classId=%s and static=1 and name like '%s%%'" % (id, prefix))
-                ret = []
-                members = self.cacheCursor.fetchall()
-                if members:
-                    ret.extend(members)
-                return ret
-            return None
-        elif re.search("([^ \t]+)(\.|\->)$", before):
-            return self.complete_members(tu, view.file_name(), data, before, prefix)
         return None
+
+    def goto_def(self, view, columnnames="definitionSourceId, definitionLine, definitionColumn"):
+        caret = view.sel()[0].a
+        scope = view.scope_name(caret)
+        print scope
+        word = view.substr(view.word(caret))
+        if "function-call" in scope or "entity.name.function." in scope:
+            # TODO if it's a member function
+            sql = "select name, %s from member where name='%s'" % (columnnames, word)
+            self.cacheCursor.execute(sql)
+            res = self.cacheCursor.fetchall()
+            print sql, res
+            if res:
+                # TODO if there are multiple entries
+                name, definitionSourceId, line, col = res[0]
+                if definitionSourceId != None:
+                    self.cacheCursor.execute("select name from source where id=%d" % definitionSourceId)
+
+                    return "%s:%d:%d" % (self.cacheCursor.fetchone()[0], line, col)
+        else:
+            sql = """select name, %s from class where name='%s'
+                     union
+                     select name, %s from member where name='%s'""" % (columnnames, word, columnnames, word)
+            self.cacheCursor.execute(sql)
+            res = self.cacheCursor.fetchall()
+            print sql, res
+            if res:
+                # TODO if there are multiple entries
+                name, definitionSourceId, line, col = res[0]
+                if definitionSourceId != None:
+                    self.cacheCursor.execute("select name from source where id=%d" % definitionSourceId)
+
+                    return "%s:%d:%d" % (self.cacheCursor.fetchone()[0], line, col)
+        return ""
+
+
+    def goto_imp(self, view):
+        return self.goto_def(view, columnnames="implementationSourceId, implementationLine, implementationColumn")
+
 
 sqlCache = SQLiteCache()

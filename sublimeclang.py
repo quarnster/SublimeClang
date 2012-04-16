@@ -42,7 +42,7 @@ from errormarkers import clear_error_marks, add_error_mark, show_error_marks, \
                          update_statusbar, erase_error_marks, set_clang_view
 from common import get_setting, get_settings, parse_res, is_supported_language, get_language
 from translationunitcache import TranslationUnitCache
-from sqlitecache import sqlCache
+import sqlitecache
 
 
 def warm_up_cache(view, filename=None):
@@ -142,6 +142,8 @@ def open(view, target):
 
 class ClangGotoImplementation(sublime_plugin.TextCommand):
     def run(self, edit):
+        target = sqlitecache.sqlCache.goto_imp(self.view)
+        """
         view = self.view
         tu = get_translation_unit(view)
         if tu == None:
@@ -202,6 +204,7 @@ class ClangGotoImplementation(sublime_plugin.TextCommand):
                                     tu2.unlock()
         finally:
             tu.unlock()
+        """
         if len(target) > 0:
             open(self.view, target)
         else:
@@ -225,6 +228,8 @@ class ClangGotoDef(sublime_plugin.TextCommand):
                             cursor.displayname), format_cursor(cursor)]
 
     def run(self, edit):
+        target = sqlitecache.sqlCache.goto_def(self.view)
+        """
         view = self.view
         tu = get_translation_unit(view)
         if tu == None:
@@ -276,10 +281,12 @@ class ClangGotoDef(sublime_plugin.TextCommand):
                     target = f.name
         finally:
             tu.unlock()
+        """
         if len(target) > 0:
             open(self.view, target)
         else:
             sublime.status_message("No parent to go to!")
+
 
     def is_enabled(self):
         return is_supported_language(sublime.active_window().active_view())
@@ -292,7 +299,7 @@ class ClangClearCache(sublime_plugin.TextCommand):
     def run(self, edit):
         global tuCache
         tuCache.clear()
-        sqlCache.clear()
+        sqlitecache.sqlCache.clear()
         sublime.status_message("Cache cleared!")
 
 
@@ -510,7 +517,7 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
             start = time.time()
 
         line = view.substr(sublime.Region(view.full_line(locations[0]).begin(), locations[0]))
-        ret =sqlCache.test(None, view, line, prefix, locations)
+        ret = sqlitecache.sqlCache.complete(view, line, prefix, locations)
 
         if self.time_completions:
             # TODO
