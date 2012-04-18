@@ -41,16 +41,16 @@ import time
 from errormarkers import clear_error_marks, add_error_mark, show_error_marks, \
                          update_statusbar, erase_error_marks, set_clang_view
 from common import get_setting, get_settings, parse_res, is_supported_language, get_language
-from translationunitcache import TranslationUnitCache
+import translationunitcache
 import sqlitecache
 
 
 def warm_up_cache(view, filename=None):
     if filename == None:
         filename = view.file_name()
-    stat = tuCache.get_status(filename)
-    if stat == TranslationUnitCache.STATUS_NOT_IN_CACHE:
-        tuCache.add(view, filename)
+    stat = translationunitcache.tuCache.get_status(filename)
+    if stat == translationunitcache.TranslationUnitCache.STATUS_NOT_IN_CACHE:
+        translationunitcache.tuCache.add(view, filename)
     return stat
 
 
@@ -59,14 +59,14 @@ def get_translation_unit(view, filename=None, blocking=False):
         filename = view.file_name()
     if get_setting("warm_up_in_separate_thread", True, view) and not blocking:
         stat = warm_up_cache(view, filename)
-        if stat == TranslationUnitCache.STATUS_NOT_IN_CACHE:
+        if stat == translationunitcache.TranslationUnitCache.STATUS_NOT_IN_CACHE:
             return None
-        elif stat == TranslationUnitCache.STATUS_PARSING:
+        elif stat == translationunitcache.TranslationUnitCache.STATUS_PARSING:
             sublime.status_message("Hold your horses, cache still warming up")
             return None
-    return tuCache.get_translation_unit(filename, tuCache.get_opts(view))
+    return translationunitcache.tuCache.get_translation_unit(filename, translationunitcache.tuCache.get_opts(view))
 
-tuCache = TranslationUnitCache()
+
 navigation_stack = []
 clang_complete_enabled = True
 
@@ -81,9 +81,9 @@ class ClangToggleCompleteEnabled(sublime_plugin.TextCommand):
 class ClangWarmupCache(sublime_plugin.TextCommand):
     def run(self, edit):
         stat = warm_up_cache(self.view)
-        if stat == TranslationUnitCache.STATUS_PARSING:
+        if stat == translationunitcache.TranslationUnitCache.STATUS_PARSING:
             sublime.status_message("Cache is already warming up")
-        elif stat != TranslationUnitCache.STATUS_NOT_IN_CACHE:
+        elif stat != translationunitcache.TranslationUnitCache.STATUS_NOT_IN_CACHE:
             sublime.status_message("Cache is already warmed up")
 
 
@@ -287,7 +287,6 @@ class ClangGotoDef(sublime_plugin.TextCommand):
         else:
             sublime.status_message("No parent to go to!")
 
-
     def is_enabled(self):
         return is_supported_language(sublime.active_window().active_view())
 
@@ -297,8 +296,7 @@ class ClangGotoDef(sublime_plugin.TextCommand):
 
 class ClangClearCache(sublime_plugin.TextCommand):
     def run(self, edit):
-        global tuCache
-        tuCache.clear()
+        translationunitcache.tuCache.clear()
         sqlitecache.sqlCache.clear()
         sublime.status_message("Cache cleared!")
 
@@ -310,7 +308,7 @@ class ClangReparse(sublime_plugin.TextCommand):
         if view.is_dirty():
             unsaved_files.append((view.file_name(),
                           view.substr(Region(0, view.size()))))
-        tuCache.reparse(view, view.file_name(), unsaved_files)
+        translationunitcache.tuCache.reparse(view, view.file_name(), unsaved_files)
 
 
 def display_compilation_results(view):
@@ -321,7 +319,9 @@ def display_compilation_results(view):
     erase_error_marks(view)
     if tu == None:
         return
-    tu.lock()
+
+    if not tu.try_lock():
+        return
     errorCount = 0
     warningCount = 0
     try:
@@ -406,7 +406,7 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         self.not_code_regex = re.compile("(string.)|(comment.)")
 
     def load_settings(self):
-        tuCache.clear()
+        translationunitcache.tuCache.clear()
         oldSettings = sublime.load_settings("clang.sublime-settings")
         if oldSettings.get("popup_delay") != None:
             sublime.error_message(
@@ -541,8 +541,8 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
             line = view.substr(Region(view.word(caret).a, caret))
             if (self.is_member_completion(view, caret) or line.endswith("::")):
                 stat = warm_up_cache(view)
-                if not (stat == TranslationUnitCache.STATUS_NOT_IN_CACHE or
-                        stat == TranslationUnitCache.STATUS_PARSING):
+                if not (stat == translationunitcache.TranslationUnitCache.STATUS_NOT_IN_CACHE or
+                        stat == translationunitcache.TranslationUnitCache.STATUS_PARSING):
                     self.view = view
                     self.complete_timer = threading.Timer(
                             self.popup_delay / 1000.0,
@@ -557,6 +557,9 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
 
     def reparse_done(self):
         display_compilation_results(self.view)
+        tu = get_translation_unit(self.view)
+        if tu:
+            sqlitecache.indexer.add_index_tu_task(tu, self.view.file_name(), self.view.window().folders())
 
     def restart_recompile_timer(self, timeout):
         if self.recompile_timer != None:
@@ -571,7 +574,7 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         if view.is_dirty():
             unsaved_files.append((view.file_name(),
                                   view.substr(Region(0, view.size()))))
-        if not tuCache.reparse(view, view.file_name(), unsaved_files,
+        if not translationunitcache.tuCache.reparse(view, view.file_name(), unsaved_files,
                         self.reparse_done):
 
             # Already parsing so retry in a bit
@@ -605,7 +608,7 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
 
     def on_close(self, view):
         if self.remove_on_close and is_supported_language(view):
-            tuCache.remove(view.file_name())
+            translationunitcache.tuCache.remove(view.file_name())
 
     def on_query_context(self, view, key, operator, operand, match_all):
         if key != "clang_supported_language":

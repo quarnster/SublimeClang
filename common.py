@@ -68,9 +68,11 @@ class LockedVariable:
 
 
 class Worker(object):
-    def __init__(self):
+    def __init__(self, threadcount=-1):
+        if threadcount == -1:
+            threadcount = get_cpu_count()
         self.tasks = Queue.Queue()
-        for i in range(get_cpu_count()):
+        for i in range(threadcount):
             t = threading.Thread(target=self.worker)
             t.daemon = True
             t.start()
