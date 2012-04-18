@@ -24,7 +24,6 @@ from common import Worker, get_setting, get_path_setting, get_language, LockedVa
 from clang import cindex
 import time
 import sublime
-import sqlitecache
 
 
 class TranslationUnitCache(Worker):
@@ -122,8 +121,6 @@ class TranslationUnitCache(Worker):
                 tu.lock()
                 try:
                     tu.var.reparse(unsaved_files)
-                    index = sqlitecache.Indexer()
-                    index.index(tu.var.cursor, filename)
                     self.set_status("Reparsing %s done" % filename)
                 finally:
                     tu.unlock()
@@ -170,15 +167,18 @@ class TranslationUnitCache(Worker):
         return ret
 
     def add(self, view, filename, on_done=None):
+        ret = False
         tu = self.translationUnits.lock()
         pl = self.parsingList.lock()
         if filename not in tu and filename not in pl:
+            ret = True
             pl.append(filename)
             self.tasks.put((
                 self.task_parse,
                 (filename, self.get_opts(view), on_done)))
         self.translationUnits.unlock()
         self.parsingList.unlock()
+        return ret
 
     def get_opts(self, view):
         opts = get_path_setting("options", [], view)
@@ -226,3 +226,5 @@ class TranslationUnitCache(Worker):
 
     def clear(self):
         self.tasks.put((self.task_clear, None))
+
+tuCache = TranslationUnitCache()

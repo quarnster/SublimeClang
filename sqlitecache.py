@@ -26,8 +26,9 @@ from clang import cindex
 import time
 import re
 import sublime
-from common import parse_res
+from common import parse_res, Worker
 from parsehelp import *
+import translationunitcache
 
 scriptdir = os.path.dirname(os.path.abspath(__file__))
 enableCache = True
@@ -116,6 +117,11 @@ def createDB(cursor):
         classId INTEGER,
         name TEXT,
         FOREIGN KEY(classId) REFERENCES class(id))""")
+    cursor.execute("""create table if not exists toscan(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        priority INTEGER,
+        sourceId INTEGER,
+        FOREIGN KEY(sourceId) REFERENCES source(id))""")
 
 
 class DbClassType:
@@ -127,8 +133,17 @@ class DbClassType:
     COMPLEX_TYPEDEF = 102
 
 
+class Indexer(Worker):
+    def __init__(self):
+        super(Indexer, self).__init__(threadcount=1)
+        self.process_tasks = True
 
-class Indexer:
+    def cancel(self):
+        self.process_tasks = False
+
+    def reset(self):
+        self.process_tasks = True
+
     class IndexData:
         def __init__(self):
             self.count = 0
@@ -142,8 +157,9 @@ class Indexer:
             self.templates = []
             self.templateParameter = []
             self.foundFile = False
-            self.filenames = []
+            self.filename = None
             self.lastFile = None
+            self.shouldIndex = True
 
         def get_namespace_id(self):
             if len(self.namespace) > 0:
@@ -164,7 +180,7 @@ class Indexer:
             self.cacheCursor.execute(sql)
             id = self.cacheCursor.fetchone()
             if id == None:
-                self.cacheCursor.execute("insert into source (name) values ('%s')" % source)
+                self.cacheCursor.execute("insert into source (name, lastmodified) values ('%s', CURRENT_TIMESTAMP)" % source)
                 self.cacheCursor.execute(sql)
                 id = self.cacheCursor.fetchone()
             return id[0]
@@ -233,25 +249,38 @@ class Indexer:
             return idx[0]
 
     def visitor(self, child, parent, data):
-        if child == cindex.Cursor_null():
+        if child == cindex.Cursor_null() or not self.process_tasks:
             return 0
 
-        if len(data.filenames) and child.location.file:
-            if not child.location.file.name in data.filenames:
-                data.cacheCursor.execute("select lastmodified from source where name='%s'" % child.location.file.name)
-                if data.cacheCursor.fetchone() == None:
-                    data.filenames.append(child.location.file.name)
+        if child.location.file:
+            name = child.location.file.name
+            if data.lastFile != name:
+                okToIndexNow = True
+                if data.filename != None:
+                    okToIndexNow = False
+                    for dir in data.dirs:
+                        if name.startswith(dir):
+                            okToIndexNow = True
+                            break
+                data.cacheCursor.execute("select lastmodified from source where name='%s'" % name)
+                modified = data.cacheCursor.fetchone()
+                shouldIndex = data.filename == name
 
-            if not child.location.file.name in data.filenames:
-                if data.lastFile != None:
-                    data.filenames.remove(data.lastFile)
-                    data.lastFile = None
+                if modified == None:
+                    # TODO: compare last indexed timestamp with modification timestamp
+                    # TODO: compare last indexed timestamp with modification timestamp of dependencies
+                    id = data.get_source_id(name)
 
-                if len(data.filenames) == 0:
-                        return 0
-                else:
-                        return 1
-            data.lastFile = child.location.file.name
+                    if not okToIndexNow:
+                        data.cacheCursor.execute("insert into toscan(sourceId) values (%d)" % id)
+                    shouldIndex = shouldIndex or okToIndexNow
+                data.shouldIndex = shouldIndex
+
+                data.lastFile = name
+                if data.shouldIndex:
+                    self.set_status("Indexing %s" % name)
+            if not data.shouldIndex:
+                return 1  # skip
 
         data.count = data.count + 1
         while len(data.parents) > 0 and data.parents[-1] != parent:
@@ -313,6 +342,8 @@ class Indexer:
                     if data.cacheCursor.fetchone() == None:
                         data.cacheCursor.execute("insert into inheritance (classId, parentId) values (%d, %d)" % (id, pid))
             elif child.location.file != None:
+                # TODO: hack.. mail sent to cfe-dev to ask what to do about it though
+                # http://lists.cs.uiuc.edu/pipermail/cfe-dev/2012-April/020838.html
                 f = open(child.location.file.name)
                 fdata = f.read()[child.extent.start.offset:child.extent.end.offset+1]
                 f.close()
@@ -384,8 +415,9 @@ class Indexer:
                                 elif c.kind != cindex.CursorKind.TYPE_REF:
                                     break
 
-
                             if templateCount > 1:
+                                # TODO: hack... see comment in TYPEDEF_DECL
+                                # Means it's a complex template
                                 f = open(child.location.file.name)
                                 f.seek(child.extent.start.offset)
                                 fdata = f.read(child.extent.end.offset-child.extent.start.offset+1)
@@ -471,19 +503,40 @@ class Indexer:
 
         return 1  # continue
 
-    def index(self, cursor, filename=None):
+    def index(self, cursor, filename=None, dirs=[]):
         start = time.time()
 
         data = Indexer.IndexData()
-        if filename:
-            data.filenames.append(filename)
+        data.filename = filename
+        data.dirs = dirs
+        data.cacheCursor.execute("select lastmodified from source where name='%s'" % filename)
+        if data.cacheCursor.fetchone() == None:
+            # TODO: hack... just to scan the whole translation unit
+            data.filename = None
         cindex.Cursor_visit(cursor, cindex.Cursor_visit_callback(self.visitor), data)
         data.cache.commit()
         data.cacheCursor.close()
 
         end = time.time()
         self.newCache = data.cache
-        print "indexing took %s ms" % ((end-start)*1000)
+        self.set_status("Indexing translation unit took %s seconds" % (end-start))
+
+    def do_index_tu(self, data):
+        if not self.process_tasks:
+            return
+        tu, filename, dirs = data
+        tu.lock()
+        self.index(tu.var.cursor, filename, dirs)
+        tu.unlock()
+
+    def add_index_tu_task(self, translationUnit, filename, dirs=[]):
+        filedir = os.path.dirname(filename)
+        if filedir not in dirs:
+            dirs.append(filedir)
+        self.tasks.put((self.do_index_tu, (translationUnit, filename, dirs)))
+
+
+indexer = Indexer()
 
 
 class SQLiteCache:
@@ -532,7 +585,6 @@ class SQLiteCache:
                 tocomplete = left.group(1) + tocomplete
             if not lookup_function(lookup_data, match.group(1), match.group(2), function):
                 return
-
 
     def lookup(self, data, args):
         print data.ret, args
@@ -778,7 +830,6 @@ class SQLiteCache:
             data.templateargs = template[1]
             print "getting final type: %s, %s" % (data, tocomplete)
             self.get_final_type(self.lookup_sql, data, tocomplete)
-            ret = []
             classid = data.classId
             print classid
         return classid
@@ -827,7 +878,7 @@ class SQLiteCache:
             ns = "is null"
             if namespace != "null":
                 ns = self.get_namespace_query(namespace)
-                if ns == None:
+                if ns == "is null":
                     # Couldn't find that namespace
                     continue
             self.cacheCursor.execute("select id from namespace where parentId %s and name='%s'" % (ns, first))
@@ -913,7 +964,7 @@ class SQLiteCache:
                 ns = "is null"
                 if namespace != "null":
                     ns = self.get_namespace_query(namespace)
-                    if ns == None:
+                    if ns == "is null":
                         # Couldn't find that namespace
                         continue
 
@@ -995,13 +1046,13 @@ class SQLiteCache:
                     pos = caret
                     for match in re.finditer("(%s)\\s*(%s)" % (type, name), data):
                         pos = match.start(2)
-                    row,col = view.rowcol(pos)
+                    row, col = view.rowcol(pos)
                     return "%s:%d:%d" % (view.file_name(), row+1, col+1)
 
         classes = []
         if "." in extended_word or "->" in extended_word:
             extended_start = re.search("(.*)(\.|->)[^-.]*$", extended_start)
-            before = "%s%s" % (extended_start.group(1,2))
+            before = "%s%s" % (extended_start.group(1, 2))
             classid = self.resolve_class_id_from_line(data, before)
             if classid != -1:
                 classes.append("=%d" % (classid))
@@ -1051,7 +1102,6 @@ class SQLiteCache:
                     return "%s:%d:%d" % (self.cacheCursor.fetchone()[0], line, col)
 
         return ""
-
 
     def goto_imp(self, view):
         return self.goto_def(view, columnnames="implementationSourceId, implementationLine, implementationColumn")
