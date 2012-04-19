@@ -1001,7 +1001,9 @@ class Cursor(Structure):
     @property
     def kind(self):
         """Return the kind of this cursor."""
-        return CursorKind.from_id(self._kind_id)
+        if not hasattr(self, '_kind'):
+            self._kind = CursorKind.from_id(self._kind_id)
+        return self._kind
 
     @property
     def spelling(self):

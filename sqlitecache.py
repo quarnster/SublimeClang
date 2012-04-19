@@ -122,6 +122,11 @@ def createDB(cursor):
         priority INTEGER,
         sourceId INTEGER,
         FOREIGN KEY(sourceId) REFERENCES source(id))""")
+    cursor.execute("""create unique index if not exists classindex on class (namespaceId, name, typeId, usr)""")
+    cursor.execute("""create unique index if not exists memberindex on member(classId, namespaceId, returnId, typeId, name, usr)""")
+    cursor.execute("""create unique index if not exists memberindex2 on member(classId, name, usr)""")
+    cursor.execute("""create unique index if not exists namespaceindex on namespace(name, parentId)""")
+    cursor.execute("""create unique index if not exists sourceindex on source(name)""")
 
 
 class DbClassType:
@@ -283,6 +288,8 @@ class Indexer(Worker):
                 return 1  # skip
 
         data.count = data.count + 1
+        #if data.count > 5000:
+        #    return 0
         while len(data.parents) > 0 and data.parents[-1] != parent:
             oldparent = data.parents.pop()
             if oldparent.kind == cindex.CursorKind.NAMESPACE:
@@ -428,10 +435,12 @@ class Indexer(Worker):
                                     regex = re.search("template\\s*<>\\s+((const\s+)?typename\\s+)?(.+?)\\s+([^\\s]+)::", d, re.DOTALL)
                                     if regex == None:
                                         print d
-                                    name = regex.group(3).strip()
-                                    if "<" in name:
-                                        regex = re.search("(%s.*?%s)" % (name[:name.find("<")+1], name[name.find(">"):]), fdata, re.DOTALL)
-                                        name = regex.group(1)
+                                        print fdata
+                                    else:
+                                        name = regex.group(3).strip()
+                                        if "<" in name:
+                                            regex = re.search("(%s.*?%s)" % (name[:name.find("<")+1], name[name.find(">"):]), fdata, re.DOTALL)
+                                            name = regex.group(1)
                                 else:
                                     regex = re.search("(.+)\s+(.+);", fdata, re.DOTALL)
                                     name = regex.group(1).strip()
@@ -497,7 +506,7 @@ class Indexer(Worker):
             pass
 
         if recurse:
-            data.access.append(cindex.CXXAccessSpecifier.PUBLIC)
+            data.access.append(cindex.CXXAccessSpecifier.PRIVATE)
             data.parents.append(child)
             return 2
 
@@ -505,8 +514,8 @@ class Indexer(Worker):
 
     def index(self, cursor, filename=None, dirs=[]):
         start = time.time()
-
         data = Indexer.IndexData()
+        data.cursor = cursor
         data.filename = filename
         data.dirs = dirs
         data.cacheCursor.execute("select lastmodified from source where name='%s'" % filename)
@@ -514,6 +523,7 @@ class Indexer(Worker):
             # TODO: hack... just to scan the whole translation unit
             data.filename = None
         cindex.Cursor_visit(cursor, cindex.Cursor_visit_callback(self.visitor), data)
+
         data.cache.commit()
         data.cacheCursor.close()
 
@@ -793,9 +803,9 @@ class SQLiteCache:
         if typename == None and var != None:
             # Try and see if we're in a class and var
             # thus might be a member of "this"
-            clazz = extract_class(data)
+            clazz = extract_class_from_function(data)
             if clazz == None:
-                clazz = extract_class_from_function(data)
+                clazz = extract_class(data)
             if clazz != None:
                 typename = clazz
                 tocomplete = "%s.%s" % (var, tocomplete)
@@ -819,7 +829,7 @@ class SQLiteCache:
                 def __init__(self):
                     self.classId = -1
                     self.namespace = -1
-                    self.access = cindex.CXXAccessSpecifier.PUBLIC
+                    self.access = cindex.CXXAccessSpecifier.PRIVATE
                     self.templateargs = []
 
                 def __str__(self):
@@ -978,9 +988,9 @@ class SQLiteCache:
                 members = self.cacheCursor.fetchall()
                 if members:
                     ret.extend(members)
-            myclass = extract_class(data)
+            myclass = extract_class_from_function(data)
             if myclass == None:
-                myclass = extract_class_from_function(data)
+                myclass = extract_class(data)
 
             if myclass != None:
                 ns = self.get_namespace_query(mynamespace)
@@ -1063,9 +1073,9 @@ class SQLiteCache:
             #self.cacheCursor.execute("select name from class where id=%d" % classid)
             #print "resolved name=%s" % self.cacheCursor.fetchone()
         else:
-            clazz = extract_class(data)
+            clazz = extract_class_from_function(data)
             if clazz == None:
-                clazz = extract_class_from_function(data)
+                clazz = extract_class(data)
 
             if clazz:
                 self.cacheCursor.execute("select id from class where name='%s'" % clazz)

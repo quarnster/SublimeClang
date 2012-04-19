@@ -40,6 +40,11 @@ def collapse_brackets(before):
     end = -1
     min = 0
     while i >= 0:
+        a = before.rfind("}", 0, i)
+        b = before.rfind("{", 0, i)
+        i = max(a, b)
+        if i == -1:
+            break
         if before[i] == '}':
             count += 1
             if end == -1:
@@ -61,6 +66,11 @@ def collapse_ltgt(before):
     count = 0
     end = -1
     while i >= 0:
+        a = before.rfind(">", 0, i)
+        b = before.rfind("<", 0, i)
+        i = max(a, b)
+        if i == -1:
+            break
         if before[i] == '>':
             if i > 0 and (before[i-1] == '>' or before[i-1] == '-'):
                 i -= 1
@@ -85,6 +95,11 @@ def collapse_parenthesis(before):
     count = 0
     end = -1
     while i >= 0:
+        a = before.rfind("(", 0, i)
+        b = before.rfind(")", 0, i)
+        i = max(a, b)
+        if i == -1:
+            break
         if before[i] == ')':
             count += 1
             if end == -1:
@@ -95,7 +110,6 @@ def collapse_parenthesis(before):
                 before = "%s%s" % (before[:i+1], before[end:])
                 end = -1
         i -= 1
-    before = re.sub("[^\(]+\((?!\))", "", before)
     return before
 
 
@@ -141,40 +155,29 @@ def extract_class_from_function(data):
 
 
 def extract_class(data):
+    data = remove_preprocessing(data)
     data = collapse_brackets(data)
     data = remove_classes(data)
-    regex = re.compile("class\s+([^;{\s]+)")
-    match = regex.search(data, re.MULTILINE)
-    if match != None:
-        return match.group(1)
-    return None
+    regex = re.compile("class\s+([^;{\\s]+)\\s*(;|\{)")
+    ret = None
+    for match in regex.finditer(data, re.MULTILINE):
+        ret = match.group(1)
+    return ret
 
 
 def remove_classes(data):
     regex = re.compile("class\s+\S+\s*\{\}\s*;")
-    match = regex.search(data, re.MULTILINE)
-    while match:
-        data = "%s%s" % (data[:match.start()], data[match.end():])
-        match = regex.search(data, re.MULTILINE)
-    return data
+    return regex.sub("", data, re.MULTILINE)
 
 
 def remove_functions(data):
     regex = re.compile("\S+\s*\([^\)]*\)\s*(const)?\s*\{\}")
-    match = regex.search(data, re.MULTILINE)
-    while match:
-        data = "%s%s" % (data[:match.start()], data[match.end():])
-        match = regex.search(data, re.MULTILINE)
-    return data
+    return regex.sub("", data, re.MULTILINE)
 
 
 def remove_namespaces(data):
     regex = re.compile("\s*namespace\s+[^{]+\s*\{\}\s*;")
-    match = regex.search(data, re.MULTILINE)
-    while match:
-        data = "%s%s" % (data[:match.start()], data[match.end():])
-        match = regex.search(data, re.MULTILINE)
-    return data
+    return regex.sub("", data, re.MULTILINE)
 
 
 def sub(exp, data):
