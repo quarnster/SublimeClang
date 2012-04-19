@@ -57,7 +57,6 @@ def collapse_brackets(before):
         if count == min and end != -1:
             before = "%s%s" % (before[:i+1], before[end:])
             end = -1
-        i -= 1
     return before
 
 
@@ -86,7 +85,6 @@ def collapse_ltgt(before):
                 if count == 0 and end != -1:
                     before = "%s%s" % (before[:i+1], before[end:])
                     end = -1
-        i -= 1
     return before
 
 
@@ -109,7 +107,6 @@ def collapse_parenthesis(before):
             if count == 0 and end != -1:
                 before = "%s%s" % (before[:i+1], before[end:])
                 end = -1
-        i -= 1
     return before
 
 

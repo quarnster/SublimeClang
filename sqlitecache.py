@@ -158,7 +158,7 @@ class Indexer(Worker):
             createDB(self.cacheCursor)
             self.namespace = []
             self.classes = []
-            self.access = [cindex.CXXAccessSpecifier.PRIVATE]
+            self.access = [cindex.CXXAccessSpecifier.PUBLIC]
             self.templates = []
             self.templateParameter = []
             self.foundFile = False
