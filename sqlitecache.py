@@ -124,7 +124,6 @@ def createDB(cursor):
         FOREIGN KEY(sourceId) REFERENCES source(id))""")
     cursor.execute("""create unique index if not exists classindex on class (namespaceId, name, typeId, usr)""")
     cursor.execute("""create unique index if not exists memberindex on member(classId, namespaceId, returnId, typeId, name, usr)""")
-    cursor.execute("""create unique index if not exists memberindex2 on member(classId, name, usr)""")
     cursor.execute("""create unique index if not exists namespaceindex on namespace(name, parentId)""")
     cursor.execute("""create unique index if not exists sourceindex on source(name)""")
 
@@ -227,7 +226,16 @@ class Indexer(Worker):
             typeId = DbClassType.NORMAL
             real = child
             if child.kind == cindex.CursorKind.TYPEDEF_DECL:
-                if len(child.get_children()) == 1:
+                idCount = 0
+                if len(child.get_children()) == 1 and child.location.file != None:
+                    tu = child.translation_unit
+                    if not tu is None:
+                        tokens = cindex.tokenize(tu, child.extent)
+
+                        for i in range(1, len(tokens)-2):
+                            if tokens[i].kind == cindex.TokenKind.IDENTIFIER:
+                                idCount += 1
+                if idCount == 1:
                     typeId = DbClassType.SIMPLE_TYPEDEF
                 else:
                     typeId = DbClassType.COMPLEX_TYPEDEF
@@ -342,24 +350,48 @@ class Indexer(Worker):
             id = data.get_class_id_from_cursor(child)
             children = child.get_children()
             if len(children) == 1:
-                c = children[0].get_reference()
-                if not c is None:
-                    pid = data.get_class_id_from_cursor(c)
-                    data.cacheCursor.execute("select id from inheritance where classId=%d and parentId=%d" % (id, pid))
-                    if data.cacheCursor.fetchone() == None:
-                        data.cacheCursor.execute("insert into inheritance (classId, parentId) values (%d, %d)" % (id, pid))
+                tokens = cindex.tokenize(child.translation_unit, child.extent)
+                td = ""
+                idCount = 0
+                for i in range(1, len(tokens)-2):
+                    if tokens[i].kind == cindex.TokenKind.KEYWORD:
+                        continue
+                    elif tokens[i].kind == cindex.TokenKind.IDENTIFIER:
+                        idCount += 1
+                    td += tokens[i].spelling
+                if idCount == 1:
+                    c = children[0].get_reference()
+                    if not c is None and not c.kind.is_invalid():
+                        pid = data.get_class_id_from_cursor(c)
+                        data.cacheCursor.execute("select id from inheritance where classId=%d and parentId=%d" % (id, pid))
+                        if data.cacheCursor.fetchone() == None:
+                            data.cacheCursor.execute("insert into inheritance (classId, parentId) values (%d, %d)" % (id, pid))
+                else:
+                    td = td.replace("'", "''")
+                    data.cacheCursor.execute("select id from typedef where classId=%d and name='%s'" % (id, td))
+                    ret = data.cacheCursor.fetchone()
+                    if ret == None:
+                        data.cacheCursor.execute("update class set typeId=%d where id=%d" % (DbClassType.COMPLEX_TYPEDEF, id))
+                        data.cacheCursor.execute("insert into typedef (classId, name) VALUES (%d, '%s')" % (id, td))
             elif child.location.file != None:
                 name = ""
                 templateArgs = []
-                if len(children) > 0 and children[0].kind == cindex.CursorKind.TEMPLATE_REF:
+                if len(children) > 0:
+                    tokens = cindex.tokenize(child.translation_unit, child.extent)
+                    #tokens.annotate()
+                    template_parameters = []
+
                     for c in children:
-                        if c.kind == cindex.CursorKind.TEMPLATE_REF:
+                        if c.kind == cindex.CursorKind.NAMESPACE_REF:
+                            continue
+                        elif c.kind == cindex.CursorKind.TEMPLATE_REF:
                             name += c.displayname + "<"
-                            add = 0
                             ref = c.get_reference()
                             templateArgs.append(1)  # self..
+                            template_parameters.append(c)
                             for c2 in ref.get_children():
                                 if c2.kind == cindex.CursorKind.TEMPLATE_TYPE_PARAMETER or c2.kind == cindex.CursorKind.TEMPLATE_NON_TYPE_PARAMETER:
+                                    template_parameters.append(c2)
                                     templateArgs[-1] += 1
                         elif c.kind == cindex.CursorKind.TYPE_REF:
                             name += c.get_reference().spelling
@@ -367,10 +399,18 @@ class Indexer(Worker):
                             # A function pointer... Not supported
                             name = ""
                             break
+                        elif c.kind == cindex.CursorKind.INTEGER_LITERAL or \
+                                c.kind == cindex.CursorKind.FLOATING_LITERAL or \
+                                c.kind == cindex.CursorKind.IMAGINARY_LITERAL or \
+                                c.kind == cindex.CursorKind.STRING_LITERAL or \
+                                c.kind == cindex.CursorKind.CHARACTER_LITERAL:
+                            # It can't resolve to a class for completion anyway
+                            name += "_"
+                        #c.dump_self()
 
                         if len(templateArgs) == 0:
-                            child.dump()
                             break
+                        template_parameters.pop(0)
                         templateArgs[-1] -= 1
                         while len(templateArgs) and templateArgs[-1] == 0:
                             name += "> "
@@ -379,6 +419,31 @@ class Indexer(Worker):
                                 templateArgs[-1] -= 1
                         if len(templateArgs) and name[-1] != '<':
                             name += ", "
+                    if len(templateArgs) != 0 and len(template_parameters):
+                        # Check if there are default values we can add in to close it out
+                        i = len(template_parameters)-1
+                        while i >= 0:
+                            par = template_parameters[i]
+                            if par.kind == cindex.CursorKind.TEMPLATE_NON_TYPE_PARAMETER:
+                                name += "_"
+                            elif par.kind == cindex.CursorKind.TEMPLATE_TYPE_PARAMETER:
+                                tokens = cindex.tokenize(par.translation_unit, par.extent)
+                                tokens.annotate()
+                                for j in range(len(tokens)):
+                                    print tokens[j].kind.name, tokens[j].kind == cindex.TokenKind.LITERAL, tokens.get_cursor(j) == par
+                                    if tokens[j].kind == cindex.TokenKind.LITERAL and tokens.get_cursor(0) == par:
+                                        name += tokens[j].spelling
+                            i -= 1
+                            template_parameters.pop(0)
+                            templateArgs[-1] -= 1
+                            while len(templateArgs) and templateArgs[-1] == 0:
+                                name += "> "
+                                templateArgs.pop()
+                                if len(templateArgs):
+                                    templateArgs[-1] -= 1
+                            if len(templateArgs) and name[-1] != '<':
+                                name += ", "
+                            break
                 else:
                     # TODO hack.. just so that it isn't parsed
                     templateArgs = [None]
@@ -396,11 +461,14 @@ class Indexer(Worker):
                         name = regex.group(1)
                 if name != "":
                     try:
+                        name = name.replace("'", "''")
                         data.cacheCursor.execute("select id from typedef where classId=%d and name='%s'" % (id, name))
                         ret = data.cacheCursor.fetchone()
                         if ret == None:
                             data.cacheCursor.execute("insert into typedef (classId, name) VALUES (%d, '%s')" % (id, name))
                     except:
+                        import traceback
+                        traceback.print_exc()
                         pass
                 # else:
                 #     print "failed typedef regex: %s" % (fdata)
@@ -422,8 +490,8 @@ class Indexer(Worker):
                     if c.kind == cindex.CursorKind.COMPOUND_STMT:
                         implementation = True
                         break
-            sql = """select id from member where name='%s' and classId %s and usr='%s'""" % \
-                (child.spelling, data.get_namespace_id_query(classId), child.get_usr())
+            sql = """select id from member where name='%s' and classId %s and namespaceId %s and usr='%s'""" % \
+                (child.spelling, data.get_namespace_id_query(classId), data.get_namespace_id_query(data.get_namespace_id()), child.get_usr())
             data.cacheCursor.execute(sql)
             memberId = data.cacheCursor.fetchone()
             if memberId:
@@ -514,10 +582,12 @@ class Indexer(Worker):
                     off = 0
                     for i in range(0, len(children)):
                         c = children[i]
-                        #c.dump()
+                        # print "==================================================="
+                        # c.dump()
+                        # print "==================================================="
                         if c.kind == cindex.CursorKind.PARM_DECL or c.kind == cindex.CursorKind.COMPOUND_STMT:
                             break
-                        if c.kind != cindex.CursorKind.TYPE_REF:
+                        if c.kind != cindex.CursorKind.TYPE_REF and c.kind != cindex.CursorKind.TYPEDEF_DECL:
                             continue
                         sql2 = "insert into templatedmembers (memberId, argumentClassId, argumentNumber) VALUES (%d, %s, %d)" % (memberId, data.get_class_id_from_cursor(c.get_resolved_cursor()), off)
                         off += 1
@@ -657,6 +727,7 @@ class SQLiteCache:
                     self.cacheCursor.execute(sql)
                     idx = 0
                     for c in self.cacheCursor:
+                        print c
                         idx = c[0]
                         if idx >= len(tempargs):
                             idx-=1
@@ -664,6 +735,7 @@ class SQLiteCache:
                         print "swapping %d for %d" % (data.ret[0], tempargs[idx][0])
                         data.classId = tempargs[idx][0]
                         data.ret = (data.classId, 0)
+                        break # TODO: is this right?
                     data.templateargs = tempargs[idx][1]
                     #data.classId = tempargs[idx][0]
 
@@ -686,11 +758,12 @@ class SQLiteCache:
                 self.cacheCursor.execute(sql)
                 name = self.cacheCursor.fetchone()[0]
                 tmp = solve_template(name)
-                print sql, name, tmp
+                print "%s, \"%s\", \"%s\"" % (sql, name, tmp)
                 classId, newargs = self.resolve_template_class_ids(tmp, data.namespaces)
-                print "resolved to2: %d, %s" % (classId, data.templateargs)
+                print "resolved to2: %d, %s" % (classId, newargs)
                 data.ret = (classId, data.ret[1])
-                return self.lookup(data, newargs)  # Proper memberId?
+                # NOTE: intentionally using the old data.templateargs.
+                return self.lookup(data, data.templateargs)
             elif res[1] == DbClassType.RETURNED_COMPLEX_TEMPLATE:
                 tmp = solve_template(res[2])
                 classId, newargs = self.resolve_template_class_ids(tmp, data.namespaces)
@@ -809,6 +882,7 @@ class SQLiteCache:
                 if ret[1] == DbClassType.COMPLEX_TYPEDEF:
                     sql = "select name from typedef where classId=%d" % (id)
                     self.cacheCursor.execute(sql)
+                    print sql
                     tmp = solve_template(self.cacheCursor.fetchone()[0])
                     print sql, tmp
                     classId, newargs = self.resolve_template_class_ids(tmp, namespaces)
@@ -885,6 +959,7 @@ class SQLiteCache:
 
     def complete_members(self, filename, data, before, prefix):
         ret = None
+        print "========================="
         classid = self.resolve_class_id_from_line(data, before)
         if classid != -1:
             ret = []
