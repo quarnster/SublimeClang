@@ -349,18 +349,57 @@ class Indexer(Worker):
                     if data.cacheCursor.fetchone() == None:
                         data.cacheCursor.execute("insert into inheritance (classId, parentId) values (%d, %d)" % (id, pid))
             elif child.location.file != None:
-                # TODO: hack.. mail sent to cfe-dev to ask what to do about it though
-                # http://lists.cs.uiuc.edu/pipermail/cfe-dev/2012-April/020838.html
-                f = open(child.location.file.name)
-                fdata = f.read()[child.extent.start.offset:child.extent.end.offset+1]
-                f.close()
-                regex = re.search("typedef\s+(.*)\s+(.*);", fdata, re.DOTALL)
-                if regex and regex.group(1):
+                name = ""
+                templateArgs = []
+                if len(children) > 0 and children[0].kind == cindex.CursorKind.TEMPLATE_REF:
+                    for c in children:
+                        if c.kind == cindex.CursorKind.TEMPLATE_REF:
+                            name += c.displayname + "<"
+                            add = 0
+                            ref = c.get_reference()
+                            templateArgs.append(1)  # self..
+                            for c2 in ref.get_children():
+                                if c2.kind == cindex.CursorKind.TEMPLATE_TYPE_PARAMETER or c2.kind == cindex.CursorKind.TEMPLATE_NON_TYPE_PARAMETER:
+                                    templateArgs[-1] += 1
+                        elif c.kind == cindex.CursorKind.TYPE_REF:
+                            name += c.get_reference().spelling
+                        elif c.kind == cindex.CursorKind.PARM_DECL:
+                            # A function pointer... Not supported
+                            name = ""
+                            break
+
+                        if len(templateArgs) == 0:
+                            child.dump()
+                            break
+                        templateArgs[-1] -= 1
+                        while len(templateArgs) and templateArgs[-1] == 0:
+                            name += "> "
+                            templateArgs.pop()
+                            if len(templateArgs):
+                                templateArgs[-1] -= 1
+                        if len(templateArgs) and name[-1] != '<':
+                            name += ", "
+                else:
+                    # TODO hack.. just so that it isn't parsed
+                    templateArgs = [None]
+                    name = ""
+
+                if len(templateArgs) != 0:
+                    # Oops, didn't resolve cleanly
+                    # TODO: hack.. mail sent to cfe-dev to ask what to do about it though
+                    # http://lists.cs.uiuc.edu/pipermail/cfe-dev/2012-April/020838.html
+                    f = open(child.location.file.name)
+                    fdata = f.read()[child.extent.start.offset:child.extent.end.offset+1]
+                    f.close()
+                    regex = re.search("typedef\s+(.*)\s+(.*);", fdata, re.DOTALL)
+                    if regex and regex.group(1):
+                        name = regex.group(1)
+                if name != "":
                     try:
-                        data.cacheCursor.execute("select id from typedef where classId=%d and name='%s'" % (id, regex.group(1)))
+                        data.cacheCursor.execute("select id from typedef where classId=%d and name='%s'" % (id, name))
                         ret = data.cacheCursor.fetchone()
                         if ret == None:
-                            data.cacheCursor.execute("insert into typedef (classId, name) VALUES (%d, '%s')" % (id, regex.group(1)))
+                            data.cacheCursor.execute("insert into typedef (classId, name) VALUES (%d, '%s')" % (id, name))
                     except:
                         pass
                 # else:
