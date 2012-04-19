@@ -1069,6 +1069,12 @@ class Cursor(Structure):
             self._resulttype = _clang_getCursorResultType(self)
         return self._resulttype
 
+    @property
+    def translation_unit(self):
+        if not hasattr(self, '_translation_unit'):
+            self._translation_unit = TranslationUnit(Cursor_getTranslationUnit(self), False)
+        return self._translation_unit
+
     def get_children(self):
         """Return an iterator for accessing the children of this cursor."""
 
@@ -1715,11 +1721,13 @@ class TranslationUnit(ClangObject):
     provides read-only access to its top-level declarations.
     """
 
-    def __init__(self, ptr):
+    def __init__(self, ptr, doDispose=True):
         ClangObject.__init__(self, ptr)
+        self.doDispose = doDispose
 
     def __del__(self):
-        TranslationUnit_dispose(self)
+        if self.doDispose:
+            TranslationUnit_dispose(self)
 
     @property
     def cursor(self):
@@ -1995,6 +2003,12 @@ Cursor_extent.restype = SourceRange
 if isWin64:
     Cursor_extent.argtypes = [POINTER(Cursor)]
 
+Cursor_getTranslationUnit = lib.clang_Cursor_getTranslationUnit
+Cursor_getTranslationUnit.argtypes = [Cursor]
+Cursor_getTranslationUnit.restype = c_object_p
+if isWin64:
+    Cursor_getTranslationUnit.argtypes = [POINTER(Cursor)]
+
 Cursor_ref = lib.clang_getCursorReferenced
 Cursor_ref.argtypes = [Cursor]
 Cursor_ref.restype = Cursor
@@ -2246,8 +2260,203 @@ _clang_getCompletionPriority.argtypes = [c_void_p]
 _clang_getCompletionPriority.restype = c_int
 
 
+### Tokens ###
+
+class TokenKind(object):
+    """
+    Describes the kind of token.
+    """
+
+    # The unique kind objects, indexed by id.
+    _kinds = []
+    _name_map = None
+
+    def __init__(self, value):
+        if value >= len(TokenKind._kinds):
+            TokenKind._kinds += [None] * (value - len(TokenKind._kinds) + 1)
+        self.value = value
+        TokenKind._kinds[value] = self
+        TokenKind._name_map = None
+
+    def from_param(self):
+        return self.value
+
+    @property
+    def name(self):
+        """Get the enumeration name of this token kind."""
+        if self._name_map is None:
+            self._name_map = {}
+            for key, value in TokenKind.__dict__.items():
+                if isinstance(value, TokenKind):
+                    self._name_map[value] = key
+        return self._name_map[self]
+
+    def __eq__(self, other):
+        return self.value == other.value
+
+    def __ne__(self, other):
+        return self.value != other.value
+
+    def __hash__(self):
+        return self.value
+
+    def __repr__(self):
+        return 'TokenKind.%s' % (self.name,)
+
+# A token that contains some kind of punctuation.
+TokenKind.PUNCTUATION = TokenKind(0)
+
+# A language keyword.
+TokenKind.KEYWORD = TokenKind(1)
+
+# An identifier (that is not a keyword).
+TokenKind.IDENTIFIER = TokenKind(2)
+
+# A numeric, string, or character literal.
+TokenKind.LITERAL = TokenKind(3)
+
+# A comment.
+TokenKind.COMMENT = TokenKind(4)
+
+
+class TokenImpl(Structure):
+    """
+    The TokenImpl class reprents an entry in a CXToken array (of type
+    CXToken *).
+    """
+    _fields_ = [("int_data", c_uint * 4), ("ptr_data", c_void_p)]
+
+    def kind(self):
+        """Return the TokenKind of the token."""
+        if not hasattr(self, '_kind'):
+            self._kind = Token_kind(self)
+        return self._kind
+
+    def spelling(self, translation_unit):
+        """Return the spelling of the token."""
+        #import pdb; pdb.set_trace()
+        if not hasattr(self, '_spelling'):
+            self._spelling = Token_spelling(translation_unit, self)
+        return self._spelling
+
+    def location(self, translation_unit):
+        """Return the location of the token."""
+        if not hasattr(self, '_location'):
+            self._location = Token_location(translation_unit, self)
+        return self._location
+
+    def extent(self, translation_unit):
+        """Return the extent of the token."""
+        if not hasattr(self, '_extent'):
+            self._extent = Token_extent(translation_unit, self)
+        return self._extent
+
+
+class Token(object):
+    """The front-end representation of a token.
+
+    We can only allocate tokens in arrays.  The role of this class is to be used
+    externally.  Objects of this type hold a reference to the TokenImpl class
+    through which the internal libclang methods are called.
+
+    It also holds a reference to its owning TokenCollection so the
+    TokenCollection object can only be freed after all referneces to all of its
+    Tokens have been released.
+    """
+
+    def __init__(self, translation_unit, token_impl, collection):
+        self.translation_unit = translation_unit
+        self.token_impl = token_impl
+        self.collection = collection
+
+    @property
+    def kind(self):
+        return self.token_impl.kind()
+
+    @property
+    def spelling(self):
+        return self.token_impl.spelling(self.translation_unit)
+
+    @property
+    def location(self):
+        return self.token_impl.location(self.translation_unit)
+
+    @property
+    def extent(self):
+        return self.token_impl.extent(self.translation_unit)
+
+
+class TokenCollection(object):
+    """Holds a C array of TokenImpl objects.
+
+    These are presented to the outside by Token objects.
+    """
+
+    def __init__(self, translation_unit, source_range, token_arr, num_tokens):
+        self.translation_unit = translation_unit
+        self.source_range = source_range
+        self._token_arr = token_arr
+        self._num_tokens = num_tokens
+        self.tokens = tuple(Token(self.translation_unit, self._token_arr[i], self) for i in range(self._num_tokens.value))
+        self.cursors = None
+
+    def annotate(self):
+        self._cursors = (Cursor * self._num_tokens.value)()
+        _clang_annotateTokens(self.translation_unit, self._token_arr, self._num_tokens, self._cursors)
+
+    def get_cursor(self, idx):
+        return self._cursors[idx]
+
+    def __iter__(self):
+        return iter(self.tokens)
+
+    def __getitem__(self, i):
+        return self.tokens[i]
+
+    def __len__(self):
+        return len(self.tokens)
+
+    def __del__(self):
+        _clang_disposeTokens(self.translation_unit, self._token_arr, self._num_tokens)
+
+
+def tokenize(translation_unit, source_range):
+    """Tokenize a source range in the given translation unit."""
+    tokens = POINTER(TokenImpl)()
+    num_tokens = c_uint()
+    _clang_tokenize(translation_unit, source_range, tokens, byref(num_tokens))
+    return TokenCollection(translation_unit, source_range, tokens, num_tokens)
+
+
+Token_kind = lib.clang_getTokenKind
+Token_kind.argtypes = [TokenImpl]
+Token_kind.restype = TokenKind
+
+Token_spelling = lib.clang_getTokenSpelling
+Token_spelling.argtypes = [TranslationUnit, TokenImpl]
+Token_spelling.restype = _CXString
+Token_spelling.errcheck = _CXString.from_result
+
+Token_location = lib.clang_getTokenLocation
+Token_location.argtypes = [TranslationUnit, TokenImpl]
+Token_location.restype = SourceLocation
+
+Token_extent = lib.clang_getTokenExtent
+Token_extent.argtypes = [TranslationUnit, TokenImpl]
+Token_extent.restype = SourceRange
+
+_clang_tokenize = lib.clang_tokenize
+_clang_tokenize.argtypes = [TranslationUnit, SourceRange, POINTER(POINTER(TokenImpl)), POINTER(c_uint)]
+
+_clang_annotateTokens = lib.clang_annotateTokens
+_clang_annotateTokens.argtypes = [TranslationUnit, POINTER(TokenImpl), c_uint, POINTER(Cursor)]
+
+_clang_disposeTokens = lib.clang_disposeTokens
+_clang_disposeTokens.argtypes = [TranslationUnit, POINTER(TokenImpl), c_uint]
+
+
 ###
 
 __all__ = ['Index', 'TranslationUnit', 'Cursor', 'CursorKind', 'Type', 'TypeKind',
            'Diagnostic', 'FixIt', 'CodeCompletionResults', 'SourceRange',
-           'SourceLocation', 'File']
+           'SourceLocation', 'File', 'Token', 'TokenKind']
