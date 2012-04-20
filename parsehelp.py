@@ -277,7 +277,6 @@ def get_type_definition(data, before):
     if match.group(2) == "->":
         tocomplete = "%s%s" % (match.group(2), tocomplete)
     end = time.time()
-    print "var is %s (%f ms) " % (var, (end-start)*1000)
 
     start = time.time()
     if var == "this":
@@ -300,7 +299,6 @@ def get_type_definition(data, before):
     else:
         match = get_var_type(data, var)
     end = time.time()
-    print "type is %s (%f ms)" % ("None" if match == None else match.group(1), (end-start)*1000)
     if match == None:
         return -1, -1, None, var, tocomplete
     line = data[:match.start(2)].count("\n") + 1
@@ -354,13 +352,28 @@ def extract_line_at_offset(data, offset):
 
 
 def extract_word_at_offset(data, offset):
+    line, column = get_line_and_column_from_offset(data, offset)
     line = extract_line_at_offset(data, offset)
-    return line  # TODO!!
+    begin = 0
+    end = 0
+    match = re.search("\\b\w*$", line[0:column-1])
+    if match:
+        begin = match.start()
+    match = re.search("^\w*", line[begin:])
+    if match:
+        end = begin+match.end()
+    word = line[begin:end]
+    return word
 
 
 def extract_extended_word_at_offset(data, offset):
+    line, column = get_line_and_column_from_offset(data, offset)
     line = extract_line_at_offset(data, offset)
-    return line  # TODO!!
+    match = re.search("^\w*", line[column:])
+    if match:
+        column = column + match.end()
+    extword = line[0:column]
+    return extword
 
 
 def get_line_and_column_from_offset(data, offset):

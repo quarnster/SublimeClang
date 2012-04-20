@@ -144,7 +144,7 @@ class ClangGotoImplementation(sublime_plugin.TextCommand):
     def run(self, edit):
         caret = self.view.sel()[0].a
         scopename = self.view.scope_name(caret)
-        target = sqlitecache.sqlCache.goto_imp(self.view.file_name(), self.view.substr(sublime.Region(0, self.view.size)), caret, scopename)
+        target = sqlitecache.sqlCache.goto_imp(self.view.file_name(), self.view.substr(sublime.Region(0, self.view.size())), caret, scopename)
         if len(target) > 0:
             open(self.view, target)
         else:
@@ -170,7 +170,7 @@ class ClangGotoDef(sublime_plugin.TextCommand):
     def run(self, edit):
         caret = self.view.sel()[0].a
         scopename = self.view.scope_name(caret)
-        target = sqlitecache.sqlCache.goto_def(self.view.file_name(), self.view.substr(sublime.Region(0, self.view.size)), caret, scopename)
+        target = sqlitecache.sqlCache.goto_def(self.view.file_name(), self.view.substr(sublime.Region(0, self.view.size())), caret, scopename)
         if len(target) > 0:
             open(self.view, target)
         else:
