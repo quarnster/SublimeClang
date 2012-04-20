@@ -142,69 +142,9 @@ def open(view, target):
 
 class ClangGotoImplementation(sublime_plugin.TextCommand):
     def run(self, edit):
-        target = sqlitecache.sqlCache.goto_imp(self.view)
-        """
-        view = self.view
-        tu = get_translation_unit(view)
-        if tu == None:
-            return
-        tu.lock()
-        target = ""
-
-        try:
-            row, col = view.rowcol(view.sel()[0].a)
-            cursor = cindex.Cursor.get(tu.var, view.file_name(),
-                                       row + 1, col + 1)
-            d = cursor.get_definition()
-            if not d is None and cursor != d:
-                target = format_cursor(d)
-            elif not d is None and cursor == d and \
-                    (cursor.kind == cindex.CursorKind.VAR_DECL or \
-                    cursor.kind == cindex.CursorKind.PARM_DECL or \
-                    cursor.kind == cindex.CursorKind.FIELD_DECL):
-                for child in cursor.get_children():
-                    if child.kind == cindex.CursorKind.TYPE_REF:
-                        d = child.get_definition()
-                        if not d is None:
-                            target = format_cursor(d)
-                        break
-            elif cursor.kind == cindex.CursorKind.CLASS_DECL:
-                for child in cursor.get_children():
-                    if child.kind == cindex.CursorKind.CXX_BASE_SPECIFIER:
-                        d = child.get_definition()
-                        if not d is None:
-                            target = format_cursor(d)
-            elif d is None:
-                if cursor.kind == cindex.CursorKind.DECL_REF_EXPR or \
-                        cursor.kind == cindex.CursorKind.MEMBER_REF_EXPR:
-                    cursor = cursor.get_reference()
-                if cursor.kind == cindex.CursorKind.CXX_METHOD or \
-                        cursor.kind == cindex.CursorKind.FUNCTION_DECL:
-                    f = cursor.location.file.name
-                    if f.endswith(".h"):
-                        endings = ["cpp", "c", "cc", "m", "mm"]
-                        for ending in endings:
-                            f = "%s.%s" % (f[:f.rfind(".")], ending)
-                            if f != view.file_name() and os.access(f, os.R_OK):
-                                tu2 = get_translation_unit(view, f, True)
-                                if tu2 == None:
-                                    continue
-                                tu2.lock()
-                                try:
-                                    cursor2 = cindex.Cursor.get(
-                                            tu2.var, cursor.location.file.name,
-                                            cursor.location.line,
-                                            cursor.location.column)
-                                    if not cursor2 is None:
-                                        d = cursor2.get_definition()
-                                        if not d is None and cursor2 != d:
-                                            target = format_cursor(d)
-                                            break
-                                finally:
-                                    tu2.unlock()
-        finally:
-            tu.unlock()
-        """
+        caret = self.view.sel()[0].a
+        scopename = self.view.scope_name(caret)
+        target = sqlitecache.sqlCache.goto_imp(self.view.file_name(), self.view.substr(sublime.Region(0, self.view.size)), caret, scopename)
         if len(target) > 0:
             open(self.view, target)
         else:
@@ -228,60 +168,9 @@ class ClangGotoDef(sublime_plugin.TextCommand):
                             cursor.displayname), format_cursor(cursor)]
 
     def run(self, edit):
-        target = sqlitecache.sqlCache.goto_def(self.view)
-        """
-        view = self.view
-        tu = get_translation_unit(view)
-        if tu == None:
-            return
-        tu.lock()
-        target = ""
-        try:
-            row, col = view.rowcol(view.sel()[0].a)
-            cursor = cindex.Cursor.get(tu.var, view.file_name(),
-                                       row + 1, col + 1)
-            ref = cursor.get_reference()
-            target = ""
-
-            if not ref is None and cursor == ref:
-                can = cursor.get_canonical_cursor()
-                if not can is None and can != cursor:
-                    target = format_cursor(can)
-                else:
-                    o = cursor.get_overridden()
-                    if len(o) == 1:
-                        target = format_cursor(o[0])
-                    elif len(o) > 1:
-                        self.o = o
-                        opts = []
-                        for i in range(len(o)):
-                            opts.append(self.quickpanel_format(o[i]))
-                        view.window().show_quick_panel(opts,
-                                                       self.quickpanel_on_done)
-                    elif (cursor.kind == cindex.CursorKind.VAR_DECL or \
-                            cursor.kind == cindex.CursorKind.PARM_DECL or \
-                            cursor.kind == cindex.CursorKind.FIELD_DECL):
-                        for child in cursor.get_children():
-                            if child.kind == cindex.CursorKind.TYPE_REF:
-                                d = child.get_definition()
-                                if not d is None:
-                                    target = format_cursor(d)
-                                break
-                    elif cursor.kind == cindex.CursorKind.CLASS_DECL:
-                        for child in cursor.get_children():
-                            if child.kind == cindex.CursorKind.CXX_BASE_SPECIFIER:
-                                d = child.get_definition()
-                                if not d is None:
-                                    target = format_cursor(d)
-            elif not ref is None:
-                target = format_cursor(ref)
-            elif cursor.kind == cindex.CursorKind.INCLUSION_DIRECTIVE:
-                f = cursor.get_included_file()
-                if not f is None:
-                    target = f.name
-        finally:
-            tu.unlock()
-        """
+        caret = self.view.sel()[0].a
+        scopename = self.view.scope_name(caret)
+        target = sqlitecache.sqlCache.goto_def(self.view.file_name(), self.view.substr(sublime.Region(0, self.view.size)), caret, scopename)
         if len(target) > 0:
             open(self.view, target)
         else:
@@ -517,7 +406,8 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
             start = time.time()
 
         line = view.substr(sublime.Region(view.full_line(locations[0]).begin(), locations[0]))
-        ret = sqlitecache.sqlCache.complete(view, line, prefix, locations)
+        data = view.substr(sublime.Region(0, locations[0]))
+        ret = sqlitecache.sqlCache.complete(data, line, prefix, locations)
 
         if self.time_completions:
             # TODO

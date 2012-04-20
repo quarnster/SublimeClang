@@ -28,6 +28,10 @@ import os
 import re
 
 
+def run_in_main_thread(func):
+    sublime.set_timeout(func, 0)
+
+
 language_regex = re.compile("(?<=source\.)[\w+#]+")
 
 
