@@ -193,6 +193,8 @@ class TranslationUnitCache(Worker):
             additional_language_options = get_setting("additional_language_options", {}, view)
             if additional_language_options.has_key(language):
                 opts.extend(additional_language_options[language] or [])
+        if get_setting("debug_options", False):
+            print "Will compile file %s with the following options:\n%s" % (view.file_name(), opts)
         self.index_parse_options = get_setting("index_parse_options", 13, view)
         return opts
 
