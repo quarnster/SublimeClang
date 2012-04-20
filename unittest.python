@@ -33,6 +33,11 @@ if offset != offset2:
 if extract_line_at_offset(fulldata, get_offset_from_line_and_column(fulldata, 12, 4)) != "std::vector<A> v;":
     raise Exception("Line extraction didn't work")
 
+if extract_word_at_offset(fulldata, get_offset_from_line_and_column(fulldata, 84, 11)) != "tababa":
+    raise Exception("Word extraction didn't work")
+
+if extract_word_at_offset(fulldata, get_offset_from_line_and_column(fulldata, 85, 5)) != "tababa":
+    raise Exception("Word extraction didn't work")
 
 offset = get_offset_from_line_and_column(fulldata, 10, 3)
 comp = sqlitecache.sqlCache.complete(fulldata[:offset], extract_line_until_offset(fulldata, offset), "")
@@ -78,3 +83,38 @@ offset = get_offset_from_line_and_column(fulldata, 56, 37)
 comp = sqlitecache.sqlCache.complete(fulldata[:offset], extract_line_until_offset(fulldata, offset), "")
 if comp == None or len(comp) == 0 or comp[0][1] != "test":
     raise Exception("Completion of member std::vector<std::vector<std::vector<A> > > didn't work")
+
+offset = get_offset_from_line_and_column(fulldata, 76, 11)
+comp = sqlitecache.sqlCache.complete(fulldata[:offset], extract_line_until_offset(fulldata, offset), "")
+if comp == None or len(comp) == 0 or comp[0][1] != "test":
+    raise Exception("Completion of TempA<A> didn't work")
+
+offset = get_offset_from_line_and_column(fulldata, 79, 35)
+comp = sqlitecache.sqlCache.complete(fulldata[:offset], extract_line_until_offset(fulldata, offset), "")
+if comp == None or len(comp) == 0 or comp[0][1] != "test":
+    raise Exception("Completion of TempA<TempB<TempA<TempB<A> > > > didn't work")
+
+offset = get_offset_from_line_and_column(fulldata, 80, 19)
+comp = sqlitecache.sqlCache.complete(fulldata[:offset], extract_line_until_offset(fulldata, offset), "")
+if comp == None or len(comp) == 0 or comp[0][1] != "test":
+    raise Exception("Completion of TempA<TempB<TempA<TempB<A> > > > field didn't work")
+
+offset = get_offset_from_line_and_column(fulldata, 85, 38)
+comp = sqlitecache.sqlCache.complete(fulldata[:offset], extract_line_until_offset(fulldata, offset), "")
+if comp == None or len(comp) == 0 or comp[0][1] != "test":
+    raise Exception("Completion of Tababa typedef didn't work")
+
+offset = get_offset_from_line_and_column(fulldata, 86, 22)
+comp = sqlitecache.sqlCache.complete(fulldata[:offset], extract_line_until_offset(fulldata, offset), "")
+if comp == None or len(comp) == 0 or comp[0][1] != "test":
+    raise Exception("Completion of Tababa typedef field didn't work")
+
+offset = get_offset_from_line_and_column(fulldata, 99, 51)
+comp = sqlitecache.sqlCache.complete(fulldata[:offset], extract_line_until_offset(fulldata, offset), "")
+if comp == None or len(comp) == 0 or comp[0][1] != "test":
+    raise Exception("Completion of member Tababa typedef didn't work")
+
+offset = get_offset_from_line_and_column(fulldata, 100, 47)
+comp = sqlitecache.sqlCache.complete(fulldata[:offset], extract_line_until_offset(fulldata, offset), "")
+if comp == None or len(comp) == 0 or comp[0][1] != "test":
+    raise Exception("Completion of member Tababa field didn't work")
