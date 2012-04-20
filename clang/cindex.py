@@ -1298,6 +1298,9 @@ class TypeKind(object):
     def __repr__(self):
         return 'TypeKind.%s' % (self.name,)
 
+    def is_invalid(self):
+        return self.value == 0
+
 
 
 TypeKind.INVALID = TypeKind(0)

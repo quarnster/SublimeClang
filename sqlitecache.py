@@ -94,6 +94,17 @@ def createDB(cursor):
         FOREIGN KEY(typeId) REFERENCES type(id))
         """
     )
+    cursor.execute("""create table if not exists macro(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        definitionSourceId INTEGER,
+        definitionLine INTEGER,
+        definitionColumn INTEGER,
+        name TEXT,
+        insertionText TEXT,
+        displayText TEXT,
+        usr TEXT,
+        FOREIGN KEY(definitionSourceId) REFERENCES source(id))
+        """)
     cursor.execute("""create table if not exists templatearguments(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         classId INTEGER,
@@ -125,6 +136,7 @@ def createDB(cursor):
     cursor.execute("""create unique index if not exists namespaceindex on namespace(name, parentId)""")
     cursor.execute("""create unique index if not exists sourceindex on source(name)""")
     cursor.execute("""create unique index if not exists toscanindex on toscan(sourceId)""")
+    cursor.execute("""create unique index if not exists macroindex on macro(usr, name)""")
 
 
 class DbClassType:
@@ -262,29 +274,26 @@ class Indexer(Worker):
 
     def visitor(self, child, parent, data):
         if child == cindex.Cursor_null() or not self.process_tasks:
-            data.cacheCursor.execute("delete from toscan")
             return 0
 
         if child.location.file:
             name = child.location.file.name
             if data.lastFile != name:
                 shouldIndex = False
-                if data.filename == None:
-                    data.cacheCursor.execute("select id, lastmodified from source where name='%s'" % name)
-                    modified = data.cacheCursor.fetchone()
+                data.cacheCursor.execute("select id, lastmodified from source where name='%s'" % name)
+                modified = data.cacheCursor.fetchone()
 
-                    if modified == None:
-                        shouldIndex = True
-                        id = data.get_source_id(name)
-                        data.cacheCursor.execute("insert into toscan (sourceId) values (%d)" % id)
-                        # TODO: compare last indexed timestamp with modification timestamp
-                        # TODO: compare last indexed timestamp with modification timestamp of dependencies
-                    else:
-                        data.cacheCursor.execute("select id from toscan where sourceId=%d" % modified[0])
-                        if data.cacheCursor.fetchone() != None:
-                            shouldIndex = True
+                if modified == None:
+                    shouldIndex = True
+                    id = data.get_source_id(name)
+                    data.cacheCursor.execute("insert into toscan (sourceId) values (%d)" % id)
                 else:
-                    shouldIndex = data.filename == name
+                    # TODO: compare last indexed timestamp with modification timestamp
+                    # TODO: compare last indexed timestamp with modification timestamp of dependencies
+
+                    data.cacheCursor.execute("select id from toscan where sourceId=%d" % modified[0])
+                    if data.cacheCursor.fetchone() != None:
+                        shouldIndex = True
 
                 data.shouldIndex = shouldIndex
 
@@ -294,9 +303,6 @@ class Indexer(Worker):
             if not data.shouldIndex:
                 return 1  # skip
 
-        data.count = data.count + 1
-        #if data.count > 5000:
-        #    return 0
         while len(data.parents) > 0 and data.parents[-1] != parent:
             oldparent = data.parents.pop()
             if oldparent.kind == cindex.CursorKind.NAMESPACE:
@@ -312,7 +318,6 @@ class Indexer(Worker):
                 data.classes.pop()
                 data.templates.pop()
                 data.templateParameter.pop()
-        #child.dump()
 
         recurse = False
         if child.kind == cindex.CursorKind.NAMESPACE:
@@ -376,7 +381,6 @@ class Indexer(Worker):
                 templateArgs = []
                 if len(children) > 0:
                     tokens = cindex.tokenize(child.translation_unit, child.extent)
-                    #tokens.annotate()
                     template_parameters = []
 
                     for c in children:
@@ -404,7 +408,6 @@ class Indexer(Worker):
                                 c.kind == cindex.CursorKind.CHARACTER_LITERAL:
                             # It can't resolve to a class for completion anyway
                             name += "_"
-                        #c.dump_self()
 
                         if len(templateArgs) == 0:
                             break
@@ -467,12 +470,12 @@ class Indexer(Worker):
                         import traceback
                         traceback.print_exc()
                         pass
-                # else:
         elif child.kind == cindex.CursorKind.CXX_METHOD or \
                 child.kind == cindex.CursorKind.FUNCTION_DECL or \
                 child.kind == cindex.CursorKind.FIELD_DECL or \
                 child.kind == cindex.CursorKind.VAR_DECL or \
-                child.kind == cindex.CursorKind.ENUM_CONSTANT_DECL:
+                child.kind == cindex.CursorKind.ENUM_CONSTANT_DECL or \
+                child.kind == cindex.CursorKind.FUNCTION_TEMPLATE:
             classId = "null"
             if len(data.classes) > 0:
                 classId = data.classes[-1]
@@ -500,16 +503,7 @@ class Indexer(Worker):
                 returnCursor = child.get_returned_cursor()
                 templateCursor = None
 
-                # child.dump_self()
-                # for c in child.get_children():
-                #     #returnCursor.dump_self()
                 if not returnCursor is None and not returnCursor.kind.is_invalid():
-                    # if child.spelling == "getTemp":
-                    #     child.dump_self()
-                    #     for c in child.get_children():
-                    #     returnCursor.dump_self()
-                    #if child.spelling == "front":
-                    #    returnCursor.dump()
                     if child == returnCursor:
                         if child.location.file != None:
                             children = returnCursor.get_children()
@@ -555,7 +549,8 @@ class Indexer(Worker):
                                     res = data.cacheCursor.fetchone()
                                 returnId = res[0]
                                 templateCursor = None
-                    if returnId == "null":
+
+                    if returnId == "null" and not child == returnCursor:
                         returnId = data.get_class_id_from_cursor(returnCursor)
 
                 static = False
@@ -582,19 +577,30 @@ class Indexer(Worker):
                         off += 1
                         data.cacheCursor.execute(sql2)
                         #data.cacheCursor.execute(sql)
-
-        # elif child.kind == cindex.CursorKind.CLASS_TEMPLATE or \
-        #         child.kind == cindex.CursorKind.FUNCTION_TEMPLATE or \
-        #         child.kind == cindex.CursorKind.CXX_ACCESS_SPEC_DECL or \
-        #         child.kind == cindex.CursorKind.FUNCTION_TEMPLATE or \
-        #         child.kind == cindex.CursorKind.USING_DIRECTIVE or \
-        #         child.kind == cindex.CursorKind.USING_DECLARATION or \
-        #         child.kind == cindex.CursorKind.CONSTRUCTOR or \
-        #         child.kind == cindex.CursorKind.DESTRUCTOR or \
-        #         child.kind == cindex.CursorKind.TEMPLATE_REF or \
-        #         child.kind == cindex.CursorKind.VAR_DECL or \
-        #         child.kind == cindex.CursorKind.TYPE_REF:
-        #     pass
+        elif child.kind == cindex.CursorKind.CONSTRUCTOR or \
+                 child.kind == cindex.CursorKind.DESTRUCTOR or \
+                 child.kind == cindex.CursorKind.CLASS_TEMPLATE_PARTIAL_SPECIALIZATION or \
+                 child.kind == cindex.CursorKind.CONVERSION_FUNCTION or \
+                 child.kind == cindex.CursorKind.UNEXPOSED_ATTR or \
+                 child.kind == cindex.CursorKind.TEMPLATE_NON_TYPE_PARAMETER or \
+                 child.kind == cindex.CursorKind.CXX_BOOL_LITERAL_EXPR or \
+                 child.kind == cindex.CursorKind.USING_DECLARATION or \
+                 child.kind == cindex.CursorKind.USING_DIRECTIVE or \
+                 child.kind == cindex.CursorKind.TYPE_REF:
+            pass
+        elif child.kind == cindex.CursorKind.MACRO_DEFINITION:
+            data.cacheCursor.execute("select id from macro where usr = '%s'" % child.get_usr())
+            id = data.cacheCursor.fetchone()
+            if id == None:
+                # TODO: for some reason get_completion_string crashes. parse_res(child.get_completion_string(), "")
+                comp_string = ("", child.displayname, child.displayname)
+                data.cacheCursor.execute("insert into macro (definitionSourceId, definitionLine, definitionColumn, usr, displayText, insertionText, name) values (%s, %d, %d, '%s', '%s', '%s', '%s')" % \
+                    (data.get_source_id(child), child.location.line, child.location.column, child.get_usr(), comp_string[1]+"\tmacro", comp_string[2], child.displayname)
+                    )
+            else:
+                data.cacheCursor.execute("update macro set definitionSourceId=%s, definitionLine=%d, definitionColumn=%d where id=%d" % \
+                    (data.get_source_id(child), child.location.line, child.location.column, id[0])
+                    )
         elif child.kind == cindex.CursorKind.UNEXPOSED_DECL:
             # extern "C" for example
             recurse = True
@@ -621,6 +627,7 @@ class Indexer(Worker):
             data.filename = None
         cindex.Cursor_visit(cursor, cindex.Cursor_visit_callback(self.visitor), data)
 
+        data.cacheCursor.execute("delete from toscan")
         data.cache.commit()
         data.cacheCursor.close()
         data.cache.close()
@@ -664,6 +671,7 @@ class SQLiteCache:
         self.cacheCursor.execute("delete from templatearguments")
         self.cacheCursor.execute("delete from templatedmembers")
         self.cacheCursor.execute("delete from typedef")
+        self.cacheCursor.execute("delete from macro")
         createDB(self.cacheCursor)
         self.cache.commit()
 
@@ -1019,19 +1027,23 @@ class SQLiteCache:
 
             if not type:
                 return None
+            ret = None
 
             if type == "ns":
                 ret = []
-                self.cacheCursor.execute("select name from class where namespaceId=%d and name like '%s%%'" % (id, prefix))
+                self.cacheCursor.execute("select name from class where namespaceId=%d and name like '%s%%' order by name" % (id, prefix))
                 for n in self.cacheCursor:
                     ret.append(("%s\tclass" % n[0], n[0]))
-                self.cacheCursor.execute("select name from namespace where parentId= %d and name like '%s%%'" % (id, prefix))
+                self.cacheCursor.execute("select name from namespace where parentId= %d and name like '%s%%' order by name" % (id, prefix))
                 for n in self.cacheCursor:
                     ret.append(("%s\tnamespace" % n[0], n[0]))
-                type = None
+                self.cacheCursor.execute("select displayText, insertionText from member where classId is null and namespaceId=%d and name like '%s%%' order by name" % (id, prefix))
+                data = self.cacheCursor.fetchall()
+                if data:
+                    ret.extend(data)
                 return ret
             elif type == "class":
-                self.cacheCursor.execute("select displayText, insertionText from member where classId=%s and static=1 and name like '%s%%'" % (id, prefix))
+                self.cacheCursor.execute("select displayText, insertionText from member where classId=%s and static=1 and name like '%s%%' order by name" % (id, prefix))
                 ret = []
                 members = self.cacheCursor.fetchall()
                 if members:
@@ -1089,6 +1101,11 @@ class SQLiteCache:
                             members = self.cacheCursor.fetchall()
                             if members:
                                 ret.extend(members)
+
+            self.cacheCursor.execute("select displayText, insertionText from macro where name like '%s%%'" % (prefix))
+            macros = self.cacheCursor.fetchall()
+            if macros:
+                ret.extend(macros)
 
             variables = extract_variables(data)
             for var in variables:
