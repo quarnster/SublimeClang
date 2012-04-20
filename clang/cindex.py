@@ -63,7 +63,7 @@ call is efficient.
 # o implement additional SourceLocation, SourceRange, and File methods.
 
 from ctypes import *
-import sublime
+from common import error_message
 import platform
 
 isWin64 = False
@@ -97,7 +97,7 @@ def get_cindex_library():
             except:
                 import traceback
                 traceback.print_exc()
-                sublime.error_message("""\
+                error_message("""\
 It looks like libclang.so couldn't be loaded. On Linux you have to \
 compile it yourself, or install it via your package manager. \
 Please note that this plugin uses features from clang 3.0 so \
@@ -1182,6 +1182,11 @@ class Cursor(Structure):
             children = self.get_children()
             if len(children) > 0:
                 c = children[0]
+                i = 0
+                while c.kind == CursorKind.NAMESPACE_REF and i+1 < len(children):
+                    c = children[i]
+                    i += 1
+
                 if c.kind == CursorKind.TEMPLATE_REF:
                     return self
                 elif c.kind.is_reference():

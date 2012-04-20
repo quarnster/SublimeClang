@@ -407,7 +407,7 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
 
         line = view.substr(sublime.Region(view.full_line(locations[0]).begin(), locations[0]))
         data = view.substr(sublime.Region(0, locations[0]))
-        ret = sqlitecache.sqlCache.complete(data, line, prefix, locations)
+        ret = sqlitecache.sqlCache.complete(data, line, prefix)
 
         if self.time_completions:
             # TODO
@@ -449,7 +449,7 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         display_compilation_results(self.view)
         tu = get_translation_unit(self.view)
         if tu:
-            sqlitecache.indexer.add_index_tu_task(tu, self.view.file_name(), self.view.window().folders())
+            sqlitecache.indexer.add_index_tu_task(tu, self.view.file_name())
 
     def restart_recompile_timer(self, timeout):
         if self.recompile_timer != None:

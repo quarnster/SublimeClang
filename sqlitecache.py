@@ -124,6 +124,7 @@ def createDB(cursor):
     cursor.execute("""create unique index if not exists memberindex on member(classId, namespaceId, returnId, typeId, name, usr)""")
     cursor.execute("""create unique index if not exists namespaceindex on namespace(name, parentId)""")
     cursor.execute("""create unique index if not exists sourceindex on source(name)""")
+    cursor.execute("""create unique index if not exists toscanindex on toscan(sourceId)""")
 
 
 class DbClassType:
@@ -159,7 +160,7 @@ class Indexer(Worker):
             self.templates = []
             self.templateParameter = []
             self.foundFile = False
-            self.filename = None
+            self.filenames = []
             self.lastFile = None
             self.shouldIndex = True
 
@@ -261,30 +262,30 @@ class Indexer(Worker):
 
     def visitor(self, child, parent, data):
         if child == cindex.Cursor_null() or not self.process_tasks:
+            data.cacheCursor.execute("delete from toscan")
             return 0
 
         if child.location.file:
             name = child.location.file.name
             if data.lastFile != name:
-                okToIndexNow = True
-                if data.filename != None:
-                    okToIndexNow = False
-                    for dir in data.dirs:
-                        if name.startswith(dir):
-                            okToIndexNow = True
-                            break
-                data.cacheCursor.execute("select lastmodified from source where name='%s'" % name)
-                modified = data.cacheCursor.fetchone()
-                shouldIndex = data.filename == name
+                shouldIndex = False
+                if data.filename == None:
+                    data.cacheCursor.execute("select id, lastmodified from source where name='%s'" % name)
+                    modified = data.cacheCursor.fetchone()
 
-                if modified == None:
-                    # TODO: compare last indexed timestamp with modification timestamp
-                    # TODO: compare last indexed timestamp with modification timestamp of dependencies
-                    id = data.get_source_id(name)
+                    if modified == None:
+                        shouldIndex = True
+                        id = data.get_source_id(name)
+                        data.cacheCursor.execute("insert into toscan (sourceId) values (%d)" % id)
+                        # TODO: compare last indexed timestamp with modification timestamp
+                        # TODO: compare last indexed timestamp with modification timestamp of dependencies
+                    else:
+                        data.cacheCursor.execute("select id from toscan where sourceId=%d" % modified[0])
+                        if data.cacheCursor.fetchone() != None:
+                            shouldIndex = True
+                else:
+                    shouldIndex = data.filename == name
 
-                    if not okToIndexNow:
-                        data.cacheCursor.execute("insert into toscan(sourceId) values (%d)" % id)
-                    shouldIndex = shouldIndex or okToIndexNow
                 data.shouldIndex = shouldIndex
 
                 data.lastFile = name
@@ -325,7 +326,6 @@ class Indexer(Worker):
         elif child.kind == cindex.CursorKind.CLASS_DECL or \
                     child.kind == cindex.CursorKind.ENUM_DECL or \
                     child.kind == cindex.CursorKind.STRUCT_DECL:
-
             data.classes.append(data.get_or_add_class_id(child))
             recurse = True
         elif child.kind == cindex.CursorKind.TEMPLATE_TYPE_PARAMETER:
@@ -524,7 +524,7 @@ class Indexer(Worker):
                                         templateCursor = returnCursor
                                         returnCursor = c.get_reference()
                                     templateCount += 1
-                                elif c.kind != cindex.CursorKind.TYPE_REF:
+                                elif c.kind != cindex.CursorKind.TYPE_REF and c.kind != cindex.CursorKind.NAMESPACE_REF:
                                     break
 
                             if templateCount > 1:
@@ -576,13 +576,9 @@ class Indexer(Worker):
                     data.cacheCursor.execute(sql)
                     memberId = data.cacheCursor.fetchone()[0]
                     children = templateCursor.get_children()
-
                     off = 0
                     for i in range(0, len(children)):
                         c = children[i]
-                        # print "==================================================="
-                        # c.dump()
-                        # print "==================================================="
                         if c.kind == cindex.CursorKind.PARM_DECL or c.kind == cindex.CursorKind.COMPOUND_STMT:
                             break
                         if c.kind != cindex.CursorKind.TYPE_REF and c.kind != cindex.CursorKind.TYPEDEF_DECL:
@@ -619,12 +615,11 @@ class Indexer(Worker):
 
         return 1  # continue
 
-    def index(self, cursor, filename=None, dirs=[]):
+    def index(self, cursor, filename=None, dirs=None):
         start = time.time()
         data = Indexer.IndexData()
         data.cursor = cursor
         data.filename = filename
-        data.dirs = dirs
         data.cacheCursor.execute("select lastmodified from source where name='%s'" % filename)
         if data.cacheCursor.fetchone() == None:
             # TODO: hack... just to scan the whole translation unit
@@ -633,6 +628,7 @@ class Indexer(Worker):
 
         data.cache.commit()
         data.cacheCursor.close()
+        data.cache.close()
 
         end = time.time()
         self.newCache = data.cache
@@ -663,17 +659,18 @@ class SQLiteCache:
         createDB(self.cacheCursor)
 
     def clear(self):
-        self.cacheCursor.execute("drop table source")
-        self.cacheCursor.execute("drop table type")
-        self.cacheCursor.execute("drop table dependency")
-        self.cacheCursor.execute("drop table namespace")
-        self.cacheCursor.execute("drop table inheritance")
-        self.cacheCursor.execute("drop table class")
-        self.cacheCursor.execute("drop table member")
-        self.cacheCursor.execute("drop table templatearguments")
-        self.cacheCursor.execute("drop table templatedmembers")
-        self.cacheCursor.execute("drop table typedef")
+        self.cacheCursor.execute("delete from source")
+        self.cacheCursor.execute("delete from type")
+        self.cacheCursor.execute("delete from dependency")
+        self.cacheCursor.execute("delete from namespace")
+        self.cacheCursor.execute("delete from inheritance")
+        self.cacheCursor.execute("delete from class")
+        self.cacheCursor.execute("delete from member")
+        self.cacheCursor.execute("delete from templatearguments")
+        self.cacheCursor.execute("delete from templatedmembers")
+        self.cacheCursor.execute("delete from typedef")
         createDB(self.cacheCursor)
+        self.cache.commit()
 
     def get_final_type(self, lookup_function, lookup_data, tocomplete):
         count = 0
@@ -711,11 +708,14 @@ class SQLiteCache:
         print sql, res
         if res != None and res[1] != DbClassType.NORMAL:
             if res[1] == DbClassType.TEMPLATE_CLASS:
-                sql = "select argumentClassId, argumentNumber from templatedmembers where memberId=%d order by argumentNumber" % data.ret[1]
-                self.cacheCursor.execute(sql)
-                res = self.cacheCursor.fetchall()
-                print sql, res
-                data.templateargs = [(x[0], None) for x in res]
+                if args == None:
+                    sql = "select argumentClassId, argumentNumber from templatedmembers where memberId=%d order by argumentNumber" % data.ret[1]
+                    self.cacheCursor.execute(sql)
+                    res = self.cacheCursor.fetchall()
+                    print sql, res
+                    data.templateargs = [(x[0], None) for x in res]
+                else:
+                    data.templateargs = args
             elif res[1] == DbClassType.TEMPLATE_TYPE:
                 if data.templateargs != None:
                     tempargs = data.templateargs
@@ -733,12 +733,14 @@ class SQLiteCache:
                         print "swapping %d for %d" % (data.ret[0], tempargs[idx][0])
                         data.classId = tempargs[idx][0]
                         data.ret = (data.classId, 0)
-                        break # TODO: is this right?
+                        break
+
                     data.templateargs = tempargs[idx][1]
                     #data.classId = tempargs[idx][0]
 
-                    return self.lookup(data, args)
+                    return self.lookup(data, data.templateargs)
                 else:
+                    print "break!!!"
                     sql = "select argumentClassId, argumentNumber from templatedmembers where memberId=%d order by argumentNumber" % data.ret[1]
                     self.cacheCursor.execute(sql)
                     res = self.cacheCursor.fetchall()
@@ -760,8 +762,7 @@ class SQLiteCache:
                 classId, newargs = self.resolve_template_class_ids(tmp, data.namespaces)
                 print "resolved to2: %d, %s" % (classId, newargs)
                 data.ret = (classId, data.ret[1])
-                # NOTE: intentionally using the old data.templateargs.
-                return self.lookup(data, data.templateargs)
+                return self.lookup(data, newargs)
             elif res[1] == DbClassType.RETURNED_COMPLEX_TEMPLATE:
                 tmp = solve_template(res[2])
                 classId, newargs = self.resolve_template_class_ids(tmp, data.namespaces)
@@ -1041,7 +1042,7 @@ class SQLiteCache:
                 print "id, type: %d, %s" % (id, type)
         return type, id
 
-    def complete(self, data, line, prefix, locations):
+    def complete(self, data, line, prefix):
         before = line
         if len(prefix) > 0:
             before = line[:-len(prefix)]

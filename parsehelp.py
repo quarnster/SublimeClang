@@ -365,7 +365,12 @@ def extract_extended_word_at_offset(data, offset):
 
 def get_line_and_column_from_offset(data, offset):
     data = data[:offset].split("\n")
-    line = len(data)+1
-    column = len(data[-1])+1
+    line = len(data)
+    column = len(data[-1])
     return line, column
 
+
+def get_offset_from_line_and_column(data, line, column):
+    data = data.split("\n")
+    offset = len("\n".join(data[:line-1])) + column
+    return offset
