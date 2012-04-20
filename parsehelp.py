@@ -342,3 +342,30 @@ def solve_template(typename):
             else:
                 args[i] = (args[i], None)
     return template.group(1), args
+
+
+def extract_line_until_offset(data, offset):
+    return data[:offset].split("\n")[-1]
+
+
+def extract_line_at_offset(data, offset):
+    line = data[:offset].count("\n")
+    return data.split("\n")[line]
+
+
+def extract_word_at_offset(data, offset):
+    line = extract_line_at_offset(data, offset)
+    return line  # TODO!!
+
+
+def extract_extended_word_at_offset(data, offset):
+    line = extract_line_at_offset(data, offset)
+    return line  # TODO!!
+
+
+def get_line_and_column_from_offset(data, offset):
+    data = data[:offset].split("\n")
+    line = len(data)+1
+    column = len(data[-1])+1
+    return line, column
+

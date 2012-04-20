@@ -25,10 +25,8 @@ import os.path
 from clang import cindex
 import time
 import re
-import sublime
 from common import parse_res, Worker
 from parsehelp import *
-import translationunitcache
 
 scriptdir = os.path.dirname(os.path.abspath(__file__))
 enableCache = True
@@ -957,7 +955,7 @@ class SQLiteCache:
             print classid
         return classid
 
-    def complete_members(self, filename, data, before, prefix):
+    def complete_members(self, data, before, prefix):
         ret = None
         print "========================="
         classid = self.resolve_class_id_from_line(data, before)
@@ -1043,8 +1041,7 @@ class SQLiteCache:
                 print "id, type: %d, %s" % (id, type)
         return type, id
 
-    def complete(self, view, line, prefix, locations):
-        data = view.substr(sublime.Region(0, locations[0]))
+    def complete(self, data, line, prefix, locations):
         before = line
         if len(prefix) > 0:
             before = line[:-len(prefix)]
@@ -1075,7 +1072,7 @@ class SQLiteCache:
                 return ret
             return None
         elif re.search("([^ \t]+)(\.|\->)$", before):
-            return self.complete_members(view.file_name(), data, before, prefix)
+            return self.complete_members(data, before, prefix)
         else:
             ret = []
             namespaces = extract_used_namespaces(data)
@@ -1143,15 +1140,14 @@ class SQLiteCache:
                 ret.append(parent[0])
                 self.get_inheritance_ids(parent[0], ret)
 
-    def goto_def(self, view, columnnames="definitionSourceId, definitionLine, definitionColumn"):
-        caret = view.sel()[0].a
-        scope = view.scope_name(caret)
-        data = view.substr(sublime.Region(0, caret))
+    def goto_def(self, filename, fulldata, caret, scopename, columnnames="definitionSourceId, definitionLine, definitionColumn"):
+        data = fulldata[0:caret]
 
-        line = view.substr(view.line(caret))
+        word = extract_word_at_offset(fulldata, caret)
+        line = extract_line_at_offset(fulldata, caret)
         regex = re.compile("([^\(\\s&*]+$)")
-        extended_word = regex.search(view.substr(sublime.Region(view.line(caret).begin(), view.word(caret).end())))
-        extended_start = regex.search(view.substr(sublime.Region(view.line(caret).begin(), caret)))
+        extended_word = regex.search(extract_extended_word_at_offset(fulldata, caret))
+        extended_start = regex.search(extract_line_until_offset(fulldata, caret))
         if extended_start:
             extended_start = extended_start.group(1)
         else:
@@ -1160,18 +1156,16 @@ class SQLiteCache:
         if extended_word == None:
             return ""
         extended_word = extended_word.group(1)
-        word = view.substr(view.word(caret))
-
         variables = extract_variables(data)
-        if not "function-call" in scope and not "entity.name.function." in scope:
+        if not "function-call" in scopename and not "entity.name.function." in scopename:
             for type, name in variables:
                 if name == word:
                     type = type.replace("*", "\*")
                     pos = caret
                     for match in re.finditer("(%s)\\s*(%s)" % (type, name), data):
                         pos = match.start(2)
-                    row, col = view.rowcol(pos)
-                    return "%s:%d:%d" % (view.file_name(), row+1, col+1)
+                    row, col = get_line_and_column_at_offset(pos)
+                    return "%s:%d:%d" % (filename, row+1, col+1)
 
         classes = []
         if "." in extended_word or "->" in extended_word:
@@ -1227,8 +1221,8 @@ class SQLiteCache:
 
         return ""
 
-    def goto_imp(self, view):
-        return self.goto_def(view, columnnames="implementationSourceId, implementationLine, implementationColumn")
+    def goto_imp(self, filename, fulldata, caret, scopename):
+        return self.goto_def(filename, fulldata, caret, scopename, columnnames="implementationSourceId, implementationLine, implementationColumn")
 
 
 sqlCache = SQLiteCache()

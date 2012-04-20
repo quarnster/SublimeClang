@@ -20,10 +20,9 @@ freely, subject to the following restrictions:
    3. This notice may not be removed or altered from any source
    distribution.
 """
-from common import Worker, get_setting, get_path_setting, get_language, LockedVariable
+from common import Worker, get_setting, get_path_setting, get_language, LockedVariable, run_in_main_thread
 from clang import cindex
 import time
-import sublime
 
 
 class TranslationUnitCache(Worker):
@@ -108,7 +107,7 @@ class TranslationUnitCache(Worker):
                 self.parsingList.unlock()
                 self.remove_busy(filename)
         if not on_done is None:
-            sublime.set_timeout(on_done, 0)
+            run_in_main_thread(on_done)
 
     def task_reparse(self, data):
         filename, opts, unsaved_files, on_done = data
@@ -132,7 +131,7 @@ class TranslationUnitCache(Worker):
                 self.parsingList.unlock()
                 self.remove_busy(filename)
         if not on_done is None:
-            sublime.set_timeout(on_done, 0)
+            run_in_main_thread(on_done)
 
     def task_clear(self, data):
         tus = self.translationUnits.lock()
