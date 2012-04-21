@@ -2048,7 +2048,7 @@ _clang_getSpecializedCursorTemplate.argtypes = [Cursor]
 _clang_getSpecializedCursorTemplate.restype = Cursor
 _clang_getSpecializedCursorTemplate.errcheck = Cursor.from_result
 if isWin64:
-    _clang_getSpecializationCursorTemplate.argtypes = [POINTER(Cursor)]
+    _clang_getSpecializedCursorTemplate.argtypes = [POINTER(Cursor)]
 
 _clang_getCursorReferenceNameRange = lib.clang_getCursorReferenceNameRange
 _clang_getCursorReferenceNameRange.argtypes = [Cursor, c_int, c_int]
