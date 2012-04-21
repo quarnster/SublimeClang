@@ -20,7 +20,21 @@ freely, subject to the following restrictions:
    3. This notice may not be removed or altered from any source
    distribution.
 """
-import sqlite3
+try:
+    from sqlite3 import connect
+except:
+    try:
+        import platform
+        if platform.architecture()[0] == "64bit":
+            try:
+                import pysqlite64._sqlite
+            except:
+                pass
+            from pysqlite2.dbapi2 import connect
+        else:
+            from pysqlite2.dbapi2 import connect
+    except:
+        sublime.error_message("Unfortunately neither sqlite3 nor pysqlite2 could be imported so SublimeClang will not work")
 import os.path
 from clang import cindex
 import time
@@ -163,7 +177,7 @@ class Indexer(Worker):
         def __init__(self):
             self.count = 0
             self.parents = []
-            self.cache = sqlite3.connect("%s/cache.db" % scriptdir, timeout=90, check_same_thread=False)
+            self.cache = connect("%s/cache.db" % scriptdir, timeout=90, check_same_thread=False)
             self.cacheCursor = self.cache.cursor()
             createDB(self.cacheCursor)
             self.namespace = []
@@ -271,6 +285,17 @@ class Indexer(Worker):
                 self.cacheCursor.execute(sql)
                 idx = self.cacheCursor.fetchone()
             return idx[0]
+
+    def visitor64(self, child, parent, data):
+        c = cindex.Cursor()
+        c._kind_id = child[0]._kind_id
+        c.xdata = child[0].xdata
+        c.data = child[0].data
+        p = cindex.Cursor()
+        p._kind_id = parent[0]._kind_id
+        p.xdata = parent[0].xdata
+        p.data = parent[0].data
+        return self.visitor(c, p, data)
 
     def visitor(self, child, parent, data):
         if child == cindex.Cursor_null() or not self.process_tasks:
@@ -625,7 +650,11 @@ class Indexer(Worker):
         if data.cacheCursor.fetchone() == None:
             # TODO: hack... just to scan the whole translation unit
             data.filename = None
-        cindex.Cursor_visit(cursor, cindex.Cursor_visit_callback(self.visitor), data)
+
+        vis = self.visitor
+        if cindex.isWin64:
+            vis = self.visitor64
+        cindex.Cursor_visit(cursor, cindex.Cursor_visit_callback(vis), data)
 
         data.cacheCursor.execute("delete from toscan")
         data.cache.commit()
@@ -656,7 +685,7 @@ indexer = Indexer()
 
 class SQLiteCache:
     def __init__(self):
-        self.cache = sqlite3.connect("%s/cache.db" % scriptdir, timeout=0.5, check_same_thread=False)
+        self.cache = connect("%s/cache.db" % scriptdir, timeout=0.5, check_same_thread=False)
         self.cacheCursor = self.cache.cursor()
         createDB(self.cacheCursor)
 
