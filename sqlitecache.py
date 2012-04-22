@@ -20,6 +20,7 @@ freely, subject to the following restrictions:
    3. This notice may not be removed or altered from any source
    distribution.
 """
+from common import parse_res, Worker, error_message
 try:
     from sqlite3 import connect
 except:
@@ -34,16 +35,63 @@ except:
         else:
             from pysqlite2.dbapi2 import connect
     except:
-        sublime.error_message("Unfortunately neither sqlite3 nor pysqlite2 could be imported so SublimeClang will not work")
+        error_message("Unfortunately neither sqlite3 nor pysqlite2 could be imported so SublimeClang will not work")
 import os.path
 from clang import cindex
 import time
 import re
-from common import parse_res, Worker
 from parsehelp import *
+from ctypes import cdll, CFUNCTYPE, c_char_p
+import os
+
+
+def get_nativeindex_library():
+    import platform
+    name = platform.system()
+    if name == 'Darwin':
+        return cdll.LoadLibrary('libnativeindexer.dylib')
+    elif name == 'Windows':
+        if isWin64:
+            return cdll.LoadLibrary("libnativeindexer_x64.dll")
+        return cdll.LoadLibrary('libnativeindexer.dll')
+    else:
+        try:
+            # Try loading with absolute path first
+            import os
+            path = os.path.dirname(os.path.abspath(__file__))
+            return cdll.LoadLibrary('%s/libnativeindexer.so' % path)
+        except:
+            try:
+                # See if there's one in the system path
+                return cdll.LoadLibrary("libnativeindexer.so")
+            except:
+                import traceback
+                traceback.print_exc()
+                error_message("""\
+It looks like libclang.so couldn't be loaded. On Linux you have to \
+compile it yourself, or install it via your package manager. \
+Please note that this plugin uses features from clang 3.0 so \
+make sure that is the version you have installed.
+
+Once installed, you need to copy libclang.so into the root of this \
+plugin. See http://github.com/quarnster/SublimeClang for more details.
+""")
+
+idxlib = get_nativeindex_library()
+
+native_index_callback = CFUNCTYPE(None, c_char_p)
+native_index = idxlib.nativeindex
+native_index.argtypes = [c_char_p, cindex.Cursor, native_index_callback]
+if cindex.isWin64:
+    native_index.argtypes = [c_char_p, POINTER(cindex.Cursor), native_index_callback]
+
 
 scriptdir = os.path.dirname(os.path.abspath(__file__))
 enableCache = True
+
+
+def get_db_name():
+    return "%s/cache.db" % scriptdir
 
 
 def createDB(cursor):
@@ -158,6 +206,7 @@ class DbClassType:
     TEMPLATE_CLASS = 1
     TEMPLATE_TYPE = 2
     RETURNED_COMPLEX_TEMPLATE = 3
+    ENUM_CONSTANT = 4
     SIMPLE_TYPEDEF = 101
     COMPLEX_TYPEDEF = 102
 
@@ -165,513 +214,30 @@ class DbClassType:
 class Indexer(Worker):
     def __init__(self):
         super(Indexer, self).__init__(threadcount=1)
-        self.process_tasks = True
 
-    def cancel(self):
-        self.process_tasks = False
-
-    def reset(self):
-        self.process_tasks = True
-
-    class IndexData:
-        def __init__(self):
-            self.count = 0
-            self.parents = []
-            self.cache = connect("%s/cache.db" % scriptdir, timeout=90, check_same_thread=False)
-            self.cacheCursor = self.cache.cursor()
-            createDB(self.cacheCursor)
-            self.namespace = []
-            self.classes = []
-            self.access = [cindex.CXXAccessSpecifier.PUBLIC]
-            self.templates = []
-            self.templateParameter = []
-            self.foundFile = False
-            self.filenames = []
-            self.lastFile = None
-            self.shouldIndex = True
-
-        def get_namespace_id(self):
-            if len(self.namespace) > 0:
-                return self.namespace[-1]
-            return "null"
-
-        def get_namespace_id_query(self, ns=None):
-            if ns == None:
-                ns = self.get_namespace_id()
-            if ns == "null":
-                return " is null"
-            return "=%d" % ns
-
-        def get_source_id(self, source):
-            if isinstance(source, cindex.Cursor):
-                source = "<unknown>" if source.location.file is None else source.location.file.name
-            sql = "select id from source where name='%s'" % source
-            self.cacheCursor.execute(sql)
-            id = self.cacheCursor.fetchone()
-            if id == None:
-                self.cacheCursor.execute("insert into source (name, lastmodified) values ('%s', CURRENT_TIMESTAMP)" % source)
-                self.cacheCursor.execute(sql)
-                id = self.cacheCursor.fetchone()
-            return id[0]
-
-        def get_or_add_namespace_id(self, spelling, parent=None):
-            if parent == None:
-                parent = self.get_namespace_id()
-            sql = "select id from namespace where name='%s' and parentId %s" % (spelling, self.get_namespace_id_query(parent))
-
-            self.cacheCursor.execute(sql)
-            idx = self.cacheCursor.fetchone()
-            if idx == None:
-                sql2 = "insert into namespace (name, parentId) VALUES ('%s', %s)" % (spelling, parent)
-                self.cacheCursor.execute(sql2)
-                self.cacheCursor.execute(sql)
-                idx = self.cacheCursor.fetchone()
-            idx = idx[0]
-            return idx
-
-        def get_class_id_from_cursor(self, cursor):
-            if cursor is None:
-                return "null"
-            path = []
-            c3 = cursor.get_lexical_parent()
-            while not c3 is None and not c3.kind.is_invalid():
-                if c3.kind == cindex.CursorKind.NAMESPACE:
-                    path.append(c3.spelling)
-                old = c3
-                c3 = c3.get_lexical_parent()
-                if not c3 is None and old == c3:
-                    break
-
-            ns = "null"
-            for p in path:
-                ns = self.get_or_add_namespace_id(p, ns)
-            return self.get_or_add_class_id(cursor, ns)
-
-        def get_or_add_class_id(self, child, ns=None):
-            typeId = DbClassType.NORMAL
-            real = child
-            if child.kind == cindex.CursorKind.TYPEDEF_DECL:
-                idCount = 0
-                if len(child.get_children()) == 1 and child.location.file != None:
-                    tu = child.translation_unit
-                    if not tu is None:
-                        tokens = cindex.tokenize(tu, child.extent)
-
-                        for i in range(1, len(tokens)-2):
-                            if tokens[i].kind == cindex.TokenKind.IDENTIFIER:
-                                idCount += 1
-                if idCount == 1:
-                    typeId = DbClassType.SIMPLE_TYPEDEF
-                else:
-                    typeId = DbClassType.COMPLEX_TYPEDEF
-            elif real.kind == cindex.CursorKind.CLASS_TEMPLATE:
-                typeId = DbClassType.TEMPLATE_CLASS
-            elif real.kind == cindex.CursorKind.TEMPLATE_TYPE_PARAMETER:
-                typeId = DbClassType.TEMPLATE_TYPE
-            if ns == None:
-                if typeId != DbClassType.TEMPLATE_TYPE:
-                    ns = self.get_namespace_id()
-                else:
-                    ns = "null"
-            sql = "select id from class where name='%s' and namespaceId %s and typeId=%d and usr='%s'" % (child.spelling, self.get_namespace_id_query(ns), typeId, child.get_usr())
-            self.cacheCursor.execute(sql)
-            idx = self.cacheCursor.fetchone()
-            if idx == None:
-                sql2 = """insert into class (name, namespaceId,
-                            definitionSourceId, definitionLine, definitionColumn, typeId, usr) VALUES ('%s', %s, %d, %d, %d, %d, '%s')""" % \
-                        (child.spelling, ns, \
-                         self.get_source_id(child), child.location.line, child.location.column, typeId, child.get_usr())
-                self.cacheCursor.execute(sql2)
-                self.cacheCursor.execute(sql)
-                idx = self.cacheCursor.fetchone()
-            return idx[0]
-
-    def visitor64(self, child, parent, data):
-        c = cindex.Cursor()
-        c._kind_id = child[0]._kind_id
-        c.xdata = child[0].xdata
-        c.data = child[0].data
-        p = cindex.Cursor()
-        p._kind_id = parent[0]._kind_id
-        p.xdata = parent[0].xdata
-        p.data = parent[0].data
-        return self.visitor(c, p, data)
-
-    def visitor(self, child, parent, data):
-        if child == cindex.Cursor_null() or not self.process_tasks:
-            return 0
-
-        if child.location.file:
-            name = child.location.file.name
-            if data.lastFile != name:
-                shouldIndex = False
-                data.cacheCursor.execute("select id, lastmodified from source where name='%s'" % name)
-                modified = data.cacheCursor.fetchone()
-
-                if modified == None:
-                    shouldIndex = True
-                    id = data.get_source_id(name)
-                    data.cacheCursor.execute("insert into toscan (sourceId) values (%d)" % id)
-                else:
-                    # TODO: compare last indexed timestamp with modification timestamp
-                    # TODO: compare last indexed timestamp with modification timestamp of dependencies
-
-                    data.cacheCursor.execute("select id from toscan where sourceId=%d" % modified[0])
-                    if data.cacheCursor.fetchone() != None:
-                        shouldIndex = True
-
-                data.shouldIndex = shouldIndex
-
-                data.lastFile = name
-                if data.shouldIndex:
-                    self.set_status("Indexing %s" % name)
-            if not data.shouldIndex:
-                return 1  # skip
-
-        while len(data.parents) > 0 and data.parents[-1] != parent:
-            oldparent = data.parents.pop()
-            if oldparent.kind == cindex.CursorKind.NAMESPACE:
-                data.namespace.pop()
-            elif oldparent.kind == cindex.CursorKind.CLASS_DECL or \
-                    oldparent.kind == cindex.CursorKind.ENUM_DECL or \
-                    oldparent.kind == cindex.CursorKind.STRUCT_DECL:
-                data.classes.pop()
-                # TODO: here would be a good place to purge removed
-                #       members
-            data.access.pop()
-            if oldparent.kind == cindex.CursorKind.CLASS_TEMPLATE:
-                data.classes.pop()
-                data.templates.pop()
-                data.templateParameter.pop()
-
-        recurse = False
-        if child.kind == cindex.CursorKind.NAMESPACE:
-            data.namespace.append(data.get_or_add_namespace_id(child.spelling))
-            recurse = True
-        elif child.kind == cindex.CursorKind.CLASS_TEMPLATE:
-            data.classes.append(data.get_or_add_class_id(child))
-            data.templates.append(child)
-            data.templateParameter.append(0)
-            recurse = True
-        elif child.kind == cindex.CursorKind.CLASS_DECL or \
-                    child.kind == cindex.CursorKind.ENUM_DECL or \
-                    child.kind == cindex.CursorKind.STRUCT_DECL:
-            data.classes.append(data.get_or_add_class_id(child))
-            recurse = True
-        elif child.kind == cindex.CursorKind.TEMPLATE_TYPE_PARAMETER:
-            id = data.get_or_add_class_id(child)
-            data.cacheCursor.execute("select id from templatearguments where classId=%d and argumentClassId = %d and argumentNumber = %d" % (data.classes[-1], id, data.templateParameter[-1]))
-            if data.cacheCursor.fetchone() == None:
-                data.cacheCursor.execute("insert into templatearguments (classId, argumentClassId, argumentNumber) VALUES (%d, %d, %d)" % (data.classes[-1], id, data.templateParameter[-1]))
-            data.templateParameter[-1] += 1
-        elif child.kind == cindex.CursorKind.CXX_ACCESS_SPEC_DECL:
-            data.access[-1] = child.get_cxx_access_specifier().kind
-        elif child.kind == cindex.CursorKind.CXX_BASE_SPECIFIER:
-            for c in child.get_children():
-                if c.kind == cindex.CursorKind.TYPE_REF:
-                    cl = c.get_reference()
-                    classId = None
-                    if cl.kind == cindex.CursorKind.CLASS_DECL:
-                        classId = data.get_class_id_from_cursor(cl)
-                        data.cacheCursor.execute("insert into inheritance (classId, parentId) VALUES (%d, %d)" % (data.classes[-1], classId))
-        elif child.kind == cindex.CursorKind.TYPEDEF_DECL:
-            id = data.get_class_id_from_cursor(child)
-            children = child.get_children()
-            if len(children) == 1:
-                tokens = cindex.tokenize(child.translation_unit, child.extent)
-                td = ""
-                idCount = 0
-                for i in range(1, len(tokens)-2):
-                    if tokens[i].kind == cindex.TokenKind.KEYWORD:
-                        continue
-                    elif tokens[i].kind == cindex.TokenKind.IDENTIFIER:
-                        idCount += 1
-                    td += tokens[i].spelling
-                if idCount == 1:
-                    c = children[0].get_reference()
-                    if not c is None and not c.kind.is_invalid():
-                        pid = data.get_class_id_from_cursor(c)
-                        data.cacheCursor.execute("select id from inheritance where classId=%d and parentId=%d" % (id, pid))
-                        if data.cacheCursor.fetchone() == None:
-                            data.cacheCursor.execute("insert into inheritance (classId, parentId) values (%d, %d)" % (id, pid))
-                else:
-                    td = td.replace("'", "''")
-                    data.cacheCursor.execute("select id from typedef where classId=%d and name='%s'" % (id, td))
-                    ret = data.cacheCursor.fetchone()
-                    if ret == None:
-                        data.cacheCursor.execute("update class set typeId=%d where id=%d" % (DbClassType.COMPLEX_TYPEDEF, id))
-                        data.cacheCursor.execute("insert into typedef (classId, name) VALUES (%d, '%s')" % (id, td))
-            elif child.location.file != None:
-                name = ""
-                templateArgs = []
-                if len(children) > 0:
-                    tokens = cindex.tokenize(child.translation_unit, child.extent)
-                    template_parameters = []
-
-                    for c in children:
-                        if c.kind == cindex.CursorKind.NAMESPACE_REF:
-                            continue
-                        elif c.kind == cindex.CursorKind.TEMPLATE_REF:
-                            name += c.displayname + "<"
-                            ref = c.get_reference()
-                            templateArgs.append(1)  # self..
-                            template_parameters.append(c)
-                            for c2 in ref.get_children():
-                                if c2.kind == cindex.CursorKind.TEMPLATE_TYPE_PARAMETER or c2.kind == cindex.CursorKind.TEMPLATE_NON_TYPE_PARAMETER:
-                                    template_parameters.append(c2)
-                                    templateArgs[-1] += 1
-                        elif c.kind == cindex.CursorKind.TYPE_REF:
-                            name += c.get_reference().spelling
-                        elif c.kind == cindex.CursorKind.PARM_DECL:
-                            # A function pointer... Not supported
-                            name = ""
-                            break
-                        elif c.kind == cindex.CursorKind.INTEGER_LITERAL or \
-                                c.kind == cindex.CursorKind.FLOATING_LITERAL or \
-                                c.kind == cindex.CursorKind.IMAGINARY_LITERAL or \
-                                c.kind == cindex.CursorKind.STRING_LITERAL or \
-                                c.kind == cindex.CursorKind.CHARACTER_LITERAL:
-                            # It can't resolve to a class for completion anyway
-                            name += "_"
-
-                        if len(templateArgs) == 0:
-                            break
-                        template_parameters.pop(0)
-                        templateArgs[-1] -= 1
-                        while len(templateArgs) and templateArgs[-1] == 0:
-                            name += "> "
-                            templateArgs.pop()
-                            if len(templateArgs):
-                                templateArgs[-1] -= 1
-                        if len(templateArgs) and name[-1] != '<':
-                            name += ", "
-                    if len(templateArgs) != 0 and len(template_parameters):
-                        # Check if there are default values we can add in to close it out
-                        i = len(template_parameters)-1
-                        while i >= 0:
-                            par = template_parameters[i]
-                            if par.kind == cindex.CursorKind.TEMPLATE_NON_TYPE_PARAMETER:
-                                name += "_"
-                            elif par.kind == cindex.CursorKind.TEMPLATE_TYPE_PARAMETER:
-                                tokens = cindex.tokenize(par.translation_unit, par.extent)
-                                tokens.annotate()
-                                for j in range(len(tokens)):
-                                    if tokens[j].kind == cindex.TokenKind.LITERAL and tokens.get_cursor(0) == par:
-                                        name += tokens[j].spelling
-                            i -= 1
-                            template_parameters.pop(0)
-                            templateArgs[-1] -= 1
-                            while len(templateArgs) and templateArgs[-1] == 0:
-                                name += "> "
-                                templateArgs.pop()
-                                if len(templateArgs):
-                                    templateArgs[-1] -= 1
-                            if len(templateArgs) and name[-1] != '<':
-                                name += ", "
-                            break
-                else:
-                    # TODO hack.. just so that it isn't parsed
-                    templateArgs = [None]
-                    name = ""
-
-                if len(templateArgs) != 0:
-                    # Oops, didn't resolve cleanly
-                    # TODO: hack.. mail sent to cfe-dev to ask what to do about it though
-                    # http://lists.cs.uiuc.edu/pipermail/cfe-dev/2012-April/020838.html
-                    f = open(child.location.file.name)
-                    fdata = f.read()[child.extent.start.offset:child.extent.end.offset+1]
-                    f.close()
-                    regex = re.search("typedef\s+(.*)\s+(.*);", fdata, re.DOTALL)
-                    if regex and regex.group(1):
-                        name = regex.group(1)
-                if name != "":
-                    try:
-                        name = name.replace("'", "''")
-                        data.cacheCursor.execute("select id from typedef where classId=%d and name='%s'" % (id, name))
-                        ret = data.cacheCursor.fetchone()
-                        if ret == None:
-                            data.cacheCursor.execute("insert into typedef (classId, name) VALUES (%d, '%s')" % (id, name))
-                    except:
-                        import traceback
-                        traceback.print_exc()
-                        pass
-        elif child.kind == cindex.CursorKind.CXX_METHOD or \
-                child.kind == cindex.CursorKind.FUNCTION_DECL or \
-                child.kind == cindex.CursorKind.FIELD_DECL or \
-                child.kind == cindex.CursorKind.VAR_DECL or \
-                child.kind == cindex.CursorKind.ENUM_CONSTANT_DECL or \
-                child.kind == cindex.CursorKind.FUNCTION_TEMPLATE:
-            classId = "null"
-            if len(data.classes) > 0:
-                classId = data.classes[-1]
-            elif child.kind == cindex.CursorKind.CXX_METHOD:
-                classId = data.get_class_id_from_cursor(child.get_semantic_parent())
-
-            implementation = False
-            if child.kind == cindex.CursorKind.CXX_METHOD or \
-                    child.kind == cindex.CursorKind.FUNCTION_DECL:
-                for c in child.get_children():
-                    if c.kind == cindex.CursorKind.COMPOUND_STMT:
-                        implementation = True
-                        break
-            sql = """select id from member where name='%s' and classId %s and namespaceId %s and usr='%s'""" % \
-                (child.spelling, data.get_namespace_id_query(classId), data.get_namespace_id_query(data.get_namespace_id()), child.get_usr())
-            data.cacheCursor.execute(sql)
-            memberId = data.cacheCursor.fetchone()
-            if memberId:
-                if implementation:
-                    sql = "update member set implementationSourceId=%d, implementationLine=%d, implementationColumn=%d where id=%d" % (data.get_source_id(child), child.location.line, child.location.column, memberId[0])
-                    data.cacheCursor.execute(sql)
-                pass
-            else:
-                returnId = "null"
-                returnCursor = child.get_returned_cursor()
-                templateCursor = None
-
-                if not returnCursor is None and not returnCursor.kind.is_invalid():
-                    if child == returnCursor:
-                        if child.location.file != None:
-                            children = returnCursor.get_children()
-                            templateCount = 0
-                            for c in children:
-                                if c.kind == cindex.CursorKind.TEMPLATE_REF:
-                                    if templateCount == 0:
-                                        templateCursor = returnCursor
-                                        returnCursor = c.get_reference()
-                                    templateCount += 1
-                                elif c.kind != cindex.CursorKind.TYPE_REF and c.kind != cindex.CursorKind.NAMESPACE_REF:
-                                    break
-
-                            if templateCount > 1:
-                                # TODO: hack... see comment in TYPEDEF_DECL
-                                # Means it's a complex template
-                                f = open(child.location.file.name)
-                                f.seek(child.extent.start.offset)
-                                fdata = f.read(child.extent.end.offset-child.extent.start.offset+1)
-                                f.close()
-                                name = ""
-                                if fdata.startswith("template"):
-                                    d = collapse_ltgt(collapse_parenthesis(collapse_brackets(fdata)))
-                                    regex = re.search("template\\s*<>\\s+((const\s+)?typename\\s+)?(.+?)\\s+([^\\s]+)::", d, re.DOTALL)
-                                    if regex == None:
-                                        print d
-                                        print fdata
-                                    else:
-                                        name = regex.group(3).strip()
-                                        if "<" in name:
-                                            regex = re.search("(%s.*?%s)" % (name[:name.find("<")+1], name[name.find(">"):]), fdata, re.DOTALL)
-                                            name = regex.group(1)
-                                else:
-                                    regex = re.search("(.+)\s+(.+);", fdata, re.DOTALL)
-                                    name = regex.group(1).strip()
-
-                                sql = "select id from class where namespaceId %s and typeId=%d and name='%s'" % (data.get_namespace_id_query(classId), DbClassType.RETURNED_COMPLEX_TEMPLATE, name)
-                                data.cacheCursor.execute(sql)
-                                res = data.cacheCursor.fetchone()
-                                if res == None:
-                                    data.cacheCursor.execute("insert into class (name, namespaceId, typeId) VALUES ('%s', %s, %d)" % (name, classId, DbClassType.RETURNED_COMPLEX_TEMPLATE))
-                                    data.cacheCursor.execute(sql)
-                                    res = data.cacheCursor.fetchone()
-                                returnId = res[0]
-                                templateCursor = None
-
-                    if returnId == "null" and not child == returnCursor:
-                        returnId = data.get_class_id_from_cursor(returnCursor)
-
-                static = False
-                if child.kind == cindex.CursorKind.CXX_METHOD:
-                    static = child.get_cxxmethod_is_static()
-                comp_string = parse_res(child.get_completion_string(), "")
-                sql2 = """insert into member (namespaceId, classId, returnId, definitionSourceId, definitionLine, definitionColumn, name, displayText, insertionText, static, access, usr) values (%s, %s, %s, %s, %d, %d, '%s', '%s', '%s', %d, %d, '%s')""" % \
-                    (data.get_namespace_id(), classId, returnId, \
-                     data.get_source_id(child), child.location.line, child.location.column, \
-                     child.spelling, comp_string[1], comp_string[2], static, data.access[-1], child.get_usr())
-                data.cacheCursor.execute(sql2)
-                if not templateCursor is None:
-                    data.cacheCursor.execute(sql)
-                    memberId = data.cacheCursor.fetchone()[0]
-                    children = templateCursor.get_children()
-                    off = 0
-                    for i in range(0, len(children)):
-                        c = children[i]
-                        if c.kind == cindex.CursorKind.PARM_DECL or c.kind == cindex.CursorKind.COMPOUND_STMT:
-                            break
-                        if c.kind != cindex.CursorKind.TYPE_REF and c.kind != cindex.CursorKind.TYPEDEF_DECL:
-                            continue
-                        sql2 = "insert into templatedmembers (memberId, argumentClassId, argumentNumber) VALUES (%d, %s, %d)" % (memberId, data.get_class_id_from_cursor(c.get_resolved_cursor()), off)
-                        off += 1
-                        data.cacheCursor.execute(sql2)
-                        #data.cacheCursor.execute(sql)
-        elif child.kind == cindex.CursorKind.CONSTRUCTOR or \
-                 child.kind == cindex.CursorKind.DESTRUCTOR or \
-                 child.kind == cindex.CursorKind.CLASS_TEMPLATE_PARTIAL_SPECIALIZATION or \
-                 child.kind == cindex.CursorKind.CONVERSION_FUNCTION or \
-                 child.kind == cindex.CursorKind.UNEXPOSED_ATTR or \
-                 child.kind == cindex.CursorKind.TEMPLATE_NON_TYPE_PARAMETER or \
-                 child.kind == cindex.CursorKind.CXX_BOOL_LITERAL_EXPR or \
-                 child.kind == cindex.CursorKind.USING_DECLARATION or \
-                 child.kind == cindex.CursorKind.USING_DIRECTIVE or \
-                 child.kind == cindex.CursorKind.TYPE_REF:
-            pass
-        elif child.kind == cindex.CursorKind.MACRO_DEFINITION:
-            data.cacheCursor.execute("select id from macro where usr = '%s'" % child.get_usr())
-            id = data.cacheCursor.fetchone()
-            if id == None:
-                # TODO: for some reason get_completion_string crashes. parse_res(child.get_completion_string(), "")
-                comp_string = ("", child.displayname, child.displayname)
-                data.cacheCursor.execute("insert into macro (definitionSourceId, definitionLine, definitionColumn, usr, displayText, insertionText, name) values (%s, %d, %d, '%s', '%s', '%s', '%s')" % \
-                    (data.get_source_id(child), child.location.line, child.location.column, child.get_usr(), comp_string[1]+"\tmacro", comp_string[2], child.displayname)
-                    )
-            else:
-                data.cacheCursor.execute("update macro set definitionSourceId=%s, definitionLine=%d, definitionColumn=%d where id=%d" % \
-                    (data.get_source_id(child), child.location.line, child.location.column, id[0])
-                    )
-        elif child.kind == cindex.CursorKind.UNEXPOSED_DECL:
-            # extern "C" for example
-            recurse = True
-        else:
-            #if child.location.file != None:
-            #    child.dump_self()
-            pass
-
-        if recurse:
-            data.access.append(cindex.CXXAccessSpecifier.PRIVATE)
-            data.parents.append(child)
-            return 2
-
-        return 1  # continue
+    def test(self, data):
+        print data
 
     def index(self, cursor, filename=None, dirs=None):
         start = time.time()
-        data = Indexer.IndexData()
-        data.cursor = cursor
-        data.filename = filename
-        data.cacheCursor.execute("select lastmodified from source where name='%s'" % filename)
-        if data.cacheCursor.fetchone() == None:
-            # TODO: hack... just to scan the whole translation unit
-            data.filename = None
-
-        vis = self.visitor
-        if cindex.isWin64:
-            vis = self.visitor64
-        cindex.Cursor_visit(cursor, cindex.Cursor_visit_callback(vis), data)
-
-        data.cacheCursor.execute("delete from toscan")
-        data.cache.commit()
-        data.cacheCursor.close()
-        data.cache.close()
-
+        try:
+            native_index(get_db_name(), cursor, native_index_callback(self.test))
+        except:
+            import traceback
+            traceback.print_exc()
+            pass
         end = time.time()
-        self.newCache = data.cache
-        self.set_status("Indexing translation unit took %s seconds" % (end-start))
+        timing = "Indexing translation unit took %s seconds" % (end-start)
+        print timing
+        self.set_status(timing)
 
     def do_index_tu(self, data):
-        if not self.process_tasks:
-            return
         tu, filename, dirs = data
-        tu.lock()
-        self.index(tu.var.cursor, filename, dirs)
-        tu.unlock()
+        try:
+            tu.lock()
+            self.index(tu.var.cursor, filename, dirs)
+        finally:
+            tu.unlock()
 
     def add_index_tu_task(self, translationUnit, filename, dirs=[]):
         filedir = os.path.dirname(filename)
@@ -685,7 +251,7 @@ indexer = Indexer()
 
 class SQLiteCache:
     def __init__(self):
-        self.cache = connect("%s/cache.db" % scriptdir, timeout=0.5, check_same_thread=False)
+        self.cache = connect(get_db_name(), timeout=0.5, check_same_thread=False)
         self.cacheCursor = self.cache.cursor()
         createDB(self.cacheCursor)
 
@@ -942,6 +508,7 @@ class SQLiteCache:
             namespaces.append(mynamespace)
         namespaces = self.resolve_namespace_ids(namespaces)
         namespaces.append("like '%%'")
+        namespaces.append("=-1")
         template = solve_template(typename)
         template = self.resolve_template_class_ids(template, namespaces)
         classid = template[0]
@@ -1097,7 +664,7 @@ class SQLiteCache:
                         # Couldn't find that namespace
                         continue
 
-                self.cacheCursor.execute("select name from class where namespaceId %s and name like '%s%%' and typeId != %d" % (ns, prefix, DbClassType.TEMPLATE_TYPE))
+                self.cacheCursor.execute("select name from class where namespaceId %s and name like '%s%%' and typeId != %d and typeId != %d" % (ns, prefix, DbClassType.TEMPLATE_TYPE, DbClassType.RETURNED_COMPLEX_TEMPLATE))
                 for c in self.cacheCursor:
                     ret.append(("%s\tclass" % c[0], c[0]))
                 self.cacheCursor.execute("select name from namespace where parentId %s and name like '%s%%'" % (ns, prefix))

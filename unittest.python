@@ -41,12 +41,12 @@ if extract_word_at_offset(fulldata, get_offset_from_line_and_column(fulldata, 85
 
 offset = get_offset_from_line_and_column(fulldata, 10, 3)
 comp = sqlitecache.sqlCache.complete(fulldata[:offset], extract_line_until_offset(fulldata, offset), "")
-if comp == None or comp[0][1] != "test":
+if comp == None or  len(comp) == 0 or comp[0][1] != "test":
     raise Exception("Completion of A didn't work")
 
 offset = get_offset_from_line_and_column(fulldata, 14, 11)
 comp = sqlitecache.sqlCache.complete(fulldata[:offset], extract_line_until_offset(fulldata, offset), "")
-if comp == None or comp[0][1] != "test":
+if comp == None or  len(comp) == 0 or comp[0][1] != "test":
     raise Exception("Completion of std::vector<A> didn't work")
 
 offset = get_offset_from_line_and_column(fulldata, 20, 12)
