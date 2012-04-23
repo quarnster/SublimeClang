@@ -98,3 +98,14 @@ public:
 Tababa_class tababa2;
 tababa2.GetTababa().GetT().GetTB().GetT().GetTB().test;
 tababa2.mTababa.GetT().GetTB().GetT().GetTB().test;
+
+
+#include <string>
+#include <boost/shared_ptr.hpp>
+
+std::string str;
+str.c_str();
+
+boost::shared_ptr<std::vector<std::string> > strtest;
+strtest.reset();
+strtest->back()->c_str();

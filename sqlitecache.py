@@ -120,7 +120,7 @@ def createDB(cursor):
         parentId INTEGER)""")
     cursor.execute("""create table if not exists class(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        namespaceId INTEGER,
+        namespaceId INTEGER DEFAULT -1,
         definitionSourceId INTEGER,
         definitionLine INTEGER,
         definitionColumn INTEGER,
@@ -132,8 +132,8 @@ def createDB(cursor):
         )""")
     cursor.execute("""create table if not exists member(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        classId INTEGER,
-        namespaceId INTEGER,
+        classId INTEGER DEFAULT -1,
+        namespaceId INTEGER DEFAULT -1,
         returnId INTEGER,
         definitionSourceId INTEGER,
         definitionLine INTEGER,
@@ -217,6 +217,7 @@ class Indexer(Worker):
 
     def test(self, data):
         print data
+        self.set_status(data)
 
     def index(self, cursor, filename=None, dirs=None):
         start = time.time()
@@ -415,7 +416,7 @@ class SQLiteCache:
         if ns[0].strip() == "":
             return None
         ret = None
-        parent = "is null"
+        parent = "=-1"
         for name in namespaces:
             self.cacheCursor.execute("select id from namespace where parentId %s and name='%s'" % (parent, ns[0]))
             id = self.cacheCursor.fetchone()
@@ -540,15 +541,15 @@ class SQLiteCache:
 
     def get_namespace_query(self, namespace):
         if len(namespace) == 0:
-            return "is null"
+            return "=-1"
         sub = namespace.split("::")
-        ns = "is null"
+        ns = "=-1"
         for sub in sub:
             sql = "select id from namespace where name='%s' and parentId %s" % (sub, ns)
             self.cacheCursor.execute(sql)
             result = self.cacheCursor.fetchone()
             if result == None:
-                ns = "is null"
+                ns = "=-1"
                 break
             else:
                 ns = "=%s" % result[0]
@@ -571,10 +572,10 @@ class SQLiteCache:
         if len(mynamespace):
             namespaces.append(mynamespace)
         for namespace in namespaces:
-            ns = "is null"
+            ns = "=-1"
             if namespace != "null":
                 ns = self.get_namespace_query(namespace)
-                if ns == "is null":
+                if ns == "=-1":
                     # Couldn't find that namespace
                     continue
             self.cacheCursor.execute("select id from namespace where parentId %s and name='%s'" % (ns, first))
@@ -633,7 +634,7 @@ class SQLiteCache:
                 self.cacheCursor.execute("select name from namespace where parentId= %d and name like '%s%%' order by name" % (id, prefix))
                 for n in self.cacheCursor:
                     ret.append(("%s\tnamespace" % n[0], n[0]))
-                self.cacheCursor.execute("select displayText, insertionText from member where classId is null and namespaceId=%d and name like '%s%%' order by name" % (id, prefix))
+                self.cacheCursor.execute("select displayText, insertionText from member where classId =-1 and namespaceId=%d and name like '%s%%' order by name" % (id, prefix))
                 data = self.cacheCursor.fetchall()
                 if data:
                     ret.extend(data)
@@ -657,10 +658,10 @@ class SQLiteCache:
             if len(mynamespace):
                 namespaces.append(mynamespace)
             for namespace in namespaces:
-                ns = "is null"
+                ns = "=-1"
                 if namespace != "null":
                     ns = self.get_namespace_query(namespace)
-                    if ns == "is null":
+                    if ns == "=-1":
                         # Couldn't find that namespace
                         continue
 
@@ -670,7 +671,7 @@ class SQLiteCache:
                 self.cacheCursor.execute("select name from namespace where parentId %s and name like '%s%%'" % (ns, prefix))
                 for n in self.cacheCursor:
                     ret.append(("%s\tnamespace" % n[0], n[0]))
-                self.cacheCursor.execute("select displayText, insertionText from member where classId is null and namespaceId %s and name like '%s%%'" % (ns, prefix))
+                self.cacheCursor.execute("select displayText, insertionText from member where classId =-1 and namespaceId %s and name like '%s%%'" % (ns, prefix))
                 members = self.cacheCursor.fetchall()
                 if members:
                     ret.extend(members)
@@ -770,7 +771,7 @@ class SQLiteCache:
                     self.get_inheritance_ids(c[0], inheritance)
                     for inh in inheritance:
                         classes.append("=%d" % inh)
-            classes.append(" is null")
+            classes.append(" =-1")
 
         for clazz in classes:
             sql = "select name, %s from member where name='%s' and classId %s" % (columnnames, word, clazz)

@@ -118,3 +118,21 @@ offset = get_offset_from_line_and_column(fulldata, 100, 47)
 comp = sqlitecache.sqlCache.complete(fulldata[:offset], extract_line_until_offset(fulldata, offset), "")
 if comp == None or len(comp) == 0 or comp[0][1] != "test":
     raise Exception("Completion of member Tababa field didn't work")
+
+offset = get_offset_from_line_and_column(fulldata, 107, 9)
+comp = sqlitecache.sqlCache.complete(fulldata[:offset], extract_line_until_offset(fulldata, offset), "c_st")
+if comp == None or len(comp) == 0 or comp[0][1] != "c_str()":
+    raise Exception("Completion of std::string didn't work")
+
+offset = get_offset_from_line_and_column(fulldata, 110, 12)
+comp = sqlitecache.sqlCache.complete(fulldata[:offset], extract_line_until_offset(fulldata, offset), "res")
+if comp == None or len(comp) == 0 or comp[0][1] != "reset()":
+    raise Exception("Completion of boost::shared_ptr didn't work")
+
+offset = get_offset_from_line_and_column(fulldata, 111, 22)
+comp = sqlitecache.sqlCache.complete(fulldata[:offset], extract_line_until_offset(fulldata, offset), "c_st")
+if comp == None or len(comp) == 0 or comp[0][1] != "c_str()":
+    raise Exception("Completion of boost::shared_ptr<std::vector<std::string> > didn't work")
+
+print "all is well"
+

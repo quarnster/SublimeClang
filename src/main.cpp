@@ -157,7 +157,7 @@ public:
 
 public:
     Data(const char *dbname, Callback cb)
-    : cache(dbname), mCallback(cb)
+    : mCallback(cb), cache(dbname)
     {
         mAccess.push_back(CX_CXXPublic);
     }
@@ -199,12 +199,13 @@ public:
                 CXCursorKind ck = clang_getCursorKind(child);
                 switch (ck)
                 {
+                    default: break;
                     case CXCursor_TypeRef:
                     {
                         CXCursor ref = clang_getCursorReferenced(child);
-                        if (clang_equalCursors(self, child))
+                        if (clang_equalCursors(ref, child))
                             return clang_getNullCursor();
-                        return get_resolved_cursor(child);
+                        return get_resolved_cursor(ref);
                     }
                     case CXCursor_EnumDecl:
                         return child;
@@ -215,6 +216,7 @@ public:
         }
         switch (result_type.kind)
         {
+            default: break;
             case CXType_Pointer:
             case CXType_LValueReference:
             case CXType_RValueReference:
@@ -230,6 +232,7 @@ public:
         CXCursorKind kind = clang_getCursorKind(self);
         switch (kind)
         {
+            default: break;
             case CXCursor_FunctionDecl:
             case CXCursor_FieldDecl:
             case CXCursor_CXXMethod:
@@ -240,7 +243,7 @@ public:
                 if (children.size() > 0)
                 {
                     CXCursor c = children[0];
-                    int i = 0;
+                    unsigned int i = 0;
                     while (i+1 < children.size())
                     {
                         CXCursorKind ck = clang_getCursorKind(c);
@@ -283,6 +286,7 @@ public:
 
         switch (result_type.kind)
         {
+            default: break;
             case CXType_Record:
             {
                 std::vector<CXCursor> children;
@@ -384,32 +388,36 @@ public:
         unsigned int line;
         unsigned int column;
         clang_getInstantiationLocation(loc, &file, &line, &column, NULL);
-        CXString fn = clang_getFileName(file);
-        const char * str = clang_getCString(fn);
+        CXString fn;
+        const char *str = NULL;
+        if (file)
+        {
+            fn = clang_getFileName(file);
+            str = clang_getCString(fn);
+        }
 
         switch (kind)
         {
+            default:
+                break;
             case CXCursor_TypedefDecl:
             {
                 int childcount = 0;
                 clang_visitChildren(child, childcount_visitor, &childcount);
                 int idCount = 0;
-                if (childcount == 0)
+                if (childcount == 1)
                 {
-                    if (str)
-                    {
-                        CXTranslationUnit tu = clang_Cursor_getTranslationUnit(child);
-                        CXToken *tokens;
-                        unsigned int numTokens;
+                    CXTranslationUnit tu = clang_Cursor_getTranslationUnit(child);
+                    CXToken *tokens;
+                    unsigned int numTokens;
 
-                        clang_tokenize(tu, clang_getCursorExtent(child), &tokens, &numTokens);
-                        for (int i = 1; numTokens >= 2 && i < numTokens-2; i++)
-                        {
-                            if (clang_getTokenKind(tokens[i]) == CXToken_Identifier)
-                                idCount++;
-                        }
-                        clang_disposeTokens(tu, tokens, numTokens);
+                    clang_tokenize(tu, clang_getCursorExtent(child), &tokens, &numTokens);
+                    for (unsigned int i = 1; numTokens >= 2 && i < numTokens-2; i++)
+                    {
+                        if (clang_getTokenKind(tokens[i]) == CXToken_Identifier)
+                            idCount++;
                     }
+                    clang_disposeTokens(tu, tokens, numTokens);
                 }
 
                 if (idCount == 1)
@@ -440,8 +448,13 @@ public:
         CXString usr = clang_getCursorUSR(child);
         const char *usrs = clang_getCString(usr);
         const char * name = clang_getCString(spell);
+        if (!usrs)
+            usrs = "null";
+        if (!name)
+            name = "null";
+
         char sql[512];
-        sprintf(sql, "select id from class where name='%s' and namespaceId=%d and typeId=%d and usr='%s'",
+        snprintf(sql, 512, "select id from class where name='%s' and namespaceId=%d and typeId=%d and usr='%s'",
             name,
             ns,
             typeId,
@@ -465,7 +478,9 @@ public:
         }
         clang_disposeString(usr);
         clang_disposeString(spell);
-        clang_disposeString(fn);
+        if (file)
+            clang_disposeString(fn);
+
         return id;
     }
 
@@ -555,6 +570,112 @@ CXChildVisitResult inheritance_visitor(CXCursor cursor, CXCursor parent, CXClien
     return CXChildVisit_Continue;
 }
 
+void parse_res(std::string& insertion, std::string& representation, CXCursor cursor)
+{
+    CXCompletionString comp = clang_getCursorCompletionString(cursor);
+    std::string returnType;
+    int num = clang_getNumCompletionChunks(comp);
+    int placeholderCount = 0;
+    bool start = false;
+    for (int i = 0; i < num; i++)
+    {
+        CXCompletionChunkKind kind = clang_getCompletionChunkKind(comp, i);
+        CXString str = clang_getCompletionChunkText(comp, i);
+        const char *spelling = clang_getCString(str);
+        if (!spelling)
+            spelling = "";
+        if (kind == CXCompletionChunk_TypedText)
+        {
+            start = true;
+        }
+        if (kind == CXCompletionChunk_ResultType)
+        {
+            returnType = spelling;
+        }
+        else
+        {
+            representation += spelling;
+        }
+        if (start && kind != CXCompletionChunk_Informative)
+        {
+            if (kind == CXCompletionChunk_Placeholder)
+            {
+                placeholderCount++;
+                char buf[512];
+                snprintf(buf, 512, "${%d:%s}", placeholderCount, spelling);
+                insertion += buf;
+            }
+            else
+                insertion += spelling;
+        }
+    }
+    representation += "\t" + returnType;
+}
+
+void dump(CXCursor cursor)
+{
+    if (clang_Cursor_isNull(cursor))
+    {
+        printf("NULL");
+        return;
+    }
+    CXString s = clang_getCursorSpelling(cursor);
+    const char *str = clang_getCString(s);
+    if (str)
+    {
+        printf("%s - %d\n", str, clang_getCursorKind(cursor));
+    }
+    clang_disposeString(s);
+
+}
+
+std::string collapse_ltgt(std::string before)
+{
+    int i = before.length();
+    int count = 0;
+    int end = -1;
+    while (i >= 0)
+    {
+        int a = before.rfind(">", i-1);
+        int b = before.rfind("<", i-1);
+        i = a > b ? a : b;
+        if (i == -1)
+            break;
+        if (before[i] == '>')
+        {
+            if (i > 0 && (before[i-1] == '>' || before[i-1] == '-'))
+            {
+                i--;
+            }
+            else
+            {
+                count++;
+                if (end == -1)
+                    end = i;
+            }
+        }
+        else if (before[i] == '<')
+        {
+            if (i > 0 && before[i-1] == '<')
+            {
+                i--;
+            }
+            else
+            {
+                count--;
+                if (count == 0 && end != -1)
+                {
+                    std::string s(before.substr(0, i+1));
+                    std::string e(before.substr(end));
+                    before = s+e;
+                    end = -1;
+                }
+            }
+        }
+    }
+    return before;
+}
+
 CXChildVisitResult visitor(CXCursor cursor, CXCursor parent, CXClientData client_data)
 {
     if (clang_Cursor_isNull(cursor))
@@ -566,42 +687,46 @@ CXChildVisitResult visitor(CXCursor cursor, CXCursor parent, CXClientData client
     unsigned int line;
     unsigned int column;
     clang_getInstantiationLocation(loc, &file, &line, &column, NULL);
-    CXString fn = clang_getFileName(file);
 
     std::string filename;
-    const char * str = clang_getCString(fn);
-    if (str)
+    if (file)
     {
-        filename = str;
-        if (data->lastfile != filename)
+        CXString fn = clang_getFileName(file);
+
+        const char * str = clang_getCString(fn);
+        if (str)
         {
-            bool shouldIndex = true;
-            int  id = data->cache.intQuery("select id from source where name=\"%s\"", filename.c_str());
+            filename = str;
+            if (data->lastfile != filename)
+            {
+                bool shouldIndex = true;
+                int  id = data->cache.intQuery("select id from source where name=\"%s\"", filename.c_str());
 
-            if (id == -1)
-            {
-                id = data->get_source_id(filename);
-                data->cache.voidQuery("insert into toscan (sourceId) values(%d)", id);
-            }
-            else
-            {
-                // TODO: compare last indexed timestamp with modification timestamp
-                // TODO: compare last indexed timestamp with modification timestamp of dependencies
+                if (id == -1)
+                {
+                    id = data->get_source_id(filename);
+                    data->cache.voidQuery("insert into toscan (sourceId) values(%d)", id);
+                }
+                else
+                {
+                    // TODO: compare last indexed timestamp with modification timestamp
+                    // TODO: compare last indexed timestamp with modification timestamp of dependencies
 
-                shouldIndex = data->cache.intQuery("select id from toscan where sourceId=%d", id) != -1;
+                    shouldIndex = data->cache.intQuery("select id from toscan where sourceId=%d", id) != -1;
+                }
+                data->lastfile = filename;
+                data->shouldIndex = shouldIndex;
+                if (data->shouldIndex && data->mCallback)
+                {
+                    std::string cat(filename);
+                    data->mCallback(cat.c_str());
+                }
             }
-            data->lastfile = filename;
-            data->shouldIndex = shouldIndex;
-            if (data->shouldIndex && data->mCallback)
-            {
-                std::string cat(filename);
-                data->mCallback(cat.c_str());
-            }
+            if (!data->shouldIndex)
+                return CXChildVisit_Continue;
         }
-        if (!data->shouldIndex)
-            return CXChildVisit_Continue;
+        clang_disposeString(fn);
     }
-    clang_disposeString(fn);
 
 
     while (data->mParents.size() && !clang_equalCursors(data->mParents.back(), parent))
@@ -611,6 +736,8 @@ CXChildVisitResult visitor(CXCursor cursor, CXCursor parent, CXClientData client
         CXCursorKind kind = clang_getCursorKind(oldparent);
         switch (kind)
         {
+            default:
+                break;
             case CXCursor_Namespace:
                 data->mNamespace.pop_back();
                 break;
@@ -626,19 +753,23 @@ CXChildVisitResult visitor(CXCursor cursor, CXCursor parent, CXClientData client
         }
         data->mAccess.pop_back();
     }
+
     bool recurse = false;
     CXCursorKind kind = clang_getCursorKind(cursor);
     CXString spell = clang_getCursorSpelling(cursor);
     const char *spelling = clang_getCString(spell);
-
+    if (!spelling)
+        spelling = "null";
     switch (kind)
     {
+        default: break;
         case CXCursor_Namespace:
         {
             data->mNamespace.push_back(data->get_or_add_namespace_id(spelling));
             recurse = true;
             break;
         }
+
         case CXCursor_ClassTemplate:
         {
             data->mClasses.push_back(data->get_or_add_class_id(cursor));
@@ -687,7 +818,7 @@ CXChildVisitResult visitor(CXCursor cursor, CXCursor parent, CXClientData client
         case CXCursor_EnumConstantDecl:
         {
             char sql[512];
-            sprintf(sql, "select id from member where name='%s' and typeId=%d", spelling, ENUM_CONSTANT);
+            snprintf(sql, 512, "select id from member where name='%s' and typeId=%d", spelling, ENUM_CONSTANT);
             int id = data->cache.intQuery(sql);
             if (id == -1)
             {
@@ -719,15 +850,16 @@ CXChildVisitResult visitor(CXCursor cursor, CXCursor parent, CXClientData client
                 clang_tokenize(tu, clang_getCursorExtent(cursor), &tokens, &numTokens);
                 std::string td;
                 int idCount = 0;
-                for (int i = 1; numTokens >= 2 && i < numTokens-2; i++)
+                for (unsigned int i = 1; numTokens >= 2 && i < numTokens-2; i++)
                 {
                     CXTokenKind tk = clang_getTokenKind(tokens[i]);
                     if (tk == CXToken_Keyword)
+                    {
+                        td += "_";
                         continue;
+                    }
                     else if (tk == CXToken_Identifier)
                         idCount += 1;
-                    if (tk == CXToken_Identifier)
-                        idCount++;
                     CXString s = clang_getTokenSpelling(tu, tokens[i]);
                     const char *str = clang_getCString(s);
                     if (str)
@@ -777,12 +909,16 @@ CXChildVisitResult visitor(CXCursor cursor, CXCursor parent, CXClientData client
                         CXCursorKind ck = clang_getCursorKind(c);
                         switch (ck)
                         {
+                            default:
+                                break;
                             case CXCursor_NamespaceRef:
                                 continue;
                             case CXCursor_TemplateRef:
                             {
                                 CXString s = clang_getCursorSpelling(c);
-                                name += clang_getCString(s);
+                                const char *str = clang_getCString(s);
+                                if (str)
+                                    name += str;
                                 clang_disposeString(s);
                                 name += "<";
                                 CXCursor ref = clang_getCursorReferenced(c);
@@ -804,7 +940,9 @@ CXChildVisitResult visitor(CXCursor cursor, CXCursor parent, CXClientData client
                             case CXCursor_TypeRef:
                             {
                                 CXString s = clang_getCursorSpelling(clang_getCursorReferenced(c));
-                                name += clang_getCString(s);
+                                const char * str = clang_getCString(s);
+                                if (str)
+                                    name += str;
                                 clang_disposeString(s);
                                 break;
                             }
@@ -870,7 +1008,7 @@ CXChildVisitResult visitor(CXCursor cursor, CXCursor parent, CXClientData client
                                     clang_annotateTokens(tu, tokens, 1, &first);
                                 if (clang_equalCursors(first, par)) // TODO: huh??
                                 {
-                                    for (int i = 0; i < numTokens; i++)
+                                    for (unsigned int i = 0; i < numTokens; i++)
                                     {
                                         CXTokenKind tk = clang_getTokenKind(tokens[i]);
                                         if (tk == CXToken_Literal)
@@ -919,28 +1057,33 @@ CXChildVisitResult visitor(CXCursor cursor, CXCursor parent, CXClientData client
                     if (fp)
                     {
                         CXSourceRange extent = clang_getCursorExtent(cursor);
-                        unsigned int off;
-                        unsigned int length;
-                        clang_getInstantiationLocation(clang_getRangeStart(extent), NULL, NULL, NULL, &off);
-                        clang_getInstantiationLocation(clang_getRangeEnd(extent), NULL, NULL, NULL, &length);
-                        length++;
-                        if (length > off)
+                        if (!clang_Range_isNull(extent))
                         {
-                            length -= off;
-                            char * data = new char[length+1];
-                            fseek(fp, off, SEEK_SET);
-                            fread(data, length, 1, fp);
-                            data[length] = '\0';
-                            boost::regex e("typedef\\s+(.*)\\s+(.*);");
-                            boost::smatch what;
+                            unsigned int off;
+                            unsigned int length;
+                            clang_getInstantiationLocation(clang_getRangeStart(extent), NULL, NULL, NULL, &off);
+                            clang_getInstantiationLocation(clang_getRangeEnd(extent), NULL, NULL, NULL, &length);
+                            length++;
+                            if (length > off)
+                            {
+                                length -= off;
+                                char * filedata = new char[length+1];
+                                fseek(fp, off, SEEK_SET);
+                                fread(filedata, length, 1, fp);
+                                filedata[length] = '\0';
+                                std::string strdata(filedata);
+                                delete[] filedata;
+                                boost::regex e("typedef\\s+(.*)\\s+(.*);");
+                                boost::smatch what;
 
-                            if (boost::regex_match(std::string(data), what, e, boost::regex_constants::match_not_dot_null))
-                            {
-                                name = what.str(1);
-                            }
-                            else
-                            {
-                                name = "";
+                                if (boost::regex_match(strdata, what, e, boost::regex_constants::match_not_dot_null))
+                                {
+                                    name = what.str(1);
+                                }
+                                else
+                                {
+                                    name = "";
+                                }
                             }
                         }
                     }
@@ -986,8 +1129,10 @@ CXChildVisitResult visitor(CXCursor cursor, CXCursor parent, CXClientData client
             }
             CXString usr = clang_getCursorUSR(cursor);
             const char * usr_c = clang_getCString(usr);
+            if (!usr_c)
+                usr_c = "null";
             char sql[512];
-            sprintf(sql, "select id from member where name='%s' and classId=%d and namespaceId=%d and usr='%s'",
+            snprintf(sql, 512, "select id from member where name='%s' and classId=%d and namespaceId=%d and usr='%s'",
                 spelling, classId, data->get_namespace_id(), usr_c);
             int memberId = data->cache.intQuery(sql);
             if (memberId != -1)
@@ -1052,18 +1197,31 @@ CXChildVisitResult visitor(CXCursor cursor, CXCursor parent, CXClientData client
                                     fread(filedata, length, 1, fp);
                                     filedata[length] = '\0';
                                     std::string strdata(filedata);
+                                    delete[] filedata;
                                     if (strdata.find("template") == 0)
                                     {
+                                        std::string collapsed = collapse_ltgt(strdata);
+
                                         boost::regex e("template\\s*<.*>\\s+((const\\s+)?typename\\s+)?(.+?)\\s+([^\\s]+)::");
                                         boost::smatch what;
 
-                                        if (boost::regex_search(std::string(filedata), what, e, boost::regex_constants::match_not_dot_null))
+                                        if (boost::regex_search(collapsed, what, e, boost::regex_constants::match_not_dot_null))
                                         {
                                             name = what.str(3);
+                                            int i1 = name.find("<");
+                                            int i2 = name.find(">");
+                                            if (i1 >= 0 && i2 >= 0)
+                                            {
+                                                char buf[512];
+                                                snprintf(buf, 512, "(%s.*?%s)", name.substr(0, i1+1).c_str(), name.substr(i2).c_str());
+                                                boost::regex e2(buf);
+                                                boost::regex_search(strdata, what, e2, boost::regex_constants::match_not_dot_null);
+                                                name = what.str(1);
+                                            }
                                         }
                                         else
                                         {
-                                            printf("filedata: %s\n", filedata);
+                                            printf("filedata: %s\n", strdata.c_str());
                                         }
                                     }
                                     else
@@ -1079,7 +1237,7 @@ CXChildVisitResult visitor(CXCursor cursor, CXCursor parent, CXClientData client
                                     {
                                         // NOTE: intentionally using the classId as the namespaceId for the complex template return type
                                         char sql[512];
-                                        sprintf(sql, "select id from class where namespaceId=%d and typeId=%d and name='%s'",
+                                        snprintf(sql, 512, "select id from class where namespaceId=%d and typeId=%d and name='%s'",
                                             classId, RETURNED_COMPLEX_TEMPLATE, name.c_str());
                                         int id = data->cache.intQuery(sql);
                                         if (id == -1)
@@ -1106,8 +1264,10 @@ CXChildVisitResult visitor(CXCursor cursor, CXCursor parent, CXClientData client
                 bool stat = false;
                 if (kind == CXCursor_CXXMethod)
                     stat = clang_CXXMethod_isStatic(cursor);
-                std::string displayText(spelling); // TODO
-                std::string insertionText(spelling); // TODO
+
+                std::string displayText;
+                std::string insertionText;
+                parse_res(insertionText, displayText, cursor);
                 data->cache.voidQuery("insert into member (namespaceId, classId, returnId, definitionSourceId, definitionLine, definitionColumn, name, displayText, insertionText, static, access, usr) values (%d, %d, %d, %d, %d, %d, '%s', '%s', '%s', %d, %d, '%s')",
                     data->get_namespace_id(), classId, returnId, data->get_source_id(filename),
                     line, column, spelling,
@@ -1130,7 +1290,11 @@ CXChildVisitResult visitor(CXCursor cursor, CXCursor parent, CXClientData client
             CXString usr = clang_getCursorUSR(cursor);
             CXString displayname = clang_getCursorDisplayName(cursor);
             const char *disp_c = clang_getCString(displayname);
+            if (!disp_c)
+                disp_c = "null";
             const char * usr_c = clang_getCString(usr);
+            if (!usr_c)
+                usr_c = "null";
             int id = data->cache.intQuery("select id from macro where usr='%s'", usr_c);
             if (id == -1)
             {
@@ -1172,5 +1336,6 @@ extern "C" void nativeindex(const char *database, CXCursor c, Callback cb)
     Data data(database, cb);
 
     clang_visitChildren(c, visitor, &data);
+    data.cache.voidQuery("delete from toscan");
 }
 
