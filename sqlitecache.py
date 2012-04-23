@@ -240,11 +240,33 @@ class Indexer(Worker):
         finally:
             tu.unlock()
 
+    def do_clear(self, data):
+        cache = connect(get_db_name(), timeout=10.0)
+        cacheCursor = cache.cursor()
+        cacheCursor.execute("drop table source")
+        cacheCursor.execute("drop table type")
+        cacheCursor.execute("drop table dependency")
+        cacheCursor.execute("drop table namespace")
+        cacheCursor.execute("drop table inheritance")
+        cacheCursor.execute("drop table class")
+        cacheCursor.execute("drop table member")
+        cacheCursor.execute("drop table templatearguments")
+        cacheCursor.execute("drop table templatedmembers")
+        cacheCursor.execute("drop table typedef")
+        cacheCursor.execute("drop table macro")
+        createDB(cacheCursor)
+        cache.commit()
+        cacheCursor.close()
+        cache.close()
+
     def add_index_tu_task(self, translationUnit, filename, dirs=[]):
         filedir = os.path.dirname(filename)
         if filedir not in dirs:
             dirs.append(filedir)
         self.tasks.put((self.do_index_tu, (translationUnit, filename, dirs)))
+
+    def clear(self):
+        self.tasks.put((self.do_clear, None))
 
 
 indexer = Indexer()
@@ -252,24 +274,12 @@ indexer = Indexer()
 
 class SQLiteCache:
     def __init__(self):
-        self.cache = connect(get_db_name(), timeout=0.5, check_same_thread=False)
+        self.cache = connect(get_db_name(), timeout=0.5)
         self.cacheCursor = self.cache.cursor()
         createDB(self.cacheCursor)
 
     def clear(self):
-        self.cacheCursor.execute("delete from source")
-        self.cacheCursor.execute("delete from type")
-        self.cacheCursor.execute("delete from dependency")
-        self.cacheCursor.execute("delete from namespace")
-        self.cacheCursor.execute("delete from inheritance")
-        self.cacheCursor.execute("delete from class")
-        self.cacheCursor.execute("delete from member")
-        self.cacheCursor.execute("delete from templatearguments")
-        self.cacheCursor.execute("delete from templatedmembers")
-        self.cacheCursor.execute("delete from typedef")
-        self.cacheCursor.execute("delete from macro")
-        createDB(self.cacheCursor)
-        self.cache.commit()
+        indexer.clear()
 
     def get_final_type(self, lookup_function, lookup_data, tocomplete):
         count = 0
@@ -534,7 +544,7 @@ class SQLiteCache:
     def complete_members(self, data, before, prefix):
         ret = None
         classid = self.resolve_class_id_from_line(data, before)
-        if classid != -1:
+        if classid != -1 and classid != None:
             ret = []
             self.complete_sql(classid, prefix, ret)
         return ret

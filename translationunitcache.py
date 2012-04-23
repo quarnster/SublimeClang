@@ -147,7 +147,7 @@ class TranslationUnitCache(Worker):
             tus = self.translationUnits.lock()
             try:
                 if data in tus:
-                    del tus[data]
+                    tus.pop(data)
             finally:
                 self.translationUnits.unlock()
         finally:
