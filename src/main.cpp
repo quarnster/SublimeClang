@@ -43,6 +43,7 @@ public:
         }
         else
         {
+            sqlite3_busy_timeout(cache, 1000);
             voidQuery("begin deferred transaction");
         }
     }
@@ -66,6 +67,8 @@ public:
             printf("%s - rc: %d, %d, %d\n", buf, rc, SQLITE_ROW, SQLITE_DONE);
         while (rc == SQLITE_BUSY)
         {
+            usleep(10000);
+            printf("busy...\n");
             rc = sqlite3_step(stmt);
         }
         sqlite3_finalize(stmt);
@@ -87,16 +90,20 @@ public:
             rc = sqlite3_step(stmt);
             switch (rc)
             {
+                case SQLITE_BUSY:
+                    done = false;
+                    break;
                 case SQLITE_ROW:
                     ret = sqlite3_column_int(stmt, 0);
-                case SQLITE_DONE:
-                case SQLITE_ERROR:
-                case SQLITE_MISUSE:
+                default:
                     done = true;
                     break;
             }
             if (done)
                 break;
+
+            printf("busy spinning...\n");
+            usleep(10000);
         }
         sqlite3_finalize(stmt);
         if (debug)
@@ -629,21 +636,21 @@ void dump(CXCursor cursor)
 
 }
 
-std::string collapse_ltgt(std::string before)
+std::string collapse(std::string before, char startT, char endT, char extraT='\0')
 {
     int i = before.length();
     int count = 0;
     int end = -1;
     while (i >= 0)
     {
-        int a = before.rfind(">", i-1);
-        int b = before.rfind("<", i-1);
+        int a = before.rfind(startT, i-1);
+        int b = before.rfind(endT, i-1);
         i = a > b ? a : b;
         if (i == -1)
             break;
-        if (before[i] == '>')
+        if (before[i] == endT)
         {
-            if (i > 0 && (before[i-1] == '>' || before[i-1] == '-'))
+            if (i > 0 && (before[i-1] == endT || before[i-1] == extraT))
             {
                 i--;
             }
@@ -654,9 +661,9 @@ std::string collapse_ltgt(std::string before)
                     end = i;
             }
         }
-        else if (before[i] == '<')
+        else if (before[i] == startT)
         {
-            if (i > 0 && before[i-1] == '<')
+            if (i > 0 && before[i-1] == startT)
             {
                 i--;
             }
@@ -718,8 +725,8 @@ CXChildVisitResult visitor(CXCursor cursor, CXCursor parent, CXClientData client
                 data->shouldIndex = shouldIndex;
                 if (data->shouldIndex && data->mCallback)
                 {
-                    std::string cat(filename);
-                    data->mCallback(cat.c_str());
+                   std::string cat(filename);
+                   data->mCallback(cat.c_str());
                 }
             }
             if (!data->shouldIndex)
@@ -968,7 +975,9 @@ CXChildVisitResult visitor(CXCursor cursor, CXCursor parent, CXClientData client
                             break;
                         if (templateArgs.size() == 0)
                             break;
-                        template_parameters.pop_back();
+                        assert(template_parameters.size());
+                        assert(templateArgs.size());
+                        template_parameters.erase(template_parameters.begin());
                         templateArgs.back()--;
                         while (templateArgs.size() && templateArgs.back() == 0)
                         {
@@ -990,6 +999,7 @@ CXChildVisitResult visitor(CXCursor cursor, CXCursor parent, CXClientData client
                         int i = template_parameters.size()-1;
                         while (i >= 0)
                         {
+                            assert(i < template_parameters.size());
                             CXCursor par = template_parameters[i];
                             CXCursorKind ck = clang_getCursorKind(par);
                             if (ck == CXCursor_NonTypeTemplateParameter)
@@ -1024,7 +1034,9 @@ CXChildVisitResult visitor(CXCursor cursor, CXCursor parent, CXClientData client
                                 clang_disposeTokens(tu, tokens, numTokens);
                             }
                             i--;
-                            template_parameters.pop_back();
+                            assert(template_parameters.size());
+                            assert(templateArgs.size());
+                            template_parameters.erase(template_parameters.begin());
                             templateArgs.back()--;
                             while (templateArgs.size() && templateArgs.back() == 0)
                             {
@@ -1039,6 +1051,11 @@ CXChildVisitResult visitor(CXCursor cursor, CXCursor parent, CXClientData client
                             {
                                 name += ",";
                             }
+                            // TODO: original python code had a break here, which is wrong as there could be
+                            //       more default template arguments, but without the break I hit an assert
+                            //       above due to templateArgs becoming empty. Keeping the break for now
+                            //       until I can look at a proper fix
+                            break;
                         }
                     }
                 }
@@ -1068,6 +1085,7 @@ CXChildVisitResult visitor(CXCursor cursor, CXCursor parent, CXClientData client
                             {
                                 length -= off;
                                 char * filedata = new char[length+1];
+                                assert(filedata);
                                 fseek(fp, off, SEEK_SET);
                                 fread(filedata, length, 1, fp);
                                 filedata[length] = '\0';
@@ -1086,8 +1104,8 @@ CXChildVisitResult visitor(CXCursor cursor, CXCursor parent, CXClientData client
                                 }
                             }
                         }
+                        fclose(fp);
                     }
-                    fclose(fp);
                 }
                 if (name.length())
                 {
@@ -1200,7 +1218,11 @@ CXChildVisitResult visitor(CXCursor cursor, CXCursor parent, CXClientData client
                                     delete[] filedata;
                                     if (strdata.find("template") == 0)
                                     {
-                                        std::string collapsed = collapse_ltgt(strdata);
+                                        std::string collapsed = collapse(
+                                                collapse(
+                                                    collapse(strdata, '{', '}'),
+                                                '(', ')'),
+                                        '<','>','-');
 
                                         boost::regex e("template\\s*<.*>\\s+((const\\s+)?typename\\s+)?(.+?)\\s+([^\\s]+)::");
                                         boost::smatch what;
@@ -1333,9 +1355,17 @@ CXChildVisitResult visitor(CXCursor cursor, CXCursor parent, CXClientData client
 
 extern "C" void nativeindex(const char *database, CXCursor c, Callback cb)
 {
-    Data data(database, cb);
+    try
+    {
+        Data data(database, cb);
 
-    clang_visitChildren(c, visitor, &data);
-    data.cache.voidQuery("delete from toscan");
+        clang_visitChildren(c, visitor, &data);
+        data.cache.voidQuery("delete from toscan");
+    }
+    catch (std::exception &e)
+    {
+        printf("exception: %s\n", e.what());
+    }
+
 }
 
