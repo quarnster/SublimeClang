@@ -240,7 +240,7 @@ class Indexer(Worker):
         finally:
             tu.unlock()
 
-    def do_clear(self, data):
+    def do_clear(self, data=None):
         cache = connect(get_db_name(), timeout=10.0)
         cacheCursor = cache.cursor()
         cacheCursor.execute("drop table source")
@@ -753,8 +753,8 @@ class SQLiteCache:
                     pos = caret
                     for match in re.finditer("(%s)\\s*(%s)" % (type, name), data):
                         pos = match.start(2)
-                    row, col = get_line_and_column_at_offset(pos)
-                    return "%s:%d:%d" % (filename, row+1, col+1)
+                    row, col = get_line_and_column_from_offset(fulldata, pos)
+                    return "%s:%d:%d" % (filename, row, col)
 
         classes = []
         if "." in extended_word or "->" in extended_word:
@@ -804,6 +804,13 @@ class SQLiteCache:
                 if definitionSourceId != None:
                     self.cacheCursor.execute("select name from source where id=%d" % definitionSourceId)
 
+                    return "%s:%d:%d" % (self.cacheCursor.fetchone()[0], line, col)
+            self.cacheCursor.execute("select id, %s from macro where name='%s'" % (columnnames, word))
+            res = self.cacheCursor.fetchall()
+            if res:
+                name, definitionSourceId, line, col = res[0]
+                if definitionSourceId != None:
+                    self.cacheCursor.execute("select name from source where id=%d" % definitionSourceId)
                     return "%s:%d:%d" % (self.cacheCursor.fetchone()[0], line, col)
 
         return ""
