@@ -760,7 +760,6 @@ CXChildVisitResult visitor(CXCursor cursor, CXCursor parent, CXClientData client
         }
         data->mAccess.pop_back();
     }
-
     bool recurse = false;
     CXCursorKind kind = clang_getCursorKind(cursor);
     CXString spell = clang_getCursorSpelling(cursor);
@@ -827,12 +826,15 @@ CXChildVisitResult visitor(CXCursor cursor, CXCursor parent, CXClientData client
             char sql[512];
             snprintf(sql, 512, "select id from member where name='%s' and typeId=%d", spelling, ENUM_CONSTANT);
             int id = data->cache.intQuery(sql);
+
             if (id == -1)
             {
+                std::string displaytext(spelling);
+                displaytext += "\tenum";
                 data->cache.voidQuery("insert into member (name, typeId, definitionSourceId, definitionLine, definitionColumn, displayText, insertionText) values ('%s', %d, %d, %d, %d, '%s', '%s')",
                     spelling, ENUM_CONSTANT, data->get_source_id(filename),
                     line, column,
-                    spelling, spelling // TODO!!
+                    displaytext.c_str(), spelling
                 );
             }
             else
@@ -999,7 +1001,7 @@ CXChildVisitResult visitor(CXCursor cursor, CXCursor parent, CXClientData client
                         int i = template_parameters.size()-1;
                         while (i >= 0)
                         {
-                            assert(i < template_parameters.size());
+                            assert(i < (int) template_parameters.size());
                             CXCursor par = template_parameters[i];
                             CXCursorKind ck = clang_getCursorKind(par);
                             if (ck == CXCursor_NonTypeTemplateParameter)

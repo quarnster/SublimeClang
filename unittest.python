@@ -14,8 +14,7 @@ opts = ["-x", "c++",
         "-I/path/to/sources/2"]
 
 
-sqlitecache.sqlCache.clear()
-
+sqlitecache.indexer.do_clear()
 tu = translationunitcache.tuCache.get_translation_unit("unittest.cpp", ["-x", "c++"])
 sqlitecache.indexer.index(tu.var.cursor)
 
@@ -29,6 +28,17 @@ offset2 = get_offset_from_line_and_column(fulldata, line, column)
 if offset != offset2:
     raise Exception("Offset to line and column conversion failed, %d != %d" % (offset, offset2))
 
+offset = 100
+line, column = get_line_and_column_from_offset(fulldata, offset)
+offset2 = get_offset_from_line_and_column(fulldata, line, column)
+if offset != offset2:
+    raise Exception("Offset to line and column conversion failed, %d != %d" % (offset, offset2))
+
+offset = 200
+line, column = get_line_and_column_from_offset(fulldata, offset)
+offset2 = get_offset_from_line_and_column(fulldata, line, column)
+if offset != offset2:
+    raise Exception("Offset to line and column conversion failed, %d != %d" % (offset, offset2))
 
 if extract_line_at_offset(fulldata, get_offset_from_line_and_column(fulldata, 12, 4)) != "std::vector<A> v;":
     raise Exception("Line extraction didn't work")

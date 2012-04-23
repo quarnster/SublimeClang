@@ -222,7 +222,8 @@ def extract_variables(data):
     ret = []
     for m in regex.finditer(data, re.MULTILINE):
         type = m.group(1).strip()
-        if type in _keywords or type.startswith("template"):
+        key = type.replace("&","").replace("*", "").strip()
+        if key in _keywords or type.startswith("template"):
             continue
         if m.group(4) == "(":
             left = data[m.end():]
@@ -380,6 +381,8 @@ def get_line_and_column_from_offset(data, offset):
     data = data[:offset].split("\n")
     line = len(data)
     column = len(data[-1])
+    if line > 1:
+        column += 1
     return line, column
 
 
