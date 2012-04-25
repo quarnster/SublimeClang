@@ -165,5 +165,9 @@ comp = sqlitecache.sqlCache.complete(fulldata[:offset], extract_line_until_offse
 if comp == None or len(comp) == 0 or comp[0][1] != "c_str()":
     raise Exception("Completion of boost::shared_ptr<std::vector<std::string> > didn't work")
 
-print "all is well"
+offset = get_offset_from_line_and_column(fulldata, 115, 14)
+comp = sqlitecache.sqlCache.complete(fulldata[:offset], extract_line_until_offset(fulldata, offset), "")
+if comp == None or len(comp) == 0 or comp[0][1] != "test":
+    raise Exception("Completion of parameter& didn't work")
 
+print "all is well"
