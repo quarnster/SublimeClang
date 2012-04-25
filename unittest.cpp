@@ -109,3 +109,10 @@ str.c_str();
 boost::shared_ptr<std::vector<std::string> > strtest;
 strtest.reset();
 strtest->back()->c_str();
+
+int test(AV& v)
+{
+    v.back().test;
+}
+
+

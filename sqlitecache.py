@@ -340,9 +340,9 @@ class SQLiteCache:
         else:
             return True
         if data.ret == None or data.ret[0] == None:
-            parents = self.cache.cq("select parentId from inheritance where classId=%d" % data.classId).fetchall()
+            parents = self.cache.cq("select parentId from inheritance where classId=%d" % data.classId)
             if parents != None:
-                for id in parents:
+                for id in parents.fetchall():
                     data.classId = id[0]
                     if data.access > cindex.CXXAccessSpecifier.PROTECTED:
                         # Only have access to the protected
@@ -457,6 +457,7 @@ class SQLiteCache:
                 tocomplete = "%s.%s" % (var, tocomplete)
         if typename == None:
             return None
+        typename = get_base_type(typename)
 
         namespaces = extract_used_namespaces(data)
         namespaces.append("null")
