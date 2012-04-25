@@ -128,5 +128,3 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS WITH THE
 SOFTWARE.
 }}}
 
-Also, since Sublime Text 2 [[http://sublimetext.userecho.com/topic/44995-include-sqlite-again|isn't shipped with the sqlite3 module]]
-the [[http://code.google.com/p/pysqlite/|pysqlite2 module]] using the [[http://www.opensource.org/licenses/mit-license.php|MIT license]] is bundled with the plugin. Both the 32 bit and the 64 bit pysqlite2 binaries are from [[http://www.lfd.uci.edu/~gohlke/pythonlibs/#pysqlite|this page]] by Christoph Gohlke.
