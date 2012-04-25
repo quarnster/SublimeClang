@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 2.8)
 find_package(Boost REQUIRED COMPONENTS regex)
 
 
-set(CMAKE_CXX_FLAGS "-g -Wall -DSQLITE_THREADSAFE=1")
+set(CMAKE_CXX_FLAGS "-g -Wall -DSQLITE_THREADSAFE=2 -DSQLITE_DEFAULT_CACHE_SIZE=-50000 -DSQLITE_TEMP_STORE=3")
 IF(NOT CMAKE_BUILD_TYPE)
   SET(CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING
       "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel."
