@@ -49,6 +49,27 @@ if extract_word_at_offset(fulldata, get_offset_from_line_and_column(fulldata, 84
 if extract_word_at_offset(fulldata, get_offset_from_line_and_column(fulldata, 85, 5)) != "tababa":
     raise Exception("Word extraction didn't work")
 
+test = """/*
+ testing some stuff
+*/
+// Will it pick this up as variables?\\
+How about this?
+#include <stdio.h>
+// And this? /*
+int itShouldPickupThis;
+// */
+static void Test::Something(Type& t1, vector<Type2> &t2)"""
+match = get_var_type(test, "t2")
+if match == None or match.group(1) != "vector<Type2> &":
+    raise Exception("Couldn't extract type properly: %s" % (match.group(1) if match else "None"))
+
+match = get_var_type(test, "t1")
+if match == None or match.group(1).strip() != "Type&":
+    raise Exception("Couldn't extract type properly: %s" % (match.group(1) if match else "None"))
+
+if extract_variables(test) != [('int', 'itShouldPickupThis'), ('Type&', 't1'), ('vector<Type2> &', 't2')]:
+    raise Exception("Didn't extract variables correctly")
+
 offset = get_offset_from_line_and_column(fulldata, 10, 3)
 comp = sqlitecache.sqlCache.complete(fulldata[:offset], extract_line_until_offset(fulldata, offset), "")
 if comp == None or  len(comp) == 0 or comp[0][1] != "test":

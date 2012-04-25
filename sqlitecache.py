@@ -20,7 +20,7 @@ freely, subject to the following restrictions:
    3. This notice may not be removed or altered from any source
    distribution.
 """
-from common import parse_res, Worker, error_message
+from common import Worker, error_message
 import os.path
 from clang import cindex
 import time
@@ -28,7 +28,6 @@ import re
 from parsehelp import *
 from ctypes import cdll, CFUNCTYPE, c_char_p, c_void_p, c_int
 import os
-import threading
 
 
 def get_nativeindex_library():
@@ -126,6 +125,7 @@ class ComplexQuery:
         return db_getColumnCount(self.handle)
 
     def fetchall(self):
+        start = time.time()
         ret = []
         cols = db_getColumnCount(self.handle)
         while True:
@@ -136,6 +136,8 @@ class ComplexQuery:
             c = db_stepQuery(self.handle)
             if c != 100:
                 break
+        end = time.time()
+        print "fetchall: %f ms" % ((end-start)*1000)
         return ret
 
 
@@ -156,7 +158,11 @@ class DB:
         return db_intQuery(self.handle, q)
 
     def cq(self, q):
+        start = time.time()
         comp = db_complexQuery(self.handle, q)
+        end = time.time()
+        print "prep cq: %f ms" % ((end-start)*1000)
+
         if comp:
             return ComplexQuery(comp)
         return None
@@ -231,7 +237,7 @@ indexer = Indexer()
 
 class SQLiteCache:
     def __init__(self):
-        self.cache = DB(get_db_name(), 500, True)
+        self.cache = DB(get_db_name(), 50, True)
 
     def clear(self):
         indexer.clear()
