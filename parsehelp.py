@@ -222,7 +222,7 @@ def extract_variables(data):
     ret = []
     for m in regex.finditer(data, re.MULTILINE):
         type = m.group(1).strip()
-        key = type.replace("&","").replace("*", "").strip()
+        key = type.replace("&", "").replace("*", "").strip()
         if key in _keywords or type.startswith("template"):
             continue
         if m.group(4) == "(":
