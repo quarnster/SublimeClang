@@ -28,92 +28,310 @@ freely, subject to the following restrictions:
 #include <boost/foreach.hpp>
 #include <boost/regex.hpp>
 
+void checkthrow(const char *buf, int rc)
+{
+    switch (rc)
+    {
+        case SQLITE_OK:
+        case SQLITE_ROW:
+        case SQLITE_DONE:
+            break;
+        default:
+        {
+            char tmp[8192];
+            snprintf(tmp, 8192, "sql: %s\n%d\n", buf, rc);
+            throw std::runtime_error(tmp);
+        }
+    }
+}
+class StatementContainer
+{
+public:
+    StatementContainer(sqlite3* cache, const char *buf)
+    {
+        threw = false;
+        int rc = sqlite3_prepare_v2(cache, buf, strlen(buf), &stmt, NULL);
+        try
+        {
+            checkthrow(buf, rc);
+        }
+        catch (std::exception &e)
+        {
+            sqlite3_finalize(stmt);
+            printf("threw: %s\n", e.what());
+            throw e;
+        }
+    }
+    ~StatementContainer()
+    {
+        sqlite3_finalize(stmt);
+    }
+    sqlite3_stmt* operator*()
+    {
+        return stmt;
+    }
+private:
+    bool threw;
+    sqlite3_stmt* stmt;
+};
 class DB
 {
 public:
     bool debug;
-    DB(const char *dbname)
+    bool readonly;
+    DB(const char *dbname, int timeout=2000, bool rd=false)
     {
         debug = false;
-        int rc = sqlite3_open_v2(dbname, &cache, SQLITE_OPEN_READWRITE, NULL);
+        readonly = rd;
+
+        int rc = sqlite3_open_v2(dbname, &cache, readonly ? SQLITE_OPEN_READONLY : (SQLITE_OPEN_READWRITE|SQLITE_OPEN_CREATE), NULL);
+        if (rc != SQLITE_OK && readonly)
+        {
+            sqlite3_close(cache);
+            sqlite3_open_v2(dbname, &cache, SQLITE_OPEN_READWRITE|SQLITE_OPEN_CREATE, NULL);
+            sqlite3_close(cache);
+            rc = sqlite3_open_v2(dbname, &cache, SQLITE_OPEN_READONLY, NULL);
+        }
         if (rc != SQLITE_OK)
         {
-            //throw std::exception("Couldn't open database");
             sqlite3_close(cache);
+            cache = NULL;
+            char buf[512];
+            snprintf(buf, 512, "Couldn't open database: %d", rc);
+            throw std::runtime_error(buf);
         }
         else
         {
-            sqlite3_busy_timeout(cache, 1000);
-            voidQuery("begin deferred transaction");
+
+            sqlite3_extended_result_codes(cache, 1);
+            sqlite3_busy_timeout(cache, timeout);
+            if (!readonly)
+            {
+                voidQuery("begin deferred transaction");
+                createTables();
+            }
         }
     }
     ~DB()
     {
-        voidQuery("commit transaction");
-        sqlite3_close(cache);
+        if (cache)
+        {
+            if (!readonly)
+            {
+                while (true)
+                {
+                    try
+                    {
+                        voidQuery("commit transaction");
+                        break;
+                    }
+                    catch (std::exception &e)
+                    {
+                        printf("exception caught in destructor: %s\n", e.what());
+                    }
+                }
+            }
+            sqlite3_close(cache);
+        }
     }
+
+    void createTables()
+    {
+        voidQuery("create table if not exists source("
+            "id INTEGER PRIMARY KEY AUTOINCREMENT,"
+            "name TEXT,"
+            "lastmodified TIMESTAMP DEFAULT CURRENT_TIMESTAMP)");
+        voidQuery("create table if not exists type("
+            "id INTEGER PRIMARY KEY AUTOINCREMENT,"
+            "name TEXT)");
+        voidQuery("create table if not exists dependency("
+            "id INTEGER PRIMARY KEY AUTOINCREMENT,"
+            "sourceId INTEGER,"
+            "dependencyId INTEGER,"
+            "FOREIGN KEY(sourceId) REFERENCES source(id),"
+            "FOREIGN KEY(dependencyId) REFERENCES source(id))");
+        voidQuery("""create table if not exists namespace("
+            "id INTEGER PRIMARY KEY AUTOINCREMENT,"
+            "parentId INTEGER,"
+            "name TEXT,"
+            "FOREIGN KEY(parentId) REFERENCES namespace(id))");
+        voidQuery("create table if not exists inheritance("
+            "id INTEGER PRIMARY KEY AUTOINCREMENT,"
+            "classId INTEGER,"
+            "parentId INTEGER)");
+        voidQuery("create table if not exists class("
+            "id INTEGER PRIMARY KEY AUTOINCREMENT,"
+            "namespaceId INTEGER DEFAULT -1,"
+            "definitionSourceId INTEGER,"
+            "definitionLine INTEGER,"
+            "definitionColumn INTEGER,"
+            "name TEXT,"
+            "typeId INTEGER,"
+            "usr TEXT,"
+            "FOREIGN KEY(namespaceId) REFERENCES namespace(id),"
+            "FOREIGN KEY(definitionSourceId) REFERENCES source(id))");
+        voidQuery("create table if not exists member("
+            "id INTEGER PRIMARY KEY AUTOINCREMENT,"
+            "classId INTEGER DEFAULT -1,"
+            "namespaceId INTEGER DEFAULT -1,"
+            "returnId INTEGER,"
+            "definitionSourceId INTEGER,"
+            "definitionLine INTEGER,"
+            "definitionColumn INTEGER,"
+            "implementationSourceId INTEGER,"
+            "implementationLine INTEGER,"
+            "implementationColumn INTEGER,"
+            "typeId INTEGER,"
+            "name TEXT,"
+            "insertionText TEXT,"
+            "displayText TEXT,"
+            "static BOOL,"
+            "access INTEGER,"
+            "usr TEXT,"
+            "FOREIGN KEY(classId) REFERENCES class(id),"
+            "FOREIGN KEY(namespaceId) REFERENCES namespace(id),"
+            "FOREIGN KEY(returnId) REFERENCES class(id),"
+            "FOREIGN KEY(definitionSourceId) REFERENCES source(id),"
+            "FOREIGN KEY(implementationSourceId) REFERENCES source(id),"
+            "FOREIGN KEY(typeId) REFERENCES type(id))");
+        voidQuery("create table if not exists macro("
+            "id INTEGER PRIMARY KEY AUTOINCREMENT,"
+            "definitionSourceId INTEGER,"
+            "definitionLine INTEGER,"
+            "definitionColumn INTEGER,"
+            "name TEXT,"
+            "insertionText TEXT,"
+            "displayText TEXT,"
+            "usr TEXT,"
+            "FOREIGN KEY(definitionSourceId) REFERENCES source(id))");
+        voidQuery("create table if not exists templatearguments("
+            "id INTEGER PRIMARY KEY AUTOINCREMENT,"
+            "classId INTEGER,"
+            "argumentClassId INTEGER,"
+            "argumentNumber INTEGER,"
+            "FOREIGN KEY(classId) REFERENCES class(id),"
+            "FOREIGN KEY(argumentClassId) REFERENCES class(id))");
+        voidQuery("create table if not exists templatedmembers("
+            "id INTEGER PRIMARY KEY AUTOINCREMENT,"
+            "memberId INTEGER,"
+            "argumentClassId INTEGER,"
+            "argumentNumber INTEGER,"
+            "FOREIGN KEY(memberId) REFERENCES member(id),"
+            "FOREIGN KEY(argumentClassId) REFERENCES class(id))");
+        voidQuery("create table if not exists typedef("
+            "id INTEGER PRIMARY KEY AUTOINCREMENT,"
+            "classId INTEGER,"
+            "name TEXT,"
+            "FOREIGN KEY(classId) REFERENCES class(id))");
+        voidQuery("create table if not exists toscan("
+            "id INTEGER PRIMARY KEY AUTOINCREMENT,"
+            "priority INTEGER,"
+            "sourceId INTEGER,"
+            "FOREIGN KEY(sourceId) REFERENCES source(id))");
+        voidQuery("create unique index if not exists classindex on class (namespaceId, name, typeId, usr)");
+        voidQuery("create unique index if not exists memberindex on member(classId, namespaceId, returnId, typeId, name, usr)");
+        voidQuery("create unique index if not exists namespaceindex on namespace(name, parentId)");
+        voidQuery("create unique index if not exists sourceindex on source(name)");
+        voidQuery("create unique index if not exists toscanindex on toscan(sourceId)");
+        voidQuery("create unique index if not exists macroindex on macro(usr, name)");
+
+    }
+
+#define QUERYSIZE 8192
 
     void voidQuery(const char *format, ...)
     {
-        char buf[1024];
+        char buf[QUERYSIZE];
         va_list v;
         va_start(v, format);
-        vsnprintf(buf, 1024, format, v);
+        vsnprintf(buf, QUERYSIZE, format, v);
         va_end(v);
-        sqlite3_stmt *stmt;
-        int rc = sqlite3_prepare_v2(cache, buf, strlen(buf), &stmt, NULL);
-        rc = sqlite3_step(stmt);
+        int rc = SQLITE_BUSY;
+        bool wasBusy = false;
+        StatementContainer sc(cache, buf);
+        rc = sqlite3_step(*sc);
         if (debug)
             printf("%s - rc: %d, %d, %d\n", buf, rc, SQLITE_ROW, SQLITE_DONE);
-        while (rc == SQLITE_BUSY)
+
+        while (!readonly && rc == SQLITE_BUSY)
         {
-            usleep(10000);
-            printf("busy...\n");
-            rc = sqlite3_step(stmt);
+            wasBusy = true;
+            printf("busy...%s\n", buf);
+            rc = sqlite3_step(*sc);
         }
-        sqlite3_finalize(stmt);
+        if (wasBusy)
+            printf("broke out of busy!\n");
+        checkthrow(buf, rc);
     }
     int intQuery(const char *format, ...)
     {
-        char buf[1024];
+        char buf[QUERYSIZE];
         va_list v;
         va_start(v, format);
-        vsnprintf(buf, 1024, format, v);
+        vsnprintf(buf, QUERYSIZE, format, v);
         va_end(v);
 
         int ret = -1;
-        sqlite3_stmt *stmt;
-        int rc = sqlite3_prepare_v2(cache, buf, strlen(buf), &stmt, NULL);
+        StatementContainer sc(cache, buf);
+        int rc;
+
         bool done = false;
+        bool wasBusy = false;
         while (!done)
         {
-            rc = sqlite3_step(stmt);
+            rc = sqlite3_step(*sc);
+
             switch (rc)
             {
                 case SQLITE_BUSY:
-                    done = false;
+                    done = readonly;
                     break;
                 case SQLITE_ROW:
-                    ret = sqlite3_column_int(stmt, 0);
+                    ret = sqlite3_column_int(*sc, 0);
                 default:
                     done = true;
                     break;
             }
             if (done)
                 break;
-
+            wasBusy = true;
             printf("busy spinning...\n");
             usleep(10000);
         }
-        sqlite3_finalize(stmt);
+        if (wasBusy)
+            printf("broke out of busy!\n");
+
+        checkthrow(buf, rc);
         if (debug)
             printf("%s - %d rc: %d, %d, %d\n", buf, ret, rc, SQLITE_ROW, SQLITE_DONE);
         return ret;
     }
+    sqlite3_stmt* complexQuery(const char *buf)
+    {
+        sqlite3_stmt *stmt;
+        int rc = sqlite3_prepare_v2(cache, buf, strlen(buf), &stmt, NULL);
+
+        try
+        {
+            checkthrow(buf, rc);
+        }
+        catch (std::exception &e)
+        {
+            sqlite3_finalize(stmt);
+            stmt = NULL;
+            printf("complexQuery exception: %s\n", e.what());
+            throw e;
+        }
+        return stmt; // Remember to call finalize when done!
+    }
+
 private:
     sqlite3 *cache;
 
 };
+
+
+
 
 enum DbClassType
 {
@@ -491,7 +709,6 @@ public:
         return id;
     }
 
-
 };
 
 class TemplatedMemberData
@@ -712,6 +929,10 @@ CXChildVisitResult visitor(CXCursor cursor, CXCursor parent, CXClientData client
                 if (id == -1)
                 {
                     id = data->get_source_id(filename);
+                    if (id == -1)
+                    {
+                        printf("sourceid = -1 - %s\n", filename.c_str());
+                    }
                     data->cache.voidQuery("insert into toscan (sourceId) values(%d)", id);
                 }
                 else
@@ -1355,12 +1576,116 @@ CXChildVisitResult visitor(CXCursor cursor, CXCursor parent, CXClientData client
     return CXChildVisit_Continue;
 }
 
-extern "C" void nativeindex(const char *database, CXCursor c, Callback cb)
+extern "C"
+{
+
+void *createDB(const char *database, int timeout, bool readonly)
+{
+    DB * ret = NULL;
+    try
+    {
+        ret = new DB(database, timeout, readonly);
+        printf("created: %p\n", ret);
+    }
+    catch (std::exception &e)
+    {
+        printf("exception: %s\n", e.what());
+    }
+    return ret;
+}
+void deleteDB(void *db)
+{
+    printf("delete: %p\n", db);
+    delete (DB*) db;
+}
+void db_voidQuery(void*db, const char *q)
+{
+    DB* d = (DB*) db;
+    try
+    {
+        d->voidQuery(q);
+    }
+    catch (std::exception &e)
+    {
+        printf("exception: %s\n", e.what());
+    }
+}
+int db_intQuery(void *db, const char *q)
+{
+    DB* d = (DB*) db;
+    int ret = -1;
+    try
+    {
+        ret = d->intQuery(q);
+    }
+    catch (std::exception &e)
+    {
+        printf("exception: %s\n", e.what());
+    }
+    return ret;
+}
+
+sqlite3_stmt* db_complexQuery(void *db, const char*q)
+{
+    DB* d = (DB*) db;
+    sqlite3_stmt* stmt = NULL;
+
+    try
+    {
+        stmt = d->complexQuery(q);
+        int rc = sqlite3_step(stmt);
+        if (rc != SQLITE_ROW)
+        {
+            printf("will return NULL from complexQuery: %d - %s\n", rc, q);
+            sqlite3_finalize(stmt);
+            stmt = NULL;
+        }
+    }
+    catch (std::exception &e)
+    {
+        printf("exception: %s\n", e.what());
+        if (stmt)
+            sqlite3_finalize(stmt);
+        stmt = NULL;
+    }
+    return stmt;
+}
+
+void db_doneQuery(sqlite3_stmt* stmt)
+{
+    sqlite3_finalize(stmt);
+}
+
+int db_stepQuery(sqlite3_stmt* stmt)
+{
+    return sqlite3_step(stmt);
+}
+
+int db_getIntColumn(sqlite3_stmt* stmt, int column)
+{
+    return sqlite3_column_int(stmt, column);
+}
+
+const unsigned char* db_getStringColumn(sqlite3_stmt* stmt, int column)
+{
+    return sqlite3_column_text(stmt, column);
+}
+
+int db_getColumnType(sqlite3_stmt* stmt, int column)
+{
+    return sqlite3_column_type(stmt, column);
+}
+
+int db_getColumnCount(sqlite3_stmt* stmt)
+{
+    return sqlite3_column_count(stmt);
+}
+
+void nativeindex(const char *database, CXCursor c, Callback cb)
 {
     try
     {
         Data data(database, cb);
-
         clang_visitChildren(c, visitor, &data);
         data.cache.voidQuery("delete from toscan");
     }
@@ -1368,6 +1693,7 @@ extern "C" void nativeindex(const char *database, CXCursor c, Callback cb)
     {
         printf("exception: %s\n", e.what());
     }
+}
 
 }
 
