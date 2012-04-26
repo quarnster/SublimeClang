@@ -42,7 +42,6 @@ from errormarkers import clear_error_marks, add_error_mark, show_error_marks, \
                          update_statusbar, erase_error_marks, set_clang_view
 from common import get_setting, get_settings, parse_res, is_supported_language, get_language
 import translationunitcache
-import sqlitecache
 
 
 def warm_up_cache(view, filename=None):
@@ -69,6 +68,7 @@ def get_translation_unit(view, filename=None, blocking=False):
 
 navigation_stack = []
 clang_complete_enabled = True
+clang_fast_completions = True
 
 
 class ClangToggleCompleteEnabled(sublime_plugin.TextCommand):
@@ -76,6 +76,13 @@ class ClangToggleCompleteEnabled(sublime_plugin.TextCommand):
         global clang_complete_enabled
         clang_complete_enabled = not clang_complete_enabled
         sublime.status_message("Clang complete is %s" % ("On" if clang_complete_enabled else "Off"))
+
+
+class ClangToggleFastCompletions(sublime_plugin.TextCommand):
+    def run(self, edit):
+        global clang_fast_completions
+        clang_fast_completions = not clang_fast_completions
+        sublime.status_message("Clang fast completions are %s" % ("On" if clang_fast_completions else "Off"))
 
 
 class ClangWarmupCache(sublime_plugin.TextCommand):
@@ -142,9 +149,66 @@ def open(view, target):
 
 class ClangGotoImplementation(sublime_plugin.TextCommand):
     def run(self, edit):
-        caret = self.view.sel()[0].a
-        scopename = self.view.scope_name(caret)
-        target = sqlitecache.sqlCache.goto_imp(self.view.file_name(), self.view.substr(sublime.Region(0, self.view.size())), caret, scopename)
+        view = self.view
+        tu = get_translation_unit(view)
+        if tu == None:
+            return
+        tu.lock()
+        target = ""
+
+        try:
+            row, col = view.rowcol(view.sel()[0].a)
+            cursor = cindex.Cursor.get(tu.var, view.file_name(),
+                                       row + 1, col + 1)
+            d = cursor.get_definition()
+            if not d is None and cursor != d:
+                target = format_cursor(d)
+            elif not d is None and cursor == d and \
+                    (cursor.kind == cindex.CursorKind.VAR_DECL or \
+                    cursor.kind == cindex.CursorKind.PARM_DECL or \
+                    cursor.kind == cindex.CursorKind.FIELD_DECL):
+                for child in cursor.get_children():
+                    if child.kind == cindex.CursorKind.TYPE_REF:
+                        d = child.get_definition()
+                        if not d is None:
+                            target = format_cursor(d)
+                        break
+            elif cursor.kind == cindex.CursorKind.CLASS_DECL:
+                for child in cursor.get_children():
+                    if child.kind == cindex.CursorKind.CXX_BASE_SPECIFIER:
+                        d = child.get_definition()
+                        if not d is None:
+                            target = format_cursor(d)
+            elif d is None:
+                if cursor.kind == cindex.CursorKind.DECL_REF_EXPR or \
+                        cursor.kind == cindex.CursorKind.MEMBER_REF_EXPR:
+                    cursor = cursor.get_reference()
+                if cursor.kind == cindex.CursorKind.CXX_METHOD or \
+                        cursor.kind == cindex.CursorKind.FUNCTION_DECL:
+                    f = cursor.location.file.name
+                    if f.endswith(".h"):
+                        endings = ["cpp", "c", "cc", "m", "mm"]
+                        for ending in endings:
+                            f = "%s.%s" % (f[:f.rfind(".")], ending)
+                            if f != view.file_name() and os.access(f, os.R_OK):
+                                tu2 = get_translation_unit(view, f, True)
+                                if tu2 == None:
+                                    continue
+                                tu2.lock()
+                                try:
+                                    cursor2 = cindex.Cursor.get(
+                                            tu2.var, cursor.location.file.name,
+                                            cursor.location.line,
+                                            cursor.location.column)
+                                    if not cursor2 is None:
+                                        d = cursor2.get_definition()
+                                        if not d is None and cursor2 != d:
+                                            target = format_cursor(d)
+                                            break
+                                finally:
+                                    tu2.unlock()
+        finally:
+            tu.unlock()
         if len(target) > 0:
             open(self.view, target)
         else:
@@ -168,9 +232,57 @@ class ClangGotoDef(sublime_plugin.TextCommand):
                             cursor.displayname), format_cursor(cursor)]
 
     def run(self, edit):
-        caret = self.view.sel()[0].a
-        scopename = self.view.scope_name(caret)
-        target = sqlitecache.sqlCache.goto_def(self.view.file_name(), self.view.substr(sublime.Region(0, self.view.size())), caret, scopename)
+        view = self.view
+        tu = get_translation_unit(view)
+        if tu == None:
+            return
+        tu.lock()
+        target = ""
+        try:
+            row, col = view.rowcol(view.sel()[0].a)
+            cursor = cindex.Cursor.get(tu.var, view.file_name(),
+                                       row + 1, col + 1)
+            ref = cursor.get_reference()
+            target = ""
+
+            if not ref is None and cursor == ref:
+                can = cursor.get_canonical_cursor()
+                if not can is None and can != cursor:
+                    target = format_cursor(can)
+                else:
+                    o = cursor.get_overridden()
+                    if len(o) == 1:
+                        target = format_cursor(o[0])
+                    elif len(o) > 1:
+                        self.o = o
+                        opts = []
+                        for i in range(len(o)):
+                            opts.append(self.quickpanel_format(o[i]))
+                        view.window().show_quick_panel(opts,
+                                                       self.quickpanel_on_done)
+                    elif (cursor.kind == cindex.CursorKind.VAR_DECL or \
+                            cursor.kind == cindex.CursorKind.PARM_DECL or \
+                            cursor.kind == cindex.CursorKind.FIELD_DECL):
+                        for child in cursor.get_children():
+                            if child.kind == cindex.CursorKind.TYPE_REF:
+                                d = child.get_definition()
+                                if not d is None:
+                                    target = format_cursor(d)
+                                break
+                    elif cursor.kind == cindex.CursorKind.CLASS_DECL:
+                        for child in cursor.get_children():
+                            if child.kind == cindex.CursorKind.CXX_BASE_SPECIFIER:
+                                d = child.get_definition()
+                                if not d is None:
+                                    target = format_cursor(d)
+            elif not ref is None:
+                target = format_cursor(ref)
+            elif cursor.kind == cindex.CursorKind.INCLUSION_DIRECTIVE:
+                f = cursor.get_included_file()
+                if not f is None:
+                    target = f.name
+        finally:
+            tu.unlock()
         if len(target) > 0:
             open(self.view, target)
         else:
@@ -186,7 +298,6 @@ class ClangGotoDef(sublime_plugin.TextCommand):
 class ClangClearCache(sublime_plugin.TextCommand):
     def run(self, edit):
         translationunitcache.tuCache.clear()
-        sqlitecache.sqlCache.clear()
         sublime.status_message("Cache cleared!")
 
 
@@ -402,24 +513,74 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         timing = ""
         tot = 0
         start = time.time()
-        if self.time_completions:
-            curr = (time.time() - start)*1000
-            tot += curr
-            timing += "TU: %f" % (curr)
-            start = time.time()
+        tu = get_translation_unit(view)
+        if tu == None:
+            return self.return_completions([], view)
+        ret = None
+        tu.lock()
+        try:
+            if self.time_completions:
+                curr = (time.time() - start)*1000
+                tot += curr
+                timing += "TU: %f" % (curr)
+                start = time.time()
 
-        line = view.substr(sublime.Region(view.full_line(locations[0]).begin(), locations[0]))
-        data = view.substr(sublime.Region(0, locations[0]))
-        ret = sqlitecache.sqlCache.complete(data, line, prefix)
+            #line = view.substr(sublime.Region(view.full_line(locations[0]).begin(), locations[0]))
+            #data = view.substr(sublime.Region(0, locations[0]))
+            cached_results = None
+            if clang_fast_completions:
+                cached_results = tu.complete(prefix)
+            if cached_results:
+                ret = cached_results
+            else:
+                row, col = view.rowcol(locations[0] - len(prefix))
+                unsaved_files = []
+                if view.is_dirty():
+                    unsaved_files.append((view.file_name(),
+                                      view.substr(Region(0, view.size()))))
+                res = tu.var.codeComplete(view.file_name(), row + 1, col + 1,
+                                      unsaved_files, 3)
+                if res != None:
+                    ret = []
+                    res.sort()
+                    if self.time_completions:
+                        curr = (time.time() - start)*1000
+                        tot += curr
+                        timing += ", Sort: %f" % (curr)
+                        start = time.time()
+                    onlyMembers = self.is_member_completion(view,
+                                                            locations[0] - len(prefix))
+                    s, e = self.find_prefix_range(prefix, res.results)
+                    if self.time_completions:
+                        curr = (time.time() - start)*1000
+                        tot += curr
+                        timing += ", Range: %f" % (curr)
+                        start = time.time()
+                    if not (s == -1 or e == -1):
+                        for idx in range(s, e + 1):
+                            compRes = res.results[idx]
+                            string = compRes.string
+                            if string.isAvailabilityNotAccessible() or (
+                                     onlyMembers and
+                                     not self.is_member_kind(compRes.kind)):
+                                continue
 
-        if self.time_completions:
-            # TODO
-            curr = (time.time() - start)*1000
-            tot += curr
-            timing += ", Comp: %f" % (curr)
-            timing += ", Tot: %f ms" % (tot)
-            print timing
-            sublime.status_message(timing)
+                            add, representation, insertion = parse_res(
+                                            string, prefix)
+                            if add:
+                                #print compRes.kind, compRes.string
+                                ret.append((representation, insertion))
+                ret = sorted(ret)
+            if self.time_completions:
+                # TODO
+                curr = (time.time() - start)*1000
+                tot += curr
+                timing += ", Comp: %f" % (curr)
+                timing += ", Tot: %f ms" % (tot)
+                print timing
+                sublime.status_message(timing)
+        finally:
+            tu.unlock()
 
         if not ret is None:
             return self.return_completions(ret, view)
@@ -450,9 +611,6 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
 
     def reparse_done(self):
         display_compilation_results(self.view)
-        tu = get_translation_unit(self.view)
-        if tu:
-            sqlitecache.indexer.add_index_tu_task(tu, self.view.file_name())
 
     def restart_recompile_timer(self, timeout):
         if self.recompile_timer != None:

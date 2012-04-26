@@ -23,6 +23,67 @@ freely, subject to the following restrictions:
 from common import Worker, get_setting, get_path_setting, get_language, LockedVariable, run_in_main_thread
 from clang import cindex
 import time
+from ctypes import cdll, Structure, POINTER, c_char_p, c_void_p, c_int, c_uint
+
+
+
+def get_cache_library():
+    import platform
+    name = platform.system()
+    if name == 'Darwin':
+        return cdll.LoadLibrary('libcache.dylib')
+    elif name == 'Windows':
+        if isWin64:
+            return cdll.LoadLibrary("libcache_x64.dll")
+        return cdll.LoadLibrary('libcache.dll')
+    else:
+        try:
+            # Try loading with absolute path first
+            import os
+            path = os.path.dirname(os.path.abspath(__file__))
+            return cdll.LoadLibrary('%s/libcache.so' % path)
+        except:
+            try:
+                # See if there's one in the system path
+                return cdll.LoadLibrary("libcache.so")
+            except:
+                import traceback
+                traceback.print_exc()
+                error_message("""\
+It looks like libcache.so couldn't be loaded. On Linux you have to \
+compile it yourself.
+
+See http://github.com/quarnster/SublimeClang for more details.
+""")
+
+
+class CacheEntry(Structure):
+    _fields_ = [("cursor", cindex.Cursor), ("insert", c_char_p), ("display", c_char_p)]
+
+
+class CacheCompletionResults(Structure):
+    _fields_ = [("entries", POINTER(POINTER(CacheEntry))), ("length", c_uint)]
+
+    def __len__(self):
+        return self.length
+
+    def __getitem__(self, key):
+        if key >= self.length:
+            raise IndexError
+        return self.entries[key][0]
+
+
+cachelib = get_cache_library()
+_createCache = cachelib.createCache
+_createCache.restype = c_void_p
+_createCache.argtypes = [cindex.Cursor]
+_deleteCache = cachelib.deleteCache
+_deleteCache.argtypes = [c_void_p]
+cache_complete_startswith = cachelib.cache_complete_startswith
+cache_complete_startswith.argtypes = [c_void_p, c_char_p]
+cache_complete_startswith.restype = POINTER(CacheCompletionResults)
+cache_disposeCompletionResults = cachelib.cache_disposeCompletionResults
+cache_disposeCompletionResults.argtypes = [POINTER(CacheCompletionResults)]
 
 
 class TranslationUnitCache(Worker):
@@ -34,6 +95,33 @@ class TranslationUnitCache(Worker):
     class LockedTranslationUnit(LockedVariable):
         def __init__(self, var):
             LockedVariable.__init__(self, var)
+            self.cache = None
+            self.refresh_cache()
+
+        def refresh_cache(self, dolock=True):
+            if dolock:
+                self.lock()
+            try:
+                if self.cache:
+                    _deleteCache(self.cache)
+                    self.cache = None
+                self.cache = _createCache(self.var.cursor)
+            finally:
+                if dolock:
+                    self.unlock()
+
+        def __del__(self):
+            if self.cache:
+                _deleteCache(self.cache)
+
+        def complete(self, prefix):
+            ret = None
+            if self.cache:
+                cached_results = cache_complete_startswith(self.cache, prefix)
+                if cached_results:
+                    ret = [(x.display, x.insert) for x in cached_results[0]]
+                    cache_disposeCompletionResults(cached_results)
+            return ret
 
     def __init__(self):
         self.as_super = super(TranslationUnitCache, self)
@@ -120,6 +208,7 @@ class TranslationUnitCache(Worker):
                 tu.lock()
                 try:
                     tu.var.reparse(unsaved_files)
+                    tu.refresh_cache(False)
                     self.set_status("Reparsing %s done" % filename)
                 finally:
                     tu.unlock()

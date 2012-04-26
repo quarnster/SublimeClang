@@ -56,6 +56,10 @@
   {
     "command": "clang_analyze_project",
     "keys": ["alt+d","alt+o"]
+  },
+  {
+    "command": "clang_toggle_fast_completions",
+    "keys": ["alt+d","alt+f"]
   }
 
 ]
