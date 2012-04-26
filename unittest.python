@@ -1,4 +1,3 @@
-import sqlitecache
 import translationunitcache
 from parsehelp import *
 
@@ -12,11 +11,6 @@ opts = ["-x", "c++",
         "-IC:/MinGW/include",
         "-I/path/to/sources/1",
         "-I/path/to/sources/2"]
-
-
-sqlitecache.indexer.do_clear()
-tu = translationunitcache.tuCache.get_translation_unit("unittest.cpp", ["-x", "c++"])
-sqlitecache.indexer.index(tu.var.cursor)
 
 f = open("unittest.cpp")
 fulldata = f.read()
@@ -69,105 +63,5 @@ if match == None or match.group(1).strip() != "Type&":
 
 if extract_variables(test) != [('int', 'itShouldPickupThis'), ('Type&', 't1'), ('vector<Type2> &', 't2')]:
     raise Exception("Didn't extract variables correctly")
-
-offset = get_offset_from_line_and_column(fulldata, 10, 3)
-comp = sqlitecache.sqlCache.complete(fulldata[:offset], extract_line_until_offset(fulldata, offset), "")
-if comp == None or  len(comp) == 0 or comp[0][1] != "test":
-    raise Exception("Completion of A didn't work")
-
-offset = get_offset_from_line_and_column(fulldata, 14, 11)
-comp = sqlitecache.sqlCache.complete(fulldata[:offset], extract_line_until_offset(fulldata, offset), "")
-if comp == None or  len(comp) == 0 or comp[0][1] != "test":
-    raise Exception("Completion of std::vector<A> didn't work")
-
-offset = get_offset_from_line_and_column(fulldata, 20, 12)
-comp = sqlitecache.sqlCache.complete(fulldata[:offset], extract_line_until_offset(fulldata, offset), "")
-if comp == None or len(comp) == 0 or comp[0][1] != "test":
-    raise Exception("Completion of typedeffed std::vector<A> didn't work")
-
-offset = get_offset_from_line_and_column(fulldata, 31, 20)
-comp = sqlitecache.sqlCache.complete(fulldata[:offset], extract_line_until_offset(fulldata, offset), "")
-if comp == None or len(comp) == 0 or comp[0][1] != "test":
-    raise Exception("Completion of member typedeffed std::vector<A> didn't work")
-
-offset = get_offset_from_line_and_column(fulldata, 32, 21)
-comp = sqlitecache.sqlCache.complete(fulldata[:offset], extract_line_until_offset(fulldata, offset), "")
-if comp == None or len(comp) == 0 or comp[0][1] != "test":
-    raise Exception("Completion of member std::vector<A> didn't work")
-
-offset = get_offset_from_line_and_column(fulldata, 43, 28)
-comp = sqlitecache.sqlCache.complete(fulldata[:offset], extract_line_until_offset(fulldata, offset), "")
-if comp == None or len(comp) == 0 or comp[0][1] != "test":
-    raise Exception("Completion of member std::vector<AV> didn't work")
-
-offset = get_offset_from_line_and_column(fulldata, 44, 29)
-comp = sqlitecache.sqlCache.complete(fulldata[:offset], extract_line_until_offset(fulldata, offset), "")
-if comp == None or len(comp) == 0 or comp[0][1] != "test":
-    raise Exception("Completion of member std::vector<std::vector<A> > didn't work")
-
-offset = get_offset_from_line_and_column(fulldata, 55, 36)
-comp = sqlitecache.sqlCache.complete(fulldata[:offset], extract_line_until_offset(fulldata, offset), "")
-if comp == None or len(comp) == 0 or comp[0][1] != "test":
-    raise Exception("Completion of member std::vector<std::vector<AV> > didn't work")
-
-offset = get_offset_from_line_and_column(fulldata, 56, 37)
-comp = sqlitecache.sqlCache.complete(fulldata[:offset], extract_line_until_offset(fulldata, offset), "")
-if comp == None or len(comp) == 0 or comp[0][1] != "test":
-    raise Exception("Completion of member std::vector<std::vector<std::vector<A> > > didn't work")
-
-offset = get_offset_from_line_and_column(fulldata, 76, 11)
-comp = sqlitecache.sqlCache.complete(fulldata[:offset], extract_line_until_offset(fulldata, offset), "")
-if comp == None or len(comp) == 0 or comp[0][1] != "test":
-    raise Exception("Completion of TempA<A> didn't work")
-
-offset = get_offset_from_line_and_column(fulldata, 79, 35)
-comp = sqlitecache.sqlCache.complete(fulldata[:offset], extract_line_until_offset(fulldata, offset), "")
-if comp == None or len(comp) == 0 or comp[0][1] != "test":
-    raise Exception("Completion of TempA<TempB<TempA<TempB<A> > > > didn't work")
-
-offset = get_offset_from_line_and_column(fulldata, 80, 19)
-comp = sqlitecache.sqlCache.complete(fulldata[:offset], extract_line_until_offset(fulldata, offset), "")
-if comp == None or len(comp) == 0 or comp[0][1] != "test":
-    raise Exception("Completion of TempA<TempB<TempA<TempB<A> > > > field didn't work")
-
-offset = get_offset_from_line_and_column(fulldata, 85, 38)
-comp = sqlitecache.sqlCache.complete(fulldata[:offset], extract_line_until_offset(fulldata, offset), "")
-if comp == None or len(comp) == 0 or comp[0][1] != "test":
-    raise Exception("Completion of Tababa typedef didn't work")
-
-offset = get_offset_from_line_and_column(fulldata, 86, 22)
-comp = sqlitecache.sqlCache.complete(fulldata[:offset], extract_line_until_offset(fulldata, offset), "")
-if comp == None or len(comp) == 0 or comp[0][1] != "test":
-    raise Exception("Completion of Tababa typedef field didn't work")
-
-offset = get_offset_from_line_and_column(fulldata, 99, 51)
-comp = sqlitecache.sqlCache.complete(fulldata[:offset], extract_line_until_offset(fulldata, offset), "")
-if comp == None or len(comp) == 0 or comp[0][1] != "test":
-    raise Exception("Completion of member Tababa typedef didn't work")
-
-offset = get_offset_from_line_and_column(fulldata, 100, 47)
-comp = sqlitecache.sqlCache.complete(fulldata[:offset], extract_line_until_offset(fulldata, offset), "")
-if comp == None or len(comp) == 0 or comp[0][1] != "test":
-    raise Exception("Completion of member Tababa field didn't work")
-
-offset = get_offset_from_line_and_column(fulldata, 107, 9)
-comp = sqlitecache.sqlCache.complete(fulldata[:offset], extract_line_until_offset(fulldata, offset), "c_st")
-if comp == None or len(comp) == 0 or comp[0][1] != "c_str()":
-    raise Exception("Completion of std::string didn't work")
-
-offset = get_offset_from_line_and_column(fulldata, 110, 12)
-comp = sqlitecache.sqlCache.complete(fulldata[:offset], extract_line_until_offset(fulldata, offset), "res")
-if comp == None or len(comp) == 0 or comp[0][1] != "reset()":
-    raise Exception("Completion of boost::shared_ptr didn't work")
-
-offset = get_offset_from_line_and_column(fulldata, 111, 22)
-comp = sqlitecache.sqlCache.complete(fulldata[:offset], extract_line_until_offset(fulldata, offset), "c_st")
-if comp == None or len(comp) == 0 or comp[0][1] != "c_str()":
-    raise Exception("Completion of boost::shared_ptr<std::vector<std::string> > didn't work")
-
-offset = get_offset_from_line_and_column(fulldata, 115, 14)
-comp = sqlitecache.sqlCache.complete(fulldata[:offset], extract_line_until_offset(fulldata, offset), "")
-if comp == None or len(comp) == 0 or comp[0][1] != "test":
-    raise Exception("Completion of parameter& didn't work")
 
 print "all is well"
