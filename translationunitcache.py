@@ -80,6 +80,9 @@ _createCache.restype = c_void_p
 _createCache.argtypes = [cindex.Cursor]
 _deleteCache = cachelib.deleteCache
 _deleteCache.argtypes = [c_void_p]
+cache_completeNamespace = cachelib.cache_completeNamespace
+cache_completeNamespace.argtypes = [c_void_p, POINTER(c_char_p), c_uint]
+cache_completeNamespace.restype = POINTER(CacheCompletionResults)
 cache_complete_startswith = cachelib.cache_complete_startswith
 cache_complete_startswith.argtypes = [c_void_p, c_char_p]
 cache_complete_startswith.restype = POINTER(CacheCompletionResults)
@@ -90,13 +93,16 @@ cache_disposeCompletionResults.argtypes = [POINTER(CacheCompletionResults)]
 class Cache:
     def __init__(self, tu):
         self.cache = _createCache(tu.cursor)
+        if self.cache == None:
+            raise Exception("cache is None")
         self.tu = tu
 
     def __del__(self):
         if self.cache:
             _deleteCache(self.cache)
 
-    def complete(self, line, data, prefix):
+    def complete(self, data, prefix):
+        line = extract_line_at_offset(data, len(data)-1)
         before = line
         if len(prefix) > 0:
             before = line[:-len(prefix)]
@@ -104,16 +110,23 @@ class Cache:
         ret = None
         if re.search("::$", before):
             # TODO
-            return None
+            namespace = ["std"]
+            nsarg = (c_char_p*len(namespace))()
+            for i in range(len(namespace)):
+                nsarg[i] = namespace[i]
+            comp = cache_completeNamespace(self.cache, nsarg, len(nsarg))
+            if comp:
+                ret = [(x.display, x.insert) for x in comp[0]]
+                cache_disposeCompletionResults(comp)
+            return ret
         elif re.search("([^ \t]+)(\.|\->)$", before):
             # TODO
             return None
         else:
-            if self.cache:
-                cached_results = cache_complete_startswith(self.cache, prefix)
-                if cached_results:
-                    ret = [(x.display, x.insert) for x in cached_results[0]]
-                    cache_disposeCompletionResults(cached_results)
+            cached_results = cache_complete_startswith(self.cache, prefix)
+            if cached_results:
+                ret = [(x.display, x.insert) for x in cached_results[0]]
+                cache_disposeCompletionResults(cached_results)
             variables = extract_variables(data)
             var = [("%s\t%s" % (v[1], v[0]), v[1]) for v in variables]
             if len(var) and ret == None:

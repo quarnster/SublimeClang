@@ -44,7 +44,6 @@ CXChildVisitResult getchildren_visitor(CXCursor cursor, CXCursor parent, CXClien
     return CXChildVisit_Continue;
 }
 
-
 CXCursor get_resolved_cursor(CXCursor self)
 {
     CXCursorKind kind = clang_getCursorKind(self);
@@ -362,18 +361,29 @@ public:
     char * display;
 };
 
-class FindData
-{
-public:
-    FindData(const char* s)
-    : found(false), spelling(s)
-    {
 
+void trim(std::vector<Entry*>& mEntries)
+{
+    float t1 = getTime();
+    for (std::vector<Entry*>::iterator i = mEntries.begin(); i < mEntries.end(); i++)
+    {
+        while ((*i)->display[0] == '\t')
+        {
+            delete *i;
+            mEntries.erase(i);
+        }
     }
-    CXCursor cursor;
-    bool found;
-    const char *spelling;
-};
+    for (std::vector<Entry*>::iterator i = mEntries.begin()+1; i < mEntries.end(); i++)
+    {
+        while ((*(*i)) == (*(*(i-1))))
+        {
+            delete *i;
+            mEntries.erase(i);
+        }
+    }
+    float t2 = getTime();
+    printf("removing duplicates: %f ms\n", t2-t1);
+}
 
 class EntryCompare
 {
@@ -402,65 +412,11 @@ public:
 class CacheCompletionResults
 {
 public:
-    CacheCompletionResults(Entry** e, unsigned int l)
-    : entries(e), length(l)
+    CacheCompletionResults(std::vector<Entry*>::iterator start, std::vector<Entry*>::iterator end, bool de=false)
+    : deleteEntries(de)
     {
-
-    }
-    ~CacheCompletionResults()
-    {
-        delete[] entries;
-    }
-    Entry** entries;
-    unsigned int length;
-};
-
-class Cache
-{
-public:
-    Cache()
-    {
-
-    }
-    ~Cache()
-    {
-        BOOST_FOREACH(Entry *e, mEntries)
-        {
-            delete e;
-        }
-        mEntries.clear();
-    }
-
-    void add(Entry *e)
-    {
-        mEntries.push_back(e);
-    }
-
-    void cleanup()
-    {
-        float t1 = getTime();
-        std::sort(mEntries.begin(), mEntries.end(), EntryCompare());
-        float t2 = getTime();
-        printf("sort: %f ms\n", t2-t1);
-        t1 = getTime();
-        for (std::vector<Entry*>::iterator i = mEntries.begin()+1; i < mEntries.end(); i++)
-        {
-            while ((*(*i)) == (*(*(i-1))))
-            {
-                delete *i;
-                mEntries.erase(i);
-            }
-        }
-        t2 = getTime();
-        printf("removing duplicates: %f ms\n", t2-t1);
-    }
-    CacheCompletionResults* complete(const char *prefix)
-    {
-        std::vector<Entry*>::iterator start = std::lower_bound(mEntries.begin(), mEntries.end(), prefix, EntryStringCompare());
-        std::vector<Entry*>::iterator end = std::upper_bound(mEntries.begin(), mEntries.end(), prefix, EntryStringCompare());
-
-        int count = end-start;
-        Entry** entries = new Entry*[count];
+        length = end-start;
+        entries = new Entry*[length];
         int i = 0;
         while (start < end)
         {
@@ -468,43 +424,25 @@ public:
             start++;
             i++;
         }
-        return new CacheCompletionResults(entries, count);
     }
-private:
-    std::vector<Entry*> mEntries;
+    ~CacheCompletionResults()
+    {
+        if (deleteEntries)
+        {
+            for (unsigned int i = 0; i < length; i++)
+            {
+                delete entries[i];
+            }
+        }
+        delete[] entries;
+    }
+
+    Entry** entries;
+    unsigned int length;
+    bool deleteEntries;
 };
 
-CXChildVisitResult findtype_visitor(CXCursor cursor, CXCursor parent, CXClientData client_data)
-{
-    if (clang_Cursor_isNull(cursor))
-        return CXChildVisit_Break;
-    CXCursorKind ck = clang_getCursorKind(cursor);
-    switch (ck)
-    {
-        default: break;
-        case CXCursor_StructDecl:
-        case CXCursor_ClassDecl:
-        {
-            CXString s = clang_getCursorSpelling(cursor);
-            const char *str = clang_getCString(s);
-            if (str)
-            {
-                FindData* data = (FindData*) client_data;
-                if (!strcmp(str, data->spelling))
-                {
-                    data->cursor = cursor;
-                    data->found = true;
-                    return CXChildVisit_Break;
-                }
-            }
-            clang_disposeString(s);
-            break;
-        }
-    }
-    return CXChildVisit_Continue;
-}
-
-CXChildVisitResult visitor_quick(CXCursor cursor, CXCursor parent, CXClientData client_data)
+CXChildVisitResult get_completion_children(CXCursor cursor, CXCursor parent, CXClientData client_data)
 {
     if (clang_Cursor_isNull(cursor))
         return CXChildVisit_Break;
@@ -514,12 +452,12 @@ CXChildVisitResult visitor_quick(CXCursor cursor, CXCursor parent, CXClientData 
     {
         default: break;
         case CXCursor_UnexposedDecl: // extern "C" for example
-        case CXCursor_EnumDecl:
             recurse = true;
             break;
-        case CXCursor_Namespace:
+        case CXCursor_EnumDecl:
             recurse = true;
             // fall through
+        case CXCursor_Namespace:
         case CXCursor_ClassDecl:
         case CXCursor_CXXMethod:
         case CXCursor_EnumConstantDecl:
@@ -531,11 +469,11 @@ CXChildVisitResult visitor_quick(CXCursor cursor, CXCursor parent, CXClientData 
         case CXCursor_VarDecl:
         case CXCursor_MacroDefinition:
         {
-            Cache * cache = (Cache*) client_data;
+            std::vector<Entry*>* entries = (std::vector<Entry*>*) client_data;
             std::string ins;
             std::string disp;
             parse_res(ins, disp, cursor);
-            cache->add(new Entry(cursor, disp, ins));
+            entries->push_back(new Entry(cursor, disp, ins));
             break;
         }
     }
@@ -547,10 +485,206 @@ CXChildVisitResult visitor_quick(CXCursor cursor, CXCursor parent, CXClientData 
     return CXChildVisit_Continue;
 }
 
+class NamespaceVisitorData
+{
+public:
+    NamespaceVisitorData(CXCursor base, const char **ns, unsigned int nsLength)
+    : namespaces(ns), namespaceCount(nsLength)
+    {
+        clang_visitChildren(base, &visitor, this);
+        std::sort(mEntries.begin(), mEntries.end(), EntryCompare());
+        trim(mEntries);
+    }
+    ~NamespaceVisitorData()
+    {
+        // Note: intentionally not freeing mEntries as the CacheCompletionResults
+        //       created later will take ownership
+    }
+    static CXChildVisitResult visitor(CXCursor cursor, CXCursor parent, CXClientData client_data)
+    {
+        if (clang_Cursor_isNull(cursor))
+            return CXChildVisit_Break;
+        NamespaceVisitorData *nvd = (NamespaceVisitorData*) client_data;
+
+        while (nvd->mParents.size() && !clang_equalCursors(nvd->mParents.back(), parent))
+        {
+            nvd->mParents.pop_back();
+        }
+
+        CXCursorKind ck = clang_getCursorKind(cursor);
+        bool recurse = false;
+
+        switch (ck)
+        {
+            default: break;
+            case CXCursor_Namespace:
+            {
+                if (nvd->mParents.size() < nvd->namespaceCount)
+                {
+                    CXString s = clang_getCursorSpelling(cursor);
+                    const char *str = clang_getCString(s);
+                    if (str)
+                    {
+                        if (!strcmp(nvd->namespaces[nvd->mParents.size()], str))
+                        {
+                            recurse = true;
+                        }
+                    }
+                    clang_disposeString(s);
+                }
+                break;
+            }
+        }
+        if (nvd->mParents.size() && clang_equalCursors(nvd->mParents.back(), clang_getCursorSemanticParent(cursor)))
+        {
+            switch (ck)
+            {
+                default: break;
+                case CXCursor_EnumDecl:
+                    recurse = true;
+                case CXCursor_Namespace:
+                case CXCursor_ClassDecl:
+                case CXCursor_CXXMethod:
+                case CXCursor_EnumConstantDecl:
+                case CXCursor_TypedefDecl:
+                case CXCursor_FunctionDecl:
+                case CXCursor_FunctionTemplate:
+                case CXCursor_StructDecl:
+                case CXCursor_FieldDecl:
+                case CXCursor_VarDecl:
+                case CXCursor_MacroDefinition:
+                {
+                    std::string ins;
+                    std::string disp;
+                    parse_res(ins, disp, cursor);
+                    nvd->mEntries.push_back(new Entry(cursor, disp, ins));
+                    break;
+                }
+            }
+        }
+        if (recurse)
+        {
+            nvd->mParents.push_back(cursor);
+            return CXChildVisit_Recurse;
+        }
+
+        return CXChildVisit_Continue;
+    }
+
+    std::vector<Entry*> &getEntries()
+    {
+        return mEntries;
+    }
+
+private:
+    std::vector<CXCursor> mParents;
+    std::vector<Entry*> mEntries;
+    const char **namespaces;
+    unsigned int namespaceCount;
+};
+
+
+class FindData
+{
+public:
+    FindData(const char* s)
+    : found(false), spelling(s)
+    {
+
+    }
+    static CXChildVisitResult visitor(CXCursor cursor, CXCursor parent, CXClientData client_data)
+    {
+        if (clang_Cursor_isNull(cursor))
+            return CXChildVisit_Break;
+        CXCursorKind ck = clang_getCursorKind(cursor);
+        switch (ck)
+        {
+            default: break;
+            case CXCursor_StructDecl:
+            case CXCursor_ClassDecl:
+            {
+                CXString s = clang_getCursorSpelling(cursor);
+                const char *str = clang_getCString(s);
+                if (str)
+                {
+                    FindData* data = (FindData*) client_data;
+                    if (!strcmp(str, data->spelling))
+                    {
+                        data->cursor = cursor;
+                        data->found = true;
+                        return CXChildVisit_Break;
+                    }
+                }
+                clang_disposeString(s);
+                break;
+            }
+        }
+        return CXChildVisit_Continue;
+    }
+    CXCursor cursor;
+    bool found;
+    const char *spelling;
+};
+
+class Cache
+{
+public:
+    Cache(CXCursor base)
+    : mBaseCursor(base)
+    {
+        float t1 = getTime();
+        clang_visitChildren(base, get_completion_children, &mEntries);
+        float t2 = getTime();
+        printf("quick visit: %f ms\n", t2-t1);
+
+        t1 = getTime();
+        std::sort(mEntries.begin(), mEntries.end(), EntryCompare());
+        t2 = getTime();
+        printf("sort: %f ms\n", t2-t1);
+        trim(mEntries);
+    }
+    ~Cache()
+    {
+        BOOST_FOREACH(Entry *e, mEntries)
+        {
+            delete e;
+        }
+        mEntries.clear();
+    }
+
+    void cleanup()
+    {
+    }
+    CacheCompletionResults* complete(const char *prefix)
+    {
+        std::vector<Entry*>::iterator start = std::lower_bound(mEntries.begin(), mEntries.end(), prefix, EntryStringCompare());
+        std::vector<Entry*>::iterator end = std::upper_bound(mEntries.begin(), mEntries.end(), prefix, EntryStringCompare());
+
+        return new CacheCompletionResults(start, end);
+    }
+
+    CacheCompletionResults* getNamespaceMembers(const char **ns, unsigned int nsLength)
+    {
+        float t1 = getTime();
+        NamespaceVisitorData d(mBaseCursor, ns, nsLength);
+        float t2 = getTime();
+        printf("complete namespace: %f ms\n", t2-t1);
+        std::vector<Entry*>& entries = d.getEntries();
+        return new CacheCompletionResults(entries.begin(), entries.end(), true);
+    }
+private:
+    CXCursor            mBaseCursor;
+    std::vector<Entry*> mEntries;
+};
 
 
 extern "C"
 {
+
+CacheCompletionResults* cache_completeNamespace(Cache* cache, const char **namespaces, unsigned int length)
+{
+    return cache->getNamespaceMembers(namespaces, length);
+}
 
 CacheCompletionResults* cache_complete_startswith(Cache* cache, const char *prefix)
 {
@@ -564,14 +698,7 @@ void cache_disposeCompletionResults(CacheCompletionResults *comp)
 Cache* createCache(CXCursor base)
 {
     gettimeofday(&start, NULL);
-    float t1 = getTime();
-    Cache *cache = new Cache;
-    clang_visitChildren(base, visitor_quick, cache);
-    float t2 = getTime();
-    printf("quick visit: %f ms\n", t2-t1);
-
-    cache->cleanup();
-    return cache;
+    return new Cache(base);
 }
 
 void deleteCache(Cache *cache)
