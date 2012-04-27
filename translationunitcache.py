@@ -20,11 +20,12 @@ freely, subject to the following restrictions:
    3. This notice may not be removed or altered from any source
    distribution.
 """
-from common import Worker, get_setting, get_path_setting, get_language, LockedVariable, run_in_main_thread
+from common import Worker, get_setting, get_path_setting, get_language, LockedVariable, run_in_main_thread, error_message
 from clang import cindex
 import time
-from ctypes import cdll, Structure, POINTER, c_char_p, c_void_p, c_int, c_uint
-
+from ctypes import cdll, Structure, POINTER, c_char_p, c_void_p, c_uint
+from parsehelp import *
+import re
 
 
 def get_cache_library():
@@ -33,7 +34,7 @@ def get_cache_library():
     if name == 'Darwin':
         return cdll.LoadLibrary('libcache.dylib')
     elif name == 'Windows':
-        if isWin64:
+        if cindex.isWin64:
             return cdll.LoadLibrary("libcache_x64.dll")
         return cdll.LoadLibrary('libcache.dll')
     else:
@@ -86,6 +87,43 @@ cache_disposeCompletionResults = cachelib.cache_disposeCompletionResults
 cache_disposeCompletionResults.argtypes = [POINTER(CacheCompletionResults)]
 
 
+class Cache:
+    def __init__(self, tu):
+        self.cache = _createCache(tu.cursor)
+        self.tu = tu
+
+    def __del__(self):
+        if self.cache:
+            _deleteCache(self.cache)
+
+    def complete(self, line, data, prefix):
+        before = line
+        if len(prefix) > 0:
+            before = line[:-len(prefix)]
+
+        ret = None
+        if re.search("::$", before):
+            # TODO
+            return None
+        elif re.search("([^ \t]+)(\.|\->)$", before):
+            # TODO
+            return None
+        else:
+            if self.cache:
+                cached_results = cache_complete_startswith(self.cache, prefix)
+                if cached_results:
+                    ret = [(x.display, x.insert) for x in cached_results[0]]
+                    cache_disposeCompletionResults(cached_results)
+            variables = extract_variables(data)
+            var = [("%s\t%s" % (v[1], v[0]), v[1]) for v in variables]
+            if len(var) and ret == None:
+                ret = []
+            for v in var:
+                if v[1].startswith(prefix) and not v in ret:
+                    ret.append(v)
+        return ret
+
+
 class TranslationUnitCache(Worker):
     STATUS_PARSING      = 1
     STATUS_REPARSING    = 2
@@ -95,33 +133,7 @@ class TranslationUnitCache(Worker):
     class LockedTranslationUnit(LockedVariable):
         def __init__(self, var):
             LockedVariable.__init__(self, var)
-            self.cache = None
-            self.refresh_cache()
-
-        def refresh_cache(self, dolock=True):
-            if dolock:
-                self.lock()
-            try:
-                if self.cache:
-                    _deleteCache(self.cache)
-                    self.cache = None
-                self.cache = _createCache(self.var.cursor)
-            finally:
-                if dolock:
-                    self.unlock()
-
-        def __del__(self):
-            if self.cache:
-                _deleteCache(self.cache)
-
-        def complete(self, prefix):
-            ret = None
-            if self.cache:
-                cached_results = cache_complete_startswith(self.cache, prefix)
-                if cached_results:
-                    ret = [(x.display, x.insert) for x in cached_results[0]]
-                    cache_disposeCompletionResults(cached_results)
-            return ret
+            self.cache = Cache(var)
 
     def __init__(self):
         self.as_super = super(TranslationUnitCache, self)
@@ -208,7 +220,7 @@ class TranslationUnitCache(Worker):
                 tu.lock()
                 try:
                     tu.var.reparse(unsaved_files)
-                    tu.refresh_cache(False)
+                    tu.cache = Cache(tu.var)
                     self.set_status("Reparsing %s done" % filename)
                 finally:
                     tu.unlock()

@@ -525,11 +525,11 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
                 timing += "TU: %f" % (curr)
                 start = time.time()
 
-            #line = view.substr(sublime.Region(view.full_line(locations[0]).begin(), locations[0]))
-            #data = view.substr(sublime.Region(0, locations[0]))
             cached_results = None
             if clang_fast_completions:
-                cached_results = tu.complete(prefix)
+                line = view.substr(sublime.Region(view.full_line(locations[0]).begin(), locations[0]))
+                data = view.substr(sublime.Region(0, locations[0]))
+                cached_results = tu.cache.complete(line, data, prefix)
             if cached_results:
                 ret = cached_results
             else:
