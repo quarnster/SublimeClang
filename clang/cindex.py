@@ -1101,6 +1101,9 @@ class Cursor(Structure):
     def get_resolved_cursor(self):
         #print "get_type"
         if self.kind == CursorKind.TYPEDEF_DECL:
+            children = self.get_children()
+            if len(children) == 1:
+                return children[0].get_resolved_cursor()
             return self
         elif self.result_type.kind == TypeKind.RECORD:
             return self.get_children()[0].get_resolved_cursor()

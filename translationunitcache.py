@@ -97,11 +97,12 @@ cache_completeCursor.restype = POINTER(CacheCompletionResults)
 
 
 class Cache:
-    def __init__(self, tu):
+    def __init__(self, tu, filename):
         self.cache = _createCache(tu.cursor)
         if self.cache == None:
             raise Exception("cache is None")
         self.tu = tu
+        self.filename = filename
 
     def __del__(self):
         if self.cache:
@@ -138,8 +139,63 @@ class Cache:
                             cache_disposeCompletionResults(comp)
             return ret
         elif re.search("([^ \t]+)(\.|\->)$", before):
-            # TODO
-            return None
+            typedef = get_type_definition(data, before)
+            if typedef == None:
+                return None
+            line, column, typename, var, tocomplete = typedef
+            if typename == None:
+                return None
+            cursor = cindex.Cursor.get(self.tu, self.filename, line, column)
+            if cursor is None or cursor.kind.is_invalid() or cursor.spelling != var:
+                # TODO: "using namespace"
+                cursor = cache_findType(self.cache, None, 0, get_base_type(typename))
+            if not cursor is None and not cursor.kind.is_invalid():
+                r = cursor
+                count = 0
+                while len(tocomplete) and count < 10:
+                    if r is None or \
+                            not (r.kind == cindex.CursorKind.CLASS_DECL or \
+                            r.kind == cindex.CursorKind.STRUCT_DECL):
+                        r = None
+                        break
+                    count += 1
+                    match = re.search("([^\.\-\(]+)?(\(|\.|->)(.*)", tocomplete)
+                    if match == None:
+                        break
+
+                    tocomplete = match.group(3)
+                    count = 1
+                    function = False
+                    if match.group(2) == "(":
+                        function = True
+                        for i in range(len(tocomplete)):
+                            if tocomplete[i] == '(':
+                                count += 1
+                            elif tocomplete[i] == ')':
+                                count -= 1
+                                if count == 0:
+                                    tocomplete = tocomplete[i+1:]
+                                    break
+                    left = re.match("(\.|\->)?(.*)", tocomplete)
+                    tocomplete = left.group(2)
+                    if left.group(1) != None:
+                        tocomplete = left.group(1) + tocomplete
+                    # TODO: operator->
+                    if match.group(1):
+                        comp = r.get_member(match.group(1), function)
+                        if comp is None or comp.kind.is_invalid():
+                            r = None
+                            break
+                        r = comp.get_resolved_cursor()
+                if not r is None and not r.kind.is_invalid():
+                    comp = cache_completeCursor(self.cache, r)
+                    if comp:
+                        ret = []
+                        for c in comp[0]:
+                            if not c.static and c.cursor.kind != cindex.CursorKind.ENUM_CONSTANT_DECL:
+                                ret.append((c.display, c.insert))
+                        cache_disposeCompletionResults(comp)
+            return ret
         else:
             cached_results = cache_complete_startswith(self.cache, prefix)
             if cached_results:
@@ -175,6 +231,7 @@ class Cache:
                                 if add not in ret:
                                     ret.append(add)
                         cache_disposeCompletionResults(comp)
+            # TODO: add in stuff from "using namespace" directives
         return ret
 
 
@@ -185,9 +242,9 @@ class TranslationUnitCache(Worker):
     STATUS_NOT_IN_CACHE = 4
 
     class LockedTranslationUnit(LockedVariable):
-        def __init__(self, var):
+        def __init__(self, var, fn):
             LockedVariable.__init__(self, var)
-            self.cache = Cache(var)
+            self.cache = Cache(var, fn)
 
     def __init__(self):
         self.as_super = super(TranslationUnitCache, self)
@@ -274,7 +331,7 @@ class TranslationUnitCache(Worker):
                 tu.lock()
                 try:
                     tu.var.reparse(unsaved_files)
-                    tu.cache = Cache(tu.var)
+                    tu.cache = Cache(tu.var, filename)
                     self.set_status("Reparsing %s done" % filename)
                 finally:
                     tu.unlock()
@@ -368,7 +425,7 @@ class TranslationUnitCache(Worker):
                 # Apparently the options aren't used in the first parse,
                 # so reparse to heat up the cache
                 tu.reparse(unsaved_files)
-                tu = TranslationUnitCache.LockedTranslationUnit(tu)
+                tu = TranslationUnitCache.LockedTranslationUnit(tu, filename)
                 tus = self.translationUnits.lock()
                 tus[filename] = tu
                 self.translationUnits.unlock()

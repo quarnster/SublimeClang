@@ -269,6 +269,11 @@ def get_var_type(data, var):
                 if key in _keywords:
                     continue
                 match = m
+    if match and match.group(1):
+        # Just so that it reports the correct location in the file
+        regex = re.compile("(%s)(%s)(\(|\;|,|\)|=)" % (match.group(1), match.group(2)))
+        for m in regex.finditer(origdata):
+            match = m
     return match
 
 
