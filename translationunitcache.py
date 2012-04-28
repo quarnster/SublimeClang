@@ -154,6 +154,7 @@ class Cache:
             for v in var:
                 if v[1].startswith(prefix) and not v in ret:
                     ret.append(v)
+            # TODO: if we're in a class, add class members
         return ret
 
 
