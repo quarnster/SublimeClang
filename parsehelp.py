@@ -154,7 +154,7 @@ def extract_class(data):
     data = remove_preprocessing(data)
     data = collapse_brackets(data)
     data = remove_classes(data)
-    regex = re.compile("class\s+([^;{\\s]+)\\s*(;|\{)")
+    regex = re.compile("class\s+([^;{\\s:]+)\\s*(:|;|\{)")
     ret = None
     for match in regex.finditer(data, re.MULTILINE):
         ret = match.group(1)

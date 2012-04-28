@@ -129,8 +129,6 @@ class Cache:
                 if len(ret) == 0:
                     typename = namespace.pop()
                     c = cache_findType(self.cache, nsarg, len(nsarg)-1, typename)
-                    if not c is None:
-                        c.dump_self()
                     if not c is None and not c.kind.is_invalid():
                         comp = cache_completeCursor(self.cache, c)
                         if comp:
@@ -154,7 +152,29 @@ class Cache:
             for v in var:
                 if v[1].startswith(prefix) and not v in ret:
                     ret.append(v)
-            # TODO: if we're in a class, add class members
+            clazz = extract_class_from_function(data)
+            if clazz == None:
+                clazz = extract_class(data)
+            if clazz != None:
+                ns = extract_namespace(data).split("::")
+                c = None
+                if len(ns) == 1 and ns[0] == "":
+                    c = cache_findType(self.cache, None, 0, clazz)
+                else:
+                    nsarg = (c_char_p * len(ns))()
+                    for i in range(len(ns)):
+                        nsarg[i] = ns[i]
+                    c = cache_findType(self.cache, nsarg, len(ns), clazz)
+                if not c is None and not c.kind.is_invalid():
+                    c.dump_self()
+                    comp = cache_completeCursor(self.cache, c)
+                    if comp:
+                        for c in comp[0]:
+                            if not c.static and not c.cursor.kind == cindex.CursorKind.ENUM_CONSTANT_DECL:
+                                add = (c.display, c.insert)
+                                if add not in ret:
+                                    ret.append(add)
+                        cache_disposeCompletionResults(comp)
         return ret
 
 

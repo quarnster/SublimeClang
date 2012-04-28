@@ -496,7 +496,9 @@ CXChildVisitResult get_completion_children(CXCursor cursor, CXCursor parent, CXC
 
     add_completion_children(cursor, ck, recurse, *(std::vector<Entry*>*) client_data);
     if (ck == CXCursor_CXXBaseSpecifier)
-        recurse = true;
+    {
+        clang_visitChildren(clang_getCursorReferenced(cursor), get_completion_children, client_data);
+    }
 
     if (recurse)
     {
