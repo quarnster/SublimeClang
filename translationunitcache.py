@@ -23,7 +23,7 @@ freely, subject to the following restrictions:
 from common import Worker, get_setting, get_path_setting, get_language, LockedVariable, run_in_main_thread, error_message
 from clang import cindex
 import time
-from ctypes import cdll, Structure, POINTER, c_char_p, c_void_p, c_uint
+from ctypes import cdll, Structure, POINTER, c_char_p, c_void_p, c_uint, c_bool
 from parsehelp import *
 import re
 
@@ -59,7 +59,7 @@ See http://github.com/quarnster/SublimeClang for more details.
 
 
 class CacheEntry(Structure):
-    _fields_ = [("cursor", cindex.Cursor), ("insert", c_char_p), ("display", c_char_p)]
+    _fields_ = [("cursor", cindex.Cursor), ("insert", c_char_p), ("display", c_char_p), ("access", c_uint), ("static", c_bool)]
 
 
 class CacheCompletionResults(Structure):
@@ -88,6 +88,12 @@ cache_complete_startswith.argtypes = [c_void_p, c_char_p]
 cache_complete_startswith.restype = POINTER(CacheCompletionResults)
 cache_disposeCompletionResults = cachelib.cache_disposeCompletionResults
 cache_disposeCompletionResults.argtypes = [POINTER(CacheCompletionResults)]
+cache_findType = cachelib.cache_findType
+cache_findType.argtypes = [c_void_p, POINTER(c_char_p), c_uint, c_char_p]
+cache_findType.restype = cindex.Cursor
+cache_completeCursor = cachelib.cache_completeCursor
+cache_completeCursor.argtypes = [c_void_p, cindex.Cursor]
+cache_completeCursor.restype = POINTER(CacheCompletionResults)
 
 
 class Cache:
@@ -109,8 +115,10 @@ class Cache:
 
         ret = None
         if re.search("::$", before):
-            # TODO
-            namespace = ["std"]
+            match = re.search("([^\(\\s,]+::)+$", before)
+            before = match.group(1)
+            namespace = before.split("::")
+            namespace.pop()  # the last item is going to be "prefix"
             nsarg = (c_char_p*len(namespace))()
             for i in range(len(namespace)):
                 nsarg[i] = namespace[i]
@@ -118,6 +126,18 @@ class Cache:
             if comp:
                 ret = [(x.display, x.insert) for x in comp[0]]
                 cache_disposeCompletionResults(comp)
+                if len(ret) == 0:
+                    typename = namespace.pop()
+                    c = cache_findType(self.cache, nsarg, len(nsarg)-1, typename)
+                    if not c is None:
+                        c.dump_self()
+                    if not c is None and not c.kind.is_invalid():
+                        comp = cache_completeCursor(self.cache, c)
+                        if comp:
+                            for c in comp[0]:
+                                if c.static or c.cursor.kind == cindex.CursorKind.ENUM_CONSTANT_DECL:
+                                    ret.append((c.display, c.insert))
+                            cache_disposeCompletionResults(comp)
             return ret
         elif re.search("([^ \t]+)(\.|\->)$", before):
             # TODO
