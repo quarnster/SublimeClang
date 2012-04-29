@@ -40,7 +40,7 @@ import threading
 import time
 from errormarkers import clear_error_marks, add_error_mark, show_error_marks, \
                          update_statusbar, erase_error_marks, set_clang_view
-from common import get_setting, get_settings, parse_res, is_supported_language, get_language
+from common import get_setting, get_settings, is_supported_language, get_language
 import translationunitcache
 
 
@@ -451,55 +451,6 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
                 kind == cindex.CursorKind.OBJC_INSTANCE_METHOD_DECL or \
                 kind == cindex.CursorKind.FUNCTION_TEMPLATE
 
-    def get_result_typedtext(self, result):
-        for chunk in result.string:
-            if chunk.isKindTypedText():
-                return chunk.spelling.lower()
-
-    def search_results(self, prefix, results, start, findStart):
-        l = len(results)
-        end = l - 1
-        prefix = prefix.lower()
-        while start <= end:
-            mid = (start + end) / 2
-            res1 = self.get_result_typedtext(results[mid])
-            cmp1 = res1.startswith(prefix)
-
-            cmp2 = False
-            if mid + 1 < l:
-                res2 = self.get_result_typedtext(results[mid + 1])
-                cmp2 = res2.startswith(prefix)
-
-            if findStart:
-                if cmp2 and not cmp1:
-                    # found the start position
-                    return mid + 1
-                elif cmp1 and mid == 0:
-                    # the list starts with the item we're searching for
-                    return mid
-                elif res1 < prefix:
-                    start = mid + 1
-                else:
-                    end = mid - 1
-            else:
-                if cmp1 and not cmp2:
-                    #found the end position
-                    return mid
-                elif res1.startswith(prefix) or res1 < prefix:
-                    start = mid + 1
-                else:
-                    end = mid - 1
-        return -1
-
-    def find_prefix_range(self, prefix, results):
-        if len(prefix) == 0:
-            return (0, len(results) - 1)
-        start = self.search_results(prefix, results, 0, True)
-        end = -1
-        if start != -1:
-            end = self.search_results(prefix, results, 0, False)
-        return (start, end)
-
     def return_completions(self, comp, view):
         if get_setting("inhibit_sublime_completions", True, view):
             return (comp, sublime.INHIBIT_WORD_COMPLETIONS | sublime.INHIBIT_EXPLICIT_COMPLETIONS)
@@ -537,44 +488,32 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
                 if view.is_dirty():
                     unsaved_files.append((view.file_name(),
                                       view.substr(Region(0, view.size()))))
-                res = tu.var.codeComplete(view.file_name(), row + 1, col + 1,
-                                      unsaved_files, 3)
-                if res != None:
-                    ret = []
-                    res.sort()
-                    if self.time_completions:
-                        curr = (time.time() - start)*1000
-                        tot += curr
-                        timing += ", Sort: %f" % (curr)
-                        start = time.time()
-                    onlyMembers = self.is_member_completion(view,
-                                                            locations[0] - len(prefix))
-                    s, e = self.find_prefix_range(prefix, res.results)
-                    if self.time_completions:
-                        curr = (time.time() - start)*1000
-                        tot += curr
-                        timing += ", Range: %f" % (curr)
-                        start = time.time()
-                    if not (s == -1 or e == -1):
-                        for idx in range(s, e + 1):
-                            compRes = res.results[idx]
-                            string = compRes.string
-                            if string.isAvailabilityNotAccessible() or (
-                                     onlyMembers and
-                                     not self.is_member_kind(compRes.kind)):
-                                continue
-
-                            add, representation, insertion = parse_res(
-                                            string, prefix)
-                            if add:
-                                #print compRes.kind, compRes.string
-                                ret.append((representation, insertion))
-                ret = sorted(ret)
+                ret = tu.cache.clangcomplete(view.file_name(), row+1, col+1, unsaved_files, self.is_member_completion(view, locations[0] - len(prefix)))
             if self.time_completions:
-                # TODO
                 curr = (time.time() - start)*1000
                 tot += curr
                 timing += ", Comp: %f" % (curr)
+                start = time.time()
+
+            if len(self.dont_complete_startswith) and ret:
+                i = 0
+                while i < len(ret):
+                    disp = ret[i][0]
+                    pop = False
+                    for comp in self.dont_complete_startswith:
+                        if disp.startswith(comp):
+                            pop = True
+                            break
+
+                    if pop:
+                        ret.pop(i)
+                    else:
+                        i += 1
+
+            if self.time_completions:
+                curr = (time.time() - start)*1000
+                tot += curr
+                timing += ", Filter: %f" % (curr)
                 timing += ", Tot: %f ms" % (tot)
                 print timing
                 sublime.status_message(timing)

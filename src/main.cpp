@@ -193,11 +193,8 @@ CXCursor get_returned_cursor(CXCursor self)
     return clang_getNullCursor();
 }
 
-
-void parse_res(std::string& insertion, std::string& representation, CXCursor cursor)
+void get_return_type(std::string& returnType, CXCursorKind ck)
 {
-    CXCursorKind ck = clang_getCursorKind(cursor);
-    std::string returnType;
     switch (ck)
     {
         default: break;
@@ -209,46 +206,65 @@ void parse_res(std::string& insertion, std::string& representation, CXCursor cur
         case CXCursor_Namespace: returnType = "namespace"; break;
         case CXCursor_TypedefDecl: returnType = "typedef"; break;
     }
+}
 
+void parse_res(std::string& returnType, std::string& insertion, std::string& representation, CXCompletionString comp)
+{
+    int num = clang_getNumCompletionChunks(comp);
+    int placeholderCount = 0;
+    bool start = false;
+    for (int i = 0; i < num; i++)
+    {
+        CXCompletionChunkKind kind = clang_getCompletionChunkKind(comp, i);
+        CXString str = clang_getCompletionChunkText(comp, i);
+        const char *spelling = clang_getCString(str);
+        if (!spelling)
+            spelling = "";
+        if (kind == CXCompletionChunk_TypedText)
+        {
+            start = true;
+        }
+        if (kind == CXCompletionChunk_ResultType)
+        {
+            returnType = spelling;
+        }
+        else
+        {
+            representation += spelling;
+        }
+        if (start && kind != CXCompletionChunk_Informative)
+        {
+            if (kind == CXCompletionChunk_Placeholder)
+            {
+                placeholderCount++;
+                char buf[512];
+                snprintf(buf, 512, "${%d:%s}", placeholderCount, spelling);
+                insertion += buf;
+            }
+            else
+                insertion += spelling;
+        }
+        clang_disposeString(str);
+    }
+    representation += "\t" + returnType;
+}
+
+void parse_res(std::string& insertion, std::string& representation, CXCursorKind ck, CXCompletionString comp)
+{
+    std::string returnType;
+    get_return_type(returnType, ck);
+    parse_res(returnType, insertion, representation, comp);
+}
+
+void parse_res(std::string& insertion, std::string& representation, CXCursor cursor)
+{
+    CXCursorKind ck = clang_getCursorKind(cursor);
+    std::string returnType;
+    get_return_type(returnType, ck);
     if (ck != CXCursor_MacroDefinition && ck != CXCursor_Namespace)
     {
         CXCompletionString comp = clang_getCursorCompletionString(cursor);
-        int num = clang_getNumCompletionChunks(comp);
-        int placeholderCount = 0;
-        bool start = false;
-        for (int i = 0; i < num; i++)
-        {
-            CXCompletionChunkKind kind = clang_getCompletionChunkKind(comp, i);
-            CXString str = clang_getCompletionChunkText(comp, i);
-            const char *spelling = clang_getCString(str);
-            if (!spelling)
-                spelling = "";
-            if (kind == CXCompletionChunk_TypedText)
-            {
-                start = true;
-            }
-            if (kind == CXCompletionChunk_ResultType)
-            {
-                returnType = spelling;
-            }
-            else
-            {
-                representation += spelling;
-            }
-            if (start && kind != CXCompletionChunk_Informative)
-            {
-                if (kind == CXCompletionChunk_Placeholder)
-                {
-                    placeholderCount++;
-                    char buf[512];
-                    snprintf(buf, 512, "${%d:%s}", placeholderCount, spelling);
-                    insertion += buf;
-                }
-                else
-                    insertion += spelling;
-            }
-            clang_disposeString(str);
-        }
+        parse_res(returnType, insertion, representation, comp);
     }
     else
     {
@@ -260,9 +276,10 @@ void parse_res(std::string& insertion, std::string& representation, CXCursor cur
             insertion += str;
         }
         clang_disposeString(s);
+        representation += "\t" + returnType;
     }
-    representation += "\t" + returnType;
 }
+
 
 void dump(CXCursor cursor)
 {
@@ -348,7 +365,8 @@ public:
         memcpy(display, disp.c_str(), disp.length()+1);
         insert = new char[ins.length()+1];
         memcpy(insert, ins.c_str(), ins.length()+1);
-        if (clang_getCursorKind(c) == CXCursor_CXXMethod)
+
+        if (!clang_Cursor_isNull(c) && clang_getCursorKind(c) == CXCursor_CXXMethod)
             isStatic = clang_CXXMethod_isStatic(c);
     }
     Entry(const Entry& other)
@@ -706,6 +724,50 @@ public:
         }
         mEntries.clear();
     }
+    bool isMemberKind(CXCursorKind ck)
+    {
+        switch (ck)
+        {
+            default: return false;
+            case CXCursor_CXXMethod:
+            case CXCursor_FieldDecl:
+            case CXCursor_ObjCPropertyDecl:
+            case CXCursor_ObjCClassMethodDecl:
+            case CXCursor_ObjCInstanceMethodDecl:
+            case CXCursor_FunctionTemplate:
+                return true;
+        }
+    }
+    CacheCompletionResults* clangComplete(const char *filename, unsigned int row, unsigned int col, CXUnsavedFile* unsaved, unsigned int usLength, bool memberCompletion)
+    {
+        CXCodeCompleteResults* res =  clang_codeCompleteAt(clang_Cursor_getTranslationUnit(mBaseCursor) , filename, row, col, unsaved, usLength, CXCodeComplete_IncludeMacros|CXCodeComplete_IncludeCodePatterns);
+        if (!res)
+            return NULL;
+        clang_sortCodeCompletionResults(res->Results, res->NumResults);
+        // TODO: binary search to find the range
+        int start = 0;
+        int end = res->NumResults;
+        std::vector<Entry*> entries;
+        CXCursor tmp = clang_getNullCursor();
+
+        while (start < end)
+        {
+            if (clang_getCompletionAvailability(res->Results[start].CompletionString) == CXAvailability_NotAccessible ||
+                (memberCompletion && !isMemberKind(res->Results[start].CursorKind)))
+            {
+                start++;
+                continue;
+            }
+
+            std::string insertion;
+            std::string representation;
+            parse_res(insertion, representation, res->Results[start].CursorKind, res->Results[start].CompletionString);
+            entries.push_back(new Entry(tmp, representation, insertion));
+            start++;
+        }
+        clang_disposeCodeCompleteResults(res);
+        return new CacheCompletionResults(entries.begin(), entries.end(), true);
+    }
 
     CacheCompletionResults* complete(const char *prefix)
     {
@@ -771,6 +833,11 @@ private:
 
 extern "C"
 {
+
+CacheCompletionResults* cache_clangComplete(Cache* cache, const char *filename, unsigned int row, unsigned int col, CXUnsavedFile *unsaved, unsigned int usLength, bool memberCompletion)
+{
+    return cache->clangComplete(filename, row, col, unsaved, usLength, memberCompletion);
+}
 
 CacheCompletionResults* cache_completeCursor(Cache* cache, CXCursor cur)
 {

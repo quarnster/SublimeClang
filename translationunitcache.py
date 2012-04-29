@@ -94,6 +94,9 @@ cache_findType.restype = cindex.Cursor
 cache_completeCursor = cachelib.cache_completeCursor
 cache_completeCursor.argtypes = [c_void_p, cindex.Cursor]
 cache_completeCursor.restype = POINTER(CacheCompletionResults)
+cache_clangComplete = cachelib.cache_clangComplete
+cache_clangComplete.argtypes = [c_void_p, c_char_p, c_uint, c_uint, POINTER(cindex._CXUnsavedFile), c_uint, c_bool]
+cache_clangComplete.restype = POINTER(CacheCompletionResults)
 
 
 class Cache:
@@ -234,6 +237,23 @@ class Cache:
             # TODO: add in stuff from "using namespace" directives
         return ret
 
+    def clangcomplete(self, filename, row, col, unsaved_files, membercomp):
+        ret = None
+        unsaved = 0
+        if len(unsaved_files):
+            unsaved = (cindex._CXUnsavedFile * len(unsaved_files))()
+            for i, (name, value) in enumerate(unsaved_files):
+                if not isinstance(value, str):
+                    value = value.encode("ascii", "ignore")
+                unsaved[i].name = name
+                unsaved[i].contents = value
+                unsaved[i].length = len(value)
+        comp = cache_clangComplete(self.cache, filename, row, col, unsaved, len(unsaved_files), membercomp)
+
+        if comp:
+            ret = [(c.display, c.insert) for c in comp[0]]
+            cache_disposeCompletionResults(comp)
+        return ret
 
 class TranslationUnitCache(Worker):
     STATUS_PARSING      = 1
