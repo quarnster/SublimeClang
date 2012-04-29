@@ -70,14 +70,15 @@ def collapse_ltgt(before):
         if i == -1:
             break
         if before[i] == '>':
-            if i > 0 and (before[i-1] == '>' or before[i-1] == '-'):
+            if i > 0 and (before[i-1] == '>' or before[i-1] == '-' or \
+                    (before[i-1] == ' ' and i >=2 and before[i-2] != '>')):
                 i -= 1
             else:
                 count += 1
                 if end == -1:
                     end = i
         elif before[i] == '<':
-            if i > 0 and before[i-1] == '<':
+            if i > 0 and (before[i-1] == '<' or before[i-1] == ' '):
                 i -= 1
             else:
                 count -= 1
@@ -208,9 +209,11 @@ _invalid = """\\(\\s\\{,\\*\\&\\-\\+\\/;=%\)\.\"!"""
 
 
 def extract_variables(data):
+    origdata = data
     data = remove_preprocessing(data)
     data = remove_includes(data)
     data = collapse_brackets(data)
+    data = collapse_ltgt(data)
     data = remove_functions(data)
     data = remove_namespaces(data)
     data = remove_classes(data)
@@ -235,6 +238,14 @@ def extract_variables(data):
                 var = None
                 break
         if var != None:
+            if "<" in type and ">" in type:
+                s = "\\b(%s.+%s)(const)?[ \\t*&]*(%s)" % (type[:type.find("<")+1], type[type.find(">"):], var)
+                regex = re.compile(s)
+                match = None
+                for m in regex.finditer(origdata):
+                    match = m
+                type = match.group(1)
+
             ret.append((type, var))
     return ret
 
