@@ -64,4 +64,16 @@ if match == None or match.group(1).strip() != "Type&":
 if extract_variables(test) != [('int', 'itShouldPickupThis'), ('Type&', 't1'), ('vector<Type2> &', 't2')]:
     raise Exception("Didn't extract variables correctly")
 
+test = """Properties prop = new Properties();
+int apps = Integer.parseInt(prop."""
+if get_type_definition(test, "int apps = Integer.parseInt(prop.") != (1, 12, "Properties", "prop", "."):
+    raise Exception("Didn't get type definition properly")
+test = """Properties prop = new Properties();
+int apps = Integer.parseInt(prop.getProperty("a")."""
+if get_type_definition(test, """int apps = Integer.parseInt(prop.getProperty("a").""") != (1, 12, "Properties", "prop", ".getProperty()."):
+    raise Exception("Didn't get type definition properly")
+
+if extract_completion("prop.GetColor().Clamp().") != "prop.GetColor().Clamp().":
+    raise Exception("Didn't extract completion properly")
+
 print "all is well"

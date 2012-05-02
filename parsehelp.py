@@ -110,11 +110,32 @@ def collapse_parenthesis(before):
     return before
 
 
+def collapse_square_brackets(before):
+    i = len(before)-1
+    count = 0
+    end = -1
+    while i >= 0:
+        a = before.rfind("(", 0, i)
+        b = before.rfind(")", 0, i)
+        i = max(a, b)
+        if i == -1:
+            break
+        if before[i] == ')':
+            count += 1
+            if end == -1:
+                end = i
+        elif before[i] == '(':
+            count -= 1
+            if count == 0 and end != -1:
+                before = "%s%s" % (before[:i+1], before[end:])
+                end = -1
+    return before
+
+
 def extract_completion(before):
     before = collapse_parenthesis(before)
-    m = re.search("([^ \t]+)(\.|\->)$", before)
-    before = before[m.start(1):m.end(2)]
-    return before
+    before = collapse_square_brackets(before)
+    return re.search("(([^,\ \[\]()\t]+(\(\))?(\[\])?)+(\.|\->))$", before).group(1)
 
 _keywords = ["return", "new", "delete", "class", "define", "using", "void", "template", "public:", "protected:", "private:", "public", "private", "protected", "typename"]
 
@@ -297,7 +318,7 @@ def get_type_definition(data, before):
     before = extract_completion(before)
     match = re.search("([^\.\[\-:]+)[^\.\-:]*(\.|->|::)(.*)", before)
     var = match.group(1)
-    tocomplete = match.group(3)
+    tocomplete = before[match.start(2):match.end(3)]
     if match.group(2) == "->":
         tocomplete = "%s%s" % (match.group(2), tocomplete)
 
