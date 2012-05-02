@@ -24,7 +24,7 @@ from common import Worker, get_setting, get_path_setting, get_language, LockedVa
 from clang import cindex
 import time
 from ctypes import cdll, Structure, POINTER, c_char_p, c_void_p, c_uint, c_bool
-from parsehelp import *
+from parsehelp.parsehelp import *
 import re
 
 
