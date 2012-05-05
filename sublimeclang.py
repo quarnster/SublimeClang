@@ -396,6 +396,31 @@ def display_compilation_results(view):
             if not output_view is None and output_view.window() != None:
                 window.run_command("hide_panel", {"panel": "output.clang"})
 
+member_regex = re.compile("(([a-zA-Z_]+[0-9_]*)|([\)\]])+)((\.)|(->))$")
+
+
+def is_member_completion(view, caret):
+    line = view.substr(Region(view.line(caret).a, caret))
+    if member_regex.search(line) != None:
+        return True
+    elif get_language(view).startswith("objc"):
+        return re.search("[ \t]*\[[\w]+ $", line) != None
+    return False
+
+
+class ClangComplete(sublime_plugin.TextCommand):
+    def run(self, edit, characters):
+        print characters
+        for region in self.view.sel():
+            self.view.insert(edit, region.end(), characters)
+        caret = self.view.sel()[0].begin()
+        line = self.view.substr(sublime.Region(self.view.word(caret-1).a, caret))
+        if is_member_completion(self.view, caret) or line.endswith("::"):
+            sublime.set_timeout(self.delayed_complete, 1)
+
+    def delayed_complete(self):
+        self.view.run_command("auto_complete")
+
 
 class SublimeClangAutoComplete(sublime_plugin.EventListener):
     def __init__(self):
@@ -404,44 +429,16 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         s.add_on_change("options", self.load_settings)
         self.load_settings()
         self.recompile_timer = None
-        self.complete_timer = None
-        self.member_regex = re.compile("(([a-zA-Z_]+[0-9_]*)|([\)\]])+)((\.)|(->))$")
         self.not_code_regex = re.compile("(string.)|(comment.)")
 
     def load_settings(self):
         translationunitcache.tuCache.clear()
-        oldSettings = sublime.load_settings("clang.sublime-settings")
-        if oldSettings.get("popup_delay") != None:
-            sublime.error_message(
-                "SublimeClang's configuration file name was changed from \
-                'clang.sublime-settings' to 'SublimeClang.sublime-settings'. \
-                Please move your settings over to this new file and delete \
-                the old one.")
-        if get_setting("popupDelay") != None:
-            sublime.error_message(
-                "SublimeClang changed the 'popupDelay' setting to \
-                'popup_delay, please edit your \
-                SublimeClang.sublime-settings to match this")
-        if get_setting("recompileDelay") != None:
-            sublime.error_message(
-                "SublimeClang changed the 'recompileDelay' setting to \
-                'recompile_delay, please edit your \
-                SublimeClang.sublime-settings to match this")
-        self.popup_delay = get_setting("popup_delay", 500)
         self.dont_complete_startswith = get_setting("dont_complete_startswith",
                                               ['operator', '~'])
         self.recompile_delay = get_setting("recompile_delay", 1000)
         self.cache_on_load = get_setting("cache_on_load", True)
         self.remove_on_close = get_setting("remove_on_close", True)
         self.time_completions = get_setting("time_completions", False)
-
-    def is_member_completion(self, view, caret):
-        line = view.substr(Region(view.line(caret).a, caret))
-        if self.member_regex.search(line) != None:
-            return True
-        elif get_language(view).startswith("objc"):
-            return re.search("[ \t]*\[[\w]+ $", line) != None
-        return False
 
     def is_member_kind(self, kind):
         return  kind == cindex.CursorKind.CXX_METHOD or \
@@ -488,7 +485,7 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
                 if view.is_dirty():
                     unsaved_files.append((view.file_name(),
                                       view.substr(Region(0, view.size()))))
-                ret = tu.cache.clangcomplete(view.file_name(), row+1, col+1, unsaved_files, self.is_member_completion(view, locations[0] - len(prefix)))
+                ret = tu.cache.clangcomplete(view.file_name(), row+1, col+1, unsaved_files, is_member_completion(view, locations[0] - len(prefix)))
             if self.time_completions:
                 curr = (time.time() - start)*1000
                 tot += curr
@@ -524,29 +521,6 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
             return self.return_completions(ret, view)
         return self.return_completions([], view)
 
-    def restart_complete_timer(self, view):
-        if self.complete_timer != None:
-            self.complete_timer.cancel()
-            self.complete_timer = None
-        caret = view.sel()[0].a
-        if self.not_code_regex.search(view.scope_name(caret)) == None:
-            line = view.substr(Region(view.word(caret).a, caret))
-            if (self.is_member_completion(view, caret) or line.endswith("::")):
-                stat = warm_up_cache(view)
-                if not (stat == translationunitcache.TranslationUnitCache.STATUS_NOT_IN_CACHE or
-                        stat == translationunitcache.TranslationUnitCache.STATUS_PARSING):
-                    self.view = view
-                    self.complete_timer = threading.Timer(
-                            self.popup_delay / 1000.0,
-                            sublime.set_timeout,
-                            [self.complete, 0])
-                    self.complete_timer.start()
-
-    def complete(self):
-        global clang_complete_enabled
-        if clang_complete_enabled:
-            self.view.window().run_command("auto_complete")
-
     def reparse_done(self):
         display_compilation_results(self.view)
 
@@ -580,16 +554,11 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
             self.restart_recompile_timer(0.1)
 
     def on_modified(self, view):
-        if (self.popup_delay <= 0 and self.recompile_delay <= 0) or \
-                not is_supported_language(view):
+        if (self.recompile_delay <= 0) or not is_supported_language(view):
             return
 
-        if self.popup_delay > 0:
-            self.restart_complete_timer(view)
-
-        if self.recompile_delay > 0:
-            self.view = view
-            self.restart_recompile_timer(self.recompile_delay / 1000.0)
+        self.view = view
+        self.restart_recompile_timer(self.recompile_delay / 1000.0)
 
     def on_load(self, view):
         if self.cache_on_load and is_supported_language(view):
@@ -600,8 +569,17 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
             translationunitcache.tuCache.remove(view.file_name())
 
     def on_query_context(self, view, key, operator, operand, match_all):
-        if key != "clang_supported_language":
-            return None
-        if view == None:
-            view = sublime.active_window().active_view()
-        return is_supported_language(view)
+        if key == "clang_supported_language":
+            if view == None:
+                view = sublime.active_window().active_view()
+            ret = is_supported_language(view)
+            print key, ret
+            return ret
+        elif key == "clang_is_code":
+            ret = self.not_code_regex.search(view.scope_name(view.sel()[0].begin())) == None
+            print key, ret
+            return ret
+        elif key == "clang_complete_enabled":
+            ret = clang_complete_enabled
+            print key, ret
+            return ret

@@ -16,10 +16,6 @@
     // the plugin completely for a specific project.
     "enabled": true,
 
-    // Delay in ms until autocompletion pops up after . or :: or ->
-    // Set to 0 to disable
-    "popup_delay": 100,
-
     // Delay in ms until recompiling the file after the buffer is modified
     // Set to 0 to disable
     "recompile_delay": 0,
