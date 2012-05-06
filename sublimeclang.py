@@ -457,6 +457,16 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         if not is_supported_language(view) or not clang_complete_enabled:
             return []
 
+        line = view.substr(sublime.Region(view.line(locations[0]).begin(), locations[0]))
+        match = re.search("[,\s]*(\w+)\s+\w+$", line)
+        if match != None:
+            valid = ["new", "delete", "return", "goto", "case", "const", "static", "class", "struct", "typedef", "union"]
+            if match.group(1) not in valid:
+                # Probably a variable or function declaration
+                # There's no point in trying to complete
+                # a name that hasn't been typed yet...
+                return self.return_completions([], view)
+
         timing = ""
         tot = 0
         start = time.time()
