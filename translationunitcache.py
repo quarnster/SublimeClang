@@ -152,6 +152,10 @@ class Cache:
             if cursor is None or cursor.kind.is_invalid() or cursor.spelling != var:
                 # TODO: "using namespace"
                 cursor = cache_findType(self.cache, None, 0, get_base_type(typename))
+            else:
+                # It's going to be a declaration of some kind, so
+                # get the returned cursor
+                cursor = cursor.get_returned_cursor()
             if not cursor is None and not cursor.kind.is_invalid():
                 r = cursor
                 count = 0
