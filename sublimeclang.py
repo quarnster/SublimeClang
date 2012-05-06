@@ -572,14 +572,8 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         if key == "clang_supported_language":
             if view == None:
                 view = sublime.active_window().active_view()
-            ret = is_supported_language(view)
-            print key, ret
-            return ret
+            return is_supported_language(view)
         elif key == "clang_is_code":
-            ret = self.not_code_regex.search(view.scope_name(view.sel()[0].begin())) == None
-            print key, ret
-            return ret
+            return self.not_code_regex.search(view.scope_name(view.sel()[0].begin())) == None
         elif key == "clang_complete_enabled":
-            ret = clang_complete_enabled
-            print key, ret
-            return ret
+            return clang_complete_enabled

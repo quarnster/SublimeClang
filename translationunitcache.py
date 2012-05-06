@@ -59,7 +59,7 @@ See http://github.com/quarnster/SublimeClang for more details.
 
 
 class CacheEntry(Structure):
-    _fields_ = [("cursor", cindex.Cursor), ("insert", c_char_p), ("display", c_char_p), ("access", c_uint), ("static", c_bool)]
+    _fields_ = [("cursor", cindex.Cursor), ("insert", c_char_p), ("display", c_char_p), ("access", c_uint), ("static", c_bool), ("baseclass", c_bool)]
 
 
 class CacheCompletionResults(Structure):
@@ -195,7 +195,8 @@ class Cache:
                     if comp:
                         ret = []
                         for c in comp[0]:
-                            if not c.static and c.cursor.kind != cindex.CursorKind.ENUM_CONSTANT_DECL:
+                            if not c.static and c.cursor.kind != cindex.CursorKind.ENUM_CONSTANT_DECL and \
+                                    c.access == cindex.CXXAccessSpecifier.PUBLIC:
                                 ret.append((c.display, c.insert))
                         cache_disposeCompletionResults(comp)
             return ret

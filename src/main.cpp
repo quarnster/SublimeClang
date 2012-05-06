@@ -358,8 +358,8 @@ double getTime()
 class Entry
 {
 public:
-    Entry(CXCursor c, std::string &disp, std::string &ins, CX_CXXAccessSpecifier a=CX_CXXPublic)
-    : cursor(c), access(a), isStatic(false)
+    Entry(CXCursor c, std::string &disp, std::string &ins, CX_CXXAccessSpecifier a=CX_CXXPublic, bool base=false)
+    : cursor(c), access(a), isStatic(false), isBaseClass(base)
     {
         display = new char[disp.length()+1];
         memcpy(display, disp.c_str(), disp.length()+1);
@@ -391,6 +391,7 @@ public:
     char * display;
     CX_CXXAccessSpecifier access;
     bool isStatic;
+    bool isBaseClass;
 };
 
 
@@ -472,11 +473,26 @@ public:
     bool deleteEntries;
 };
 
-void add_completion_children(CXCursor cursor, CXCursorKind ck, bool &recurse, std::vector<Entry*> &entries)
+class CompletionVisitorData
+{
+public:
+    CompletionVisitorData(std::vector<Entry*>& e, bool base=false)
+    : entries(e), access(CX_CXXPrivate), isBaseClass(base)
+    {
+    }
+    std::vector<Entry*> &entries;
+    CX_CXXAccessSpecifier access;
+    bool isBaseClass;
+};
+
+void add_completion_children(CXCursor cursor, CXCursorKind ck, bool &recurse, CompletionVisitorData* data)
 {
     switch (ck)
     {
         default: break;
+        case CXCursor_CXXAccessSpecifier:
+            data->access = clang_getCXXAccessSpecifier(cursor);
+            break;
         case CXCursor_UnexposedDecl: // extern "C" for example
             recurse = true;
             break;
@@ -499,7 +515,7 @@ void add_completion_children(CXCursor cursor, CXCursorKind ck, bool &recurse, st
             std::string ins;
             std::string disp;
             parse_res(ins, disp, cursor);
-            entries.push_back(new Entry(cursor, disp, ins));
+            data->entries.push_back(new Entry(cursor, disp, ins, data->access, data->isBaseClass));
             break;
         }
     }
@@ -511,11 +527,13 @@ CXChildVisitResult get_completion_children(CXCursor cursor, CXCursor parent, CXC
         return CXChildVisit_Break;
     bool recurse = false;
     CXCursorKind ck = clang_getCursorKind(cursor);
+    CompletionVisitorData* data = (CompletionVisitorData*) client_data;
 
-    add_completion_children(cursor, ck, recurse, *(std::vector<Entry*>*) client_data);
+    add_completion_children(cursor, ck, recurse, data);
     if (ck == CXCursor_CXXBaseSpecifier)
     {
-        clang_visitChildren(clang_getCursorReferenced(cursor), get_completion_children, client_data);
+        CompletionVisitorData d(data->entries, true);
+        clang_visitChildren(clang_getCursorReferenced(cursor), get_completion_children, &d);
     }
 
     if (recurse)
@@ -624,7 +642,8 @@ public:
 
     virtual bool visitor(CXCursor cursor, CXCursor parent, bool &recurse, CXCursorKind ck)
     {
-        add_completion_children(cursor, ck, recurse, mEntries);
+        CompletionVisitorData d(mEntries);
+        add_completion_children(cursor, ck, recurse, &d);
         return false;
     }
 
@@ -693,7 +712,8 @@ public:
     : mBaseCursor(base)
     {
         float t1 = getTime();
-        clang_visitChildren(base, get_completion_children, &mEntries);
+        CompletionVisitorData d(mEntries);
+        clang_visitChildren(base, get_completion_children, &d);
         float t2 = getTime();
         printf("quick visit: %f ms\n", t2-t1);
 
@@ -791,8 +811,9 @@ public:
     CacheCompletionResults* completeCursor(CXCursor cur)
     {
         std::vector<Entry *> entries;
+        CompletionVisitorData d(entries);
         float t1 = getTime();
-        clang_visitChildren(cur, get_completion_children, &entries);
+        clang_visitChildren(cur, get_completion_children, &d);
         float t2 = getTime();
         printf("quick visit: %f ms\n", t2-t1);
 
