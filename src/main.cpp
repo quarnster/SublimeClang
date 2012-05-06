@@ -27,6 +27,14 @@ freely, subject to the following restrictions:
 #include <boost/foreach.hpp>
 #include <sys/time.h>
 
+CXChildVisitResult haschildren_visitor(CXCursor cursor, CXCursor parent, CXClientData client_data)
+{
+    if (clang_Cursor_isNull(cursor))
+        return CXChildVisit_Break;
+    *((bool*)client_data) = true;
+    return CXChildVisit_Break;
+}
+
 CXChildVisitResult childcount_visitor(CXCursor cursor, CXCursor parent, CXClientData client_data)
 {
     if (clang_Cursor_isNull(cursor))
@@ -400,17 +408,27 @@ void trim(std::vector<Entry*>& mEntries)
 {
     float t1 = getTime();
     std::vector<Entry*>::iterator i = mEntries.begin();
+    // Trim nameless completions
     while (i < mEntries.end() && (*i)->display[0] == '\t')
     {
         delete *i;
         mEntries.erase(i);
     }
+    // Trim duplicates
     for (std::vector<Entry*>::iterator i = mEntries.begin()+1; i < mEntries.end(); i++)
     {
-        while ((*(*i)) == (*(*(i-1))))
+        while (i != mEntries.end() && (*(*i)) == (*(*(i-1))))
         {
-            delete *i;
-            mEntries.erase(i);
+            std::vector<Entry*>::iterator del = i;
+            bool hasChildren = false;
+            // Just to make sure that a forward declaration rather than the
+            // real declaration is removed as a duplicate
+            clang_visitChildren((*del)->cursor, haschildren_visitor, &hasChildren);
+            if (hasChildren)
+                del = i-1;
+
+            delete *del;
+            mEntries.erase(del);
         }
     }
     float t2 = getTime();

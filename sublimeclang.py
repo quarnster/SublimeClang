@@ -410,7 +410,6 @@ def is_member_completion(view, caret):
 
 class ClangComplete(sublime_plugin.TextCommand):
     def run(self, edit, characters):
-        print characters
         for region in self.view.sel():
             self.view.insert(edit, region.end(), characters)
         caret = self.view.sel()[0].begin()
