@@ -199,6 +199,7 @@ void get_return_type(std::string& returnType, CXCursorKind ck)
     {
         default: break;
         case CXCursor_ClassTemplate: // fall through
+        case CXCursor_UnionDecl: returnType = "union"; break;
         case CXCursor_ClassDecl: returnType = "class"; break;
         case CXCursor_EnumDecl: returnType = "enum"; break;
         case CXCursor_StructDecl: returnType = "struct"; break;
@@ -476,8 +477,8 @@ public:
 class CompletionVisitorData
 {
 public:
-    CompletionVisitorData(std::vector<Entry*>& e, bool base=false)
-    : entries(e), access(CX_CXXPrivate), isBaseClass(base)
+    CompletionVisitorData(std::vector<Entry*>& e, CX_CXXAccessSpecifier a=CX_CXXPrivate, bool base=false)
+    : entries(e), access(a), isBaseClass(base)
     {
     }
     std::vector<Entry*> &entries;
@@ -496,6 +497,7 @@ void add_completion_children(CXCursor cursor, CXCursorKind ck, bool &recurse, Co
         case CXCursor_UnexposedDecl: // extern "C" for example
             recurse = true;
             break;
+        case CXCursor_UnionDecl:
         case CXCursor_EnumDecl:
             recurse = true;
             // fall through
@@ -515,7 +517,8 @@ void add_completion_children(CXCursor cursor, CXCursorKind ck, bool &recurse, Co
             std::string ins;
             std::string disp;
             parse_res(ins, disp, cursor);
-            data->entries.push_back(new Entry(cursor, disp, ins, data->access, data->isBaseClass));
+            if (ins.length() != 0)
+                data->entries.push_back(new Entry(cursor, disp, ins, data->access, data->isBaseClass));
             break;
         }
     }
@@ -532,7 +535,7 @@ CXChildVisitResult get_completion_children(CXCursor cursor, CXCursor parent, CXC
     add_completion_children(cursor, ck, recurse, data);
     if (ck == CXCursor_CXXBaseSpecifier)
     {
-        CompletionVisitorData d(data->entries, true);
+        CompletionVisitorData d(data->entries, CX_CXXPrivate, true);
         clang_visitChildren(clang_getCursorReferenced(cursor), get_completion_children, &d);
     }
 
@@ -614,6 +617,7 @@ protected:
     }
 
 };
+
 class NamespaceVisitorData : public NamespaceFinder
 {
 public:
@@ -642,7 +646,7 @@ public:
 
     virtual bool visitor(CXCursor cursor, CXCursor parent, bool &recurse, CXCursorKind ck)
     {
-        CompletionVisitorData d(mEntries);
+        CompletionVisitorData d(mEntries, CX_CXXPublic);
         add_completion_children(cursor, ck, recurse, &d);
         return false;
     }
@@ -712,7 +716,7 @@ public:
     : mBaseCursor(base)
     {
         float t1 = getTime();
-        CompletionVisitorData d(mEntries);
+        CompletionVisitorData d(mEntries, CX_CXXPublic);
         clang_visitChildren(base, get_completion_children, &d);
         float t2 = getTime();
         printf("quick visit: %f ms\n", t2-t1);
@@ -750,6 +754,7 @@ public:
         {
             default: return false;
             case CXCursor_CXXMethod:
+            case CXCursor_NotImplemented:
             case CXCursor_FieldDecl:
             case CXCursor_ObjCPropertyDecl:
             case CXCursor_ObjCClassMethodDecl:
@@ -782,7 +787,8 @@ public:
             std::string insertion;
             std::string representation;
             parse_res(insertion, representation, res->Results[start].CursorKind, res->Results[start].CompletionString);
-            entries.push_back(new Entry(tmp, representation, insertion));
+            if (insertion.length() != 0)
+                entries.push_back(new Entry(tmp, representation, insertion));
             start++;
         }
         clang_disposeCodeCompleteResults(res);
@@ -811,7 +817,7 @@ public:
     CacheCompletionResults* completeCursor(CXCursor cur)
     {
         std::vector<Entry *> entries;
-        CompletionVisitorData d(entries);
+        CompletionVisitorData d(entries, clang_getCursorKind(cur) == CXCursor_ClassDecl ? CX_CXXPrivate : CX_CXXPublic);
         float t1 = getTime();
         clang_visitChildren(cur, get_completion_children, &d);
         float t2 = getTime();

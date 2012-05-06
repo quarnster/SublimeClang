@@ -200,8 +200,12 @@ class Cache:
                         ret = []
                         for c in comp[0]:
                             if not c.static and c.cursor.kind != cindex.CursorKind.ENUM_CONSTANT_DECL and \
+                                    c.cursor.kind != cindex.CursorKind.ENUM_DECL and \
+                                    c.cursor.kind != cindex.CursorKind.TYPEDEF_DECL and \
                                     c.access == cindex.CXXAccessSpecifier.PUBLIC:
-                                ret.append((c.display, c.insert))
+                                add = (c.display, c.insert)
+                                if add not in ret:
+                                    ret.append(add)
                         cache_disposeCompletionResults(comp)
             return ret
         else:
@@ -230,7 +234,6 @@ class Cache:
                         nsarg[i] = ns[i]
                     c = cache_findType(self.cache, nsarg, len(ns), clazz)
                 if not c is None and not c.kind.is_invalid():
-                    c.dump_self()
                     comp = cache_completeCursor(self.cache, c)
                     if comp:
                         for c in comp[0]:
