@@ -695,7 +695,8 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
                 kind == cindex.CursorKind.OBJC_PROPERTY_DECL or \
                 kind == cindex.CursorKind.OBJC_CLASS_METHOD_DECL or \
                 kind == cindex.CursorKind.OBJC_INSTANCE_METHOD_DECL or \
-                kind == cindex.CursorKind.FUNCTION_TEMPLATE
+                kind == cindex.CursorKind.FUNCTION_TEMPLATE or \
+                kind == cindex.CursorKind.NOT_IMPLEMENTED
 
     def get_result_typedtext(self, result):
         for chunk in result.string:
