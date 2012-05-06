@@ -16,6 +16,16 @@
     // the plugin completely for a specific project.
     "enabled": true,
 
+    // Wheter or not fast completions are enabled. Usually you'd put
+    // "sublimeclang_enable_fast_completions": false, in the project
+    // settings if it's problematic in that project. You can also
+    // runtime toggle fast completions alt+d,alt+f, however if it
+    // is disabled for the current project (or globally in your
+    // user settings) it will not be enabled. In other words
+    // this setting overrides whatever the keyboard toggle is set
+    // to.
+    "enable_fast_completions": true,
+
     // Delay in ms until recompiling the file after the buffer is modified
     // Set to 0 to disable
     "recompile_delay": 0,

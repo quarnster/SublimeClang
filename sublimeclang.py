@@ -474,7 +474,7 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
                 start = time.time()
 
             cached_results = None
-            if clang_fast_completions:
+            if clang_fast_completions and get_setting("enable_fast_completions", True, view):
                 data = view.substr(sublime.Region(0, locations[0]))
                 cached_results = tu.cache.complete(data, prefix)
             if cached_results:
