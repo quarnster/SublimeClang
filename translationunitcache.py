@@ -167,8 +167,11 @@ class Cache:
                     # TODO: "using namespace"
                     cursor = cache_findType(self.cache, None, 0, clazz)
                     if not cursor is None and not cursor.kind.is_invalid():
-                        # TODO: whether it's a function or not
-                        cursor = cursor.get_member(typename, False)
+                        func = False
+                        if typename.endswith("()"):
+                            func = True
+                            typename = typename[:-2]
+                        cursor = cursor.get_member(typename, func)
                         if not cursor is None and not cursor.kind.is_invalid():
                             cursor = cursor.get_resolved_cursor()
 
@@ -218,6 +221,7 @@ class Cache:
                                     c.cursor.kind != cindex.CursorKind.ENUM_DECL and \
                                     c.cursor.kind != cindex.CursorKind.TYPEDEF_DECL and \
                                     c.cursor.kind != cindex.CursorKind.CLASS_DECL and \
+                                    c.cursor.kind != cindex.CursorKind.STRUCT_DECL and \
                                     c.access == cindex.CXXAccessSpecifier.PUBLIC:
                                 add = (c.display, c.insert)
                                 if add not in ret:

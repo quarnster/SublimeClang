@@ -540,8 +540,16 @@ CXChildVisitResult get_completion_children(CXCursor cursor, CXCursor parent, CXC
     add_completion_children(cursor, ck, recurse, data);
     if (ck == CXCursor_CXXBaseSpecifier)
     {
-        CompletionVisitorData d(data->entries, CX_CXXPrivate, true);
-        clang_visitChildren(clang_getCursorReferenced(cursor), get_completion_children, &d);
+        CXCursor ref = clang_getCursorReferenced(cursor);
+        if (!clang_Cursor_isNull(ref))
+        {
+            CompletionVisitorData d(data->entries, CX_CXXPrivate, true);
+            if (clang_getCursorKind(ref) == CXCursor_StructDecl)
+            {
+                d.access = CX_CXXPublic;
+            }
+            clang_visitChildren(ref, get_completion_children, &d);
+        }
     }
 
     if (recurse)
