@@ -24,8 +24,6 @@ freely, subject to the following restrictions:
 #include <stdio.h>
 #include <string>
 #include <vector>
-#include <boost/foreach.hpp>
-#include <sys/time.h>
 
 CXChildVisitResult haschildren_visitor(CXCursor cursor, CXCursor parent, CXClientData client_data)
 {
@@ -84,8 +82,9 @@ CXCursor get_resolved_cursor(CXCursor self)
     {
         std::vector<CXCursor> children;
         clang_visitChildren(self, getchildren_visitor, &children);
-        BOOST_FOREACH(CXCursor child, children)
+        for (std::vector<CXCursor>::iterator i = children.begin(); i != children.end(); ++i)
         {
+            CXCursor &child = *i;
             CXCursorKind ck = clang_getCursorKind(child);
             switch (ck)
             {
@@ -152,8 +151,9 @@ CXCursor get_returned_cursor(CXCursor self)
                 }
                 else if (clang_isReference(ck))
                 {
-                    BOOST_FOREACH(CXCursor c, children)
+                    for (std::vector<CXCursor>::iterator i = children.begin(); i != children.end(); ++i)
                     {
+                        CXCursor &c = *i;
                         ck = clang_getCursorKind(c);
                         if (ck != CXCursor_NamespaceRef)
                             return get_resolved_cursor(clang_getCursorReferenced(c));
@@ -354,16 +354,6 @@ std::string collapse(std::string before, char startT, char endT, char extraT='\0
     return before;
 }
 
-
-timeval start;
-
-double getTime()
-{
-    timeval t;
-    gettimeofday(&t, NULL);
-    return (t.tv_sec - start.tv_sec) * 1000.0 + (t.tv_usec - start.tv_usec) * (1.0 / 1000.0);
-}
-
 class Entry
 {
 public:
@@ -406,7 +396,6 @@ public:
 
 void trim(std::vector<Entry*>& mEntries)
 {
-    float t1 = getTime();
     std::vector<Entry*>::iterator i = mEntries.begin();
     // Trim nameless completions
     while (i < mEntries.end() && (*i)->display[0] == '\t')
@@ -431,8 +420,6 @@ void trim(std::vector<Entry*>& mEntries)
             mEntries.erase(del);
         }
     }
-    float t2 = getTime();
-    printf("removing duplicates: %f ms\n", t2-t1);
 }
 
 class EntryCompare
@@ -733,18 +720,13 @@ public:
     Cache(CXCursor base)
     : mBaseCursor(base)
     {
-        float t1 = getTime();
         CompletionVisitorData d(mEntries, CX_CXXPublic);
         clang_visitChildren(base, get_completion_children, &d);
-        float t2 = getTime();
-        printf("quick visit: %f ms\n", t2-t1);
 
-        t1 = getTime();
         std::sort(mEntries.begin(), mEntries.end(), EntryCompare());
-        t2 = getTime();
-        printf("sort: %f ms\n", t2-t1);
-        BOOST_FOREACH(Entry* e, mEntries)
+        for (std::vector<Entry*>::iterator i = mEntries.begin(); i != mEntries.end(); ++i)
         {
+            Entry *e = *i;
             CXCursorKind ck = clang_getCursorKind(e->cursor);
             if (ck == CXCursor_Namespace)
             {
@@ -755,16 +737,16 @@ public:
     }
     ~Cache()
     {
-        BOOST_FOREACH(Entry *e, mEntries)
+        for (std::vector<Entry*>::iterator i = mEntries.begin(); i != mEntries.end(); ++i)
         {
-            delete e;
+            delete *i;
         }
         mEntries.clear();
-        BOOST_FOREACH(Entry *e, mEntries)
+        for (std::vector<Entry*>::iterator i = mNamespaces.begin(); i != mNamespaces.end(); ++i)
         {
-            delete e;
+            delete *i;
         }
-        mEntries.clear();
+        mNamespaces.clear();
     }
     bool isMemberKind(CXCursorKind ck)
     {
@@ -823,12 +805,8 @@ public:
 
     CacheCompletionResults* getNamespaceMembers(const char **ns, unsigned int nsLength)
     {
-        float t1 = getTime();
-
         NamespaceVisitorData d(mNamespaces, ns[0], nsLength > 1 ? &ns[1] : NULL, nsLength-1);
         d.execute();
-        float t2 = getTime();
-        printf("complete namespace: %f ms\n", t2-t1);
         std::vector<Entry*>& entries = d.getEntries();
         return new CacheCompletionResults(entries.begin(), entries.end(), true);
     }
@@ -836,15 +814,9 @@ public:
     {
         std::vector<Entry *> entries;
         CompletionVisitorData d(entries, clang_getCursorKind(cur) == CXCursor_ClassDecl ? CX_CXXPrivate : CX_CXXPublic);
-        float t1 = getTime();
         clang_visitChildren(cur, get_completion_children, &d);
-        float t2 = getTime();
-        printf("quick visit: %f ms\n", t2-t1);
 
-        t1 = getTime();
         std::sort(entries.begin(), entries.end(), EntryCompare());
-        t2 = getTime();
-        printf("sort: %f ms\n", t2-t1);
         trim(mEntries);
         return new CacheCompletionResults(entries.begin(), entries.end(), true);
     }
@@ -862,11 +834,8 @@ public:
             return clang_getNullCursor();
         }
         // TODO: should use mNamespaces for the first namespace entry
-        float t1 = getTime();
         FindData d(mBaseCursor, namespaces, nsLength, type);
         d.execute();
-        float t2 = getTime();
-        printf("Finding type %s, %f ms\n", type, t2-t1);
         return d.getCursor();
     }
 private:
@@ -909,7 +878,6 @@ void cache_disposeCompletionResults(CacheCompletionResults *comp)
 
 Cache* createCache(CXCursor base)
 {
-    gettimeofday(&start, NULL);
     return new Cache(base);
 }
 

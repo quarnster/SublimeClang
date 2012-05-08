@@ -1,7 +1,5 @@
 cmake_minimum_required(VERSION 2.8)
 
-find_package(Boost REQUIRED)
-
 
 set(CMAKE_CXX_FLAGS "-g -Wall")
 IF(NOT CMAKE_BUILD_TYPE)
@@ -11,7 +9,6 @@ IF(NOT CMAKE_BUILD_TYPE)
 ENDIF(NOT CMAKE_BUILD_TYPE)
 include_directories(
     .
-    ${Boost_INCLUDE_DIRS}
 )
 
 link_directories(${PROJECT_SOURCE_DIR}/..)

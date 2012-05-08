@@ -148,14 +148,30 @@ class Cache:
             line, column, typename, var, tocomplete = typedef
             if typename == None:
                 return None
-            cursor = cindex.Cursor.get(self.tu, self.filename, line, column)
-            if cursor is None or cursor.kind.is_invalid() or cursor.spelling != var:
-                # TODO: "using namespace"
-                cursor = cache_findType(self.cache, None, 0, get_base_type(typename))
+            cursor = None
+            if not var is None:
+                cursor = cindex.Cursor.get(self.tu, self.filename, line, column)
+                if cursor is None or cursor.kind.is_invalid() or cursor.spelling != var:
+                    # TODO: "using namespace"
+                    cursor = cache_findType(self.cache, None, 0, get_base_type(typename))
+                else:
+                    # It's going to be a declaration of some kind, so
+                    # get the returned cursor
+                    cursor = cursor.get_returned_cursor()
             else:
-                # It's going to be a declaration of some kind, so
-                # get the returned cursor
-                cursor = cursor.get_returned_cursor()
+                # Probably a member of the current class
+                clazz = extract_class_from_function(data)
+                if clazz == None:
+                    clazz = extract_class(data)
+                if clazz != None:
+                    # TODO: "using namespace"
+                    cursor = cache_findType(self.cache, None, 0, clazz)
+                    if not cursor is None and not cursor.kind.is_invalid():
+                        # TODO: whether it's a function or not
+                        cursor = cursor.get_member(typename, False)
+                        if not cursor is None and not cursor.kind.is_invalid():
+                            cursor = cursor.get_resolved_cursor()
+
             if not cursor is None and not cursor.kind.is_invalid():
                 r = cursor
                 count = 0
@@ -201,6 +217,7 @@ class Cache:
                             if not c.static and c.cursor.kind != cindex.CursorKind.ENUM_CONSTANT_DECL and \
                                     c.cursor.kind != cindex.CursorKind.ENUM_DECL and \
                                     c.cursor.kind != cindex.CursorKind.TYPEDEF_DECL and \
+                                    c.cursor.kind != cindex.CursorKind.CLASS_DECL and \
                                     c.access == cindex.CXXAccessSpecifier.PUBLIC:
                                 add = (c.display, c.insert)
                                 if add not in ret:

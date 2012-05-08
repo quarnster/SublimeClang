@@ -1239,7 +1239,7 @@ class Cursor(Structure):
         for child in self.get_children():
             if function and child.kind == CursorKind.CXX_METHOD and child.spelling == membername:
                 return child
-            elif not function and child.kind == CursorKind.FIELD_DECL and child.spelling == membername:
+            elif not function and (child.kind == CursorKind.FIELD_DECL or child.kind == CursorKind.VAR_DECL) and child.spelling == membername:
                 return child
             elif child.spelling == membername:
                 print "unhandled kind: %s" % child.kind
