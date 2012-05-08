@@ -22,8 +22,8 @@
     // runtime toggle fast completions alt+d,alt+f, however if it
     // is disabled for the current project (or globally in your
     // user settings) it will not be enabled. In other words
-    // this setting overrides whatever the keyboard toggle is set
-    // to.
+    // this setting, when set to false, overrides whatever the
+    // keyboard toggle is set to.
     "enable_fast_completions": true,
 
     // Delay in ms until recompiling the file after the buffer is modified
@@ -34,7 +34,7 @@
     "hide_output_when_empty": false,
 
     // Whether or not to automatically show the output panel.
-    // If set to false, the default key-binding ctrl+d,ctrl+p
+    // If set to false, the default key-binding alt+d,alt+p
     // will show it
     "show_output_panel": true,
 
@@ -71,7 +71,7 @@
     "remove_on_close": true,
 
     // If set to true will pop the file from the navigation stack
-    // (automatic ctrl+d,ctrl+b) when the file is closed
+    // (automatic alt+d,alt+b) when the file is closed
     "pop_on_close": true,
 
     // When set to true a reparse command will be triggered

@@ -175,21 +175,20 @@ class Cache:
                     function = False
                     if match.group(2) == "(":
                         function = True
-                        for i in range(len(tocomplete)):
-                            if tocomplete[i] == '(':
-                                count += 1
-                            elif tocomplete[i] == ')':
-                                count -= 1
-                                if count == 0:
-                                    tocomplete = tocomplete[i+1:]
-                                    break
+                        tocomplete = tocomplete[1:]
+                    elif match.group(2) == "[":
+                        tocomplete = tocomplete[1:]
+
                     left = re.match("(\.|\->)?(.*)", tocomplete)
                     tocomplete = left.group(2)
                     if left.group(1) != None:
                         tocomplete = left.group(1) + tocomplete
                     # TODO: operator->
                     if match.group(1):
-                        comp = r.get_member(match.group(1), function)
+                        member = match.group(1)
+                        if "[" in member:
+                            member = get_base_type(member)
+                        comp = r.get_member(member, function)
                         if comp is None or comp.kind.is_invalid():
                             r = None
                             break
