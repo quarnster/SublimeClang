@@ -63,8 +63,7 @@ def get_translation_unit(view, filename=None, blocking=False):
         elif stat == translationunitcache.TranslationUnitCache.STATUS_PARSING:
             sublime.status_message("Hold your horses, cache still warming up")
             return None
-    return translationunitcache.tuCache.get_translation_unit(filename, translationunitcache.tuCache.get_opts(view))
-
+    return translationunitcache.tuCache.get_translation_unit(filename, translationunitcache.tuCache.get_opts(view), translationunitcache.tuCache.get_opts_script(view))
 
 navigation_stack = []
 clang_complete_enabled = True
@@ -445,7 +444,8 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
                 kind == cindex.CursorKind.OBJC_PROPERTY_DECL or \
                 kind == cindex.CursorKind.OBJC_CLASS_METHOD_DECL or \
                 kind == cindex.CursorKind.OBJC_INSTANCE_METHOD_DECL or \
-                kind == cindex.CursorKind.FUNCTION_TEMPLATE
+                kind == cindex.CursorKind.FUNCTION_TEMPLATE or \
+                kind == cindex.CursorKind.NOT_IMPLEMENTED
 
     def return_completions(self, comp, view):
         if get_setting("inhibit_sublime_completions", True, view):

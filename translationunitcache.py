@@ -20,9 +20,11 @@ freely, subject to the following restrictions:
    3. This notice may not be removed or altered from any source
    distribution.
 """
-from common import Worker, get_setting, get_path_setting, get_language, LockedVariable, run_in_main_thread, error_message
+from common import Worker, expand_path, get_setting, get_path_setting, get_language, LockedVariable, run_in_main_thread, error_message
 from clang import cindex
 import time
+import shlex
+import subprocess
 from ctypes import cdll, Structure, POINTER, c_char_p, c_void_p, c_uint, c_bool
 from parsehelp.parsehelp import *
 import re
@@ -302,6 +304,7 @@ class TranslationUnitCache(Worker):
         self.busyList = LockedVariable([])
         self.index_parse_options = 13
         self.index = None
+        self.debug_options = False
 
     def get_status(self, filename):
         tu = self.translationUnits.lock()
@@ -351,12 +354,12 @@ class TranslationUnitCache(Worker):
             self.busyList.unlock()
 
     def task_parse(self, data):
-        filename, opts, on_done = data
+        filename, opts, opts_script, on_done = data
         if self.add_busy(filename, self.task_parse, data):
             return
         try:
             self.set_status("Parsing %s" % filename)
-            self.get_translation_unit(filename, opts)
+            self.get_translation_unit(filename, opts, opts_script)
             self.set_status("Parsing %s done" % filename)
         finally:
             l = self.parsingList.lock()
@@ -369,12 +372,12 @@ class TranslationUnitCache(Worker):
             run_in_main_thread(on_done)
 
     def task_reparse(self, data):
-        filename, opts, unsaved_files, on_done = data
+        filename, opts, opts_script, unsaved_files, on_done = data
         if self.add_busy(filename, self.task_reparse, data):
             return
         try:
             self.set_status("Reparsing %s" % filename)
-            tu = self.get_translation_unit(filename, opts, unsaved_files)
+            tu = self.get_translation_unit(filename, opts, opts_script, unsaved_files)
             if tu != None:
                 tu.lock()
                 try:
@@ -421,7 +424,7 @@ class TranslationUnitCache(Worker):
             pl.append(filename)
             self.tasks.put((
                 self.task_reparse,
-                (filename, self.get_opts(view), unsaved_files, on_done)))
+                (filename, self.get_opts(view), self.get_opts_script(view), unsaved_files, on_done)))
         self.parsingList.unlock()
         return ret
 
@@ -434,10 +437,13 @@ class TranslationUnitCache(Worker):
             pl.append(filename)
             self.tasks.put((
                 self.task_parse,
-                (filename, self.get_opts(view), on_done)))
+                (filename, self.get_opts(view), self.get_opts_script(view), on_done)))
         self.translationUnits.unlock()
         self.parsingList.unlock()
         return ret
+
+    def get_opts_script(self, view):
+        return expand_path(get_setting("options_script", None, view), view.window())
 
     def get_opts(self, view):
         opts = get_path_setting("options", [], view)
@@ -453,18 +459,31 @@ class TranslationUnitCache(Worker):
             additional_language_options = get_setting("additional_language_options", {}, view)
             if additional_language_options.has_key(language):
                 opts.extend(additional_language_options[language] or [])
-        if get_setting("debug_options", False):
-            print "Will compile file %s with the following options:\n%s" % (view.file_name(), opts)
+        self.debug_options = get_setting("debug_options", False)
         self.index_parse_options = get_setting("index_parse_options", 13, view)
         return opts
 
-    def get_translation_unit(self, filename, opts=[], unsaved_files=[]):
+    def get_translation_unit(self, filename, opts=[], opts_script=None, unsaved_files=[]):
         if self.index == None:
             self.index = cindex.Index.create()
         tu = None
         tus = self.translationUnits.lock()
         if filename not in tus:
             self.translationUnits.unlock()
+
+            if opts_script:
+                # shlex.split barfs if fed with an unicode strings
+                args = shlex.split(opts_script.encode()) + [filename]
+                process = subprocess.Popen(args, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+                output = process.communicate()
+                if process.returncode:
+                    print "The options_script failed with code [%s]" % process.returncode
+                    print output[1]
+                else:
+                    opts += shlex.split(output[0])
+
+            if self.debug_options:
+                print "Will compile file %s with the following options:\n%s" % (filename, opts)
 
             opts.append(filename)
             tu = self.index.parse(None, opts, unsaved_files,
