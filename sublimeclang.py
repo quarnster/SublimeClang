@@ -36,11 +36,13 @@ from sublime import Region
 import sublime
 import os
 import re
+import shlex
+import subprocess
 import threading
 import time
 from errormarkers import clear_error_marks, add_error_mark, show_error_marks, \
                          update_statusbar, erase_error_marks, set_clang_view
-from common import get_setting, get_settings, get_path_setting, Worker
+from common import expand_path, get_setting, get_settings, get_path_setting, Worker
 
 language_regex = re.compile("(?<=source\.)[\w+#]+")
 
@@ -139,12 +141,12 @@ class TranslationUnitCache(Worker):
             self.busyList.unlock()
 
     def task_parse(self, data):
-        filename, opts, on_done = data
+        filename, opts, opts_script, on_done = data
         if self.add_busy(filename, self.task_parse, data):
             return
         try:
             self.set_status("Parsing %s" % filename)
-            self.get_translation_unit(filename, opts)
+            self.get_translation_unit(filename, opts, opts_script)
             self.set_status("Parsing %s done" % filename)
         finally:
             l = self.parsingList.lock()
@@ -157,12 +159,12 @@ class TranslationUnitCache(Worker):
             sublime.set_timeout(on_done, 0)
 
     def task_reparse(self, data):
-        filename, opts, unsaved_files, on_done = data
+        filename, opts, opts_script, unsaved_files, on_done = data
         if self.add_busy(filename, self.task_reparse, data):
             return
         try:
             self.set_status("Reparsing %s" % filename)
-            tu = self.get_translation_unit(filename, opts, unsaved_files)
+            tu = self.get_translation_unit(filename, opts, opts_script, unsaved_files)
             if tu != None:
                 tu.lock()
                 try:
@@ -208,7 +210,7 @@ class TranslationUnitCache(Worker):
             pl.append(filename)
             self.tasks.put((
                 self.task_reparse,
-                (filename, self.get_opts(view), unsaved_files, on_done)))
+                (filename, self.get_opts(view), self.get_opts_script(view), unsaved_files, on_done)))
         self.parsingList.unlock()
         return ret
 
@@ -219,9 +221,12 @@ class TranslationUnitCache(Worker):
             pl.append(filename)
             self.tasks.put((
                 self.task_parse,
-                (filename, self.get_opts(view), on_done)))
+                (filename, self.get_opts(view), self.get_opts_script(view), on_done)))
         self.translationUnits.unlock()
         self.parsingList.unlock()
+
+    def get_opts_script(self, view):
+        return expand_path(get_setting("options_script", None, view), view.window())
 
     def get_opts(self, view):
         opts = get_path_setting("options", [], view)
@@ -237,12 +242,10 @@ class TranslationUnitCache(Worker):
             additional_language_options = get_setting("additional_language_options", {}, view)
             if additional_language_options.has_key(language):
                 opts.extend(additional_language_options[language] or [])
-        if get_setting("debug_options", False):
-            print "Will compile file %s with the following options:\n%s" % (view.file_name(), opts)
         self.index_parse_options = get_setting("index_parse_options", 13, view)
         return opts
 
-    def get_translation_unit(self, filename, opts=[], unsaved_files=[]):
+    def get_translation_unit(self, filename, opts=[], opts_script=None, unsaved_files=[]):
         if self.index == None:
             self.index = cindex.Index.create()
         tu = None
@@ -250,7 +253,21 @@ class TranslationUnitCache(Worker):
         if filename not in tus:
             self.translationUnits.unlock()
 
+            if opts_script:
+                # shlex.split barfs if fed with an unicode strings
+                args = shlex.split(opts_script.encode()) + [filename]
+                process = subprocess.Popen(args, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
+                output = process.communicate()
+                if process.returncode:
+                    print "The options_script failed with code [%s]" % process.returncode
+                    print output[1]
+                else:
+                    opts += shlex.split(output[0])
+
+            if get_setting("debug_options", False):
+                print "Will compile file %s with the following options:\n%s" % (filename, opts)
             opts.append(filename)
+
             tu = self.index.parse(None, opts, unsaved_files,
                                   self.index_parse_options)
             if tu != None:
@@ -291,7 +308,7 @@ def get_translation_unit(view, filename=None, blocking=False):
         elif stat == TranslationUnitCache.STATUS_PARSING:
             sublime.status_message("Hold your horses, cache still warming up")
             return None
-    return tuCache.get_translation_unit(filename, tuCache.get_opts(view))
+    return tuCache.get_translation_unit(filename, tuCache.get_opts(view), tuCache.get_opts_script(view))
 
 tuCache = TranslationUnitCache()
 navigation_stack = []
