@@ -236,6 +236,20 @@
         "-I/path/to/sources/2"
     ],
 
+    // A command that can be run to fetch actual options for a source file in a build system.
+    // The script should print on stdout a list of space or newline separated options
+    // that will be appended to the static list in "options".
+    //
+    // This setting will also have its ${home}, ${project_path:} and ${folder:} tokens expanded
+    // and can be configured in project files.
+    //
+    // Example:
+    // "${project_path:scriptName.sh} someArgument1 someArgument2"
+    // if scriptName.sh is present under the project's folders, will be executed as:
+    // "/path/to/scriptName.sh someArgument1 someArgument2 currentViewFileName"
+    // before each time a file needs to be parsed by clang.
+    "options_script": "",
+
     // When set to true will output the final options used to the python console
     "debug_options": false,
 
