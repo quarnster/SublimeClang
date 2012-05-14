@@ -267,7 +267,7 @@ class Cache:
 
     def clangcomplete(self, filename, row, col, unsaved_files, membercomp):
         ret = None
-        unsaved = 0
+        unsaved = None
         if len(unsaved_files):
             unsaved = (cindex._CXUnsavedFile * len(unsaved_files))()
             for i, (name, value) in enumerate(unsaved_files):
