@@ -92,6 +92,7 @@ class TranslationUnitCache(Worker):
         self.busyList = TranslationUnitCache.LockedVariable([])
         self.index_parse_options = 13
         self.index = None
+        self.debug_options = False
 
     def get_status(self, filename):
         tu = self.translationUnits.lock()
@@ -242,6 +243,7 @@ class TranslationUnitCache(Worker):
             additional_language_options = get_setting("additional_language_options", {}, view)
             if additional_language_options.has_key(language):
                 opts.extend(additional_language_options[language] or [])
+        self.debug_options = get_setting("debug_options", False)
         self.index_parse_options = get_setting("index_parse_options", 13, view)
         return opts
 
@@ -264,7 +266,7 @@ class TranslationUnitCache(Worker):
                 else:
                     opts += shlex.split(output[0])
 
-            if get_setting("debug_options", False):
+            if self.debug_options:
                 print "Will compile file %s with the following options:\n%s" % (filename, opts)
             opts.append(filename)
 
