@@ -833,9 +833,9 @@ public:
         if (nsLength == 0)
         {
             std::string disp(type);
-            disp += "\tclass";
+            disp += "\t";
             std::vector<Entry*>::iterator pos = std::lower_bound(mEntries.begin(), mEntries.end(), disp.c_str(), EntryStringCompare());
-            if (pos != mEntries.end() && !strcmp((*pos)->display, disp.c_str()))
+            if (pos != mEntries.end() && !strncmp((*pos)->display, disp.c_str(), disp.length()))
             {
                 return (*pos)->cursor;
             }

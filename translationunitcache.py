@@ -144,7 +144,10 @@ class Cache:
                             cache_disposeCompletionResults(comp)
             return ret
         elif re.search("([^ \t]+)(\.|\->)$", before):
-            typedef = get_type_definition(data)
+            comp = data
+            if len(prefix) > 0:
+                comp = data[:-len(prefix)]
+            typedef = get_type_definition(comp)
             if typedef == None:
                 return None
             line, column, typename, var, tocomplete = typedef
