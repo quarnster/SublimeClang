@@ -614,7 +614,7 @@ protected:
                 break;
             }
         }
-        if (nvd->namespaceCount == 0 || (nvd->mParents.size() == nvd->namespaceCount && clang_equalCursors(nvd->mParents.back(), clang_getCursorSemanticParent(cursor))))
+        if (nvd->namespaceCount == 0 || (nvd->mParents.size() == nvd->namespaceCount && clang_equalCursors(nvd->mParents.back(), parent)))
         {
             bool bk = nvd->visitor(cursor, parent, recurse, ck);
             if (bk)
@@ -699,8 +699,13 @@ public:
                 {
                     if (!strcmp(str, mSpelling))
                     {
-                        mCursor = cursor;
-                        mFound = true;
+                        bool hasChildren = false;
+                        clang_visitChildren(cursor, haschildren_visitor, &hasChildren);
+                        if (hasChildren)
+                        {
+                            mCursor = cursor;
+                            mFound = true;
+                        }
                     }
                 }
                 clang_disposeString(s);

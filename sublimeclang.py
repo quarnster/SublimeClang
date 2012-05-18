@@ -487,8 +487,10 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
                 data = view.substr(sublime.Region(0, locations[0]))
                 cached_results = tu.cache.complete(data, prefix)
             if cached_results:
+                print "found fast completions"
                 ret = cached_results
             else:
+                print "doing slow completions"
                 row, col = view.rowcol(locations[0] - len(prefix))
                 unsaved_files = []
                 if view.is_dirty():

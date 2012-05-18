@@ -113,6 +113,21 @@ class Cache:
         if self.cache:
             _deleteCache(self.cache)
 
+    def get_native_namespace(self, namespace):
+        nsarg = (c_char_p*len(namespace))()
+        for i in range(len(namespace)):
+            nsarg[i] = namespace[i]
+        return nsarg
+
+    def complete_namespace(self, namespace):
+        ret = None
+        nsarg = self.get_native_namespace(namespace)
+        comp = cache_completeNamespace(self.cache, nsarg, len(nsarg))
+        if comp:
+            ret = [(x.display, x.insert) for x in comp[0]]
+            cache_disposeCompletionResults(comp)
+        return ret
+
     def complete(self, data, prefix):
         line = extract_line_at_offset(data, len(data)-1)
         before = line
@@ -125,23 +140,19 @@ class Cache:
             before = match.group(1)
             namespace = before.split("::")
             namespace.pop()  # the last item is going to be "prefix"
-            nsarg = (c_char_p*len(namespace))()
-            for i in range(len(namespace)):
-                nsarg[i] = namespace[i]
-            comp = cache_completeNamespace(self.cache, nsarg, len(nsarg))
-            if comp:
-                ret = [(x.display, x.insert) for x in comp[0]]
-                cache_disposeCompletionResults(comp)
-                if len(ret) == 0:
-                    typename = namespace.pop()
-                    c = cache_findType(self.cache, nsarg, len(nsarg)-1, typename)
-                    if not c is None and not c.kind.is_invalid():
-                        comp = cache_completeCursor(self.cache, c)
-                        if comp:
-                            for c in comp[0]:
-                                if c.static or c.cursor.kind == cindex.CursorKind.ENUM_CONSTANT_DECL:
-                                    ret.append((c.display, c.insert))
-                            cache_disposeCompletionResults(comp)
+            ret = self.complete_namespace(namespace)
+
+            if len(ret) == 0:
+                typename = namespace.pop()
+                nsarg = self.get_native_namespace(namespace)
+                c = cache_findType(self.cache, nsarg, len(nsarg), typename)
+                if not c is None and not c.kind.is_invalid():
+                    comp = cache_completeCursor(self.cache, c)
+                    if comp:
+                        for c in comp[0]:
+                            if c.static or c.cursor.kind == cindex.CursorKind.ENUM_CONSTANT_DECL:
+                                ret.append((c.display, c.insert))
+                        cache_disposeCompletionResults(comp)
             return ret
         elif re.search("([^ \t]+)(\.|\->)$", before):
             comp = data
@@ -151,14 +162,25 @@ class Cache:
             if typedef == None:
                 return None
             line, column, typename, var, tocomplete = typedef
+            print typedef
             if typename == None:
                 return None
             cursor = None
             if not var is None:
                 cursor = cindex.Cursor.get(self.tu, self.filename, line, column)
                 if cursor is None or cursor.kind.is_invalid() or cursor.spelling != var:
-                    # TODO: "using namespace"
-                    cursor = cache_findType(self.cache, None, 0, get_base_type(typename))
+                    namespaces = extract_used_namespaces(data)
+                    namespaces.insert(0, None)
+                    namespaces.insert(1, extract_namespace(data))
+                    for ns in namespaces:
+                        nsarg = None
+                        nslen = 0
+                        if ns:
+                            nsarg = self.get_native_namespace(ns.split("::"))
+                            nslen = len(nsarg)
+                        cursor = cache_findType(self.cache, nsarg, nslen, get_base_type(typename))
+                        if not cursor is None and not cursor.kind.is_invalid():
+                            break
                 else:
                     # It's going to be a declaration of some kind, so
                     # get the returned cursor
@@ -169,8 +191,18 @@ class Cache:
                 if clazz == None:
                     clazz = extract_class(data)
                 if clazz != None:
-                    # TODO: "using namespace"
-                    cursor = cache_findType(self.cache, None, 0, clazz)
+                    namespaces = extract_used_namespaces(data)
+                    namespaces.insert(0, None)
+                    namespaces.insert(1, extract_namespace(data))
+                    for ns in namespaces:
+                        nsarg = None
+                        nslen = 0
+                        if ns:
+                            nsarg = self.get_native_namespace(ns.split("::"))
+                            nslen = len(nsarg)
+                        cursor = cache_findType(self.cache, nsarg, nslen, clazz)
+                        if not cursor is None and not cursor.kind.is_invalid():
+                            break
                     if not cursor is None and not cursor.kind.is_invalid():
                         func = False
                         if typename.endswith("()"):
@@ -249,11 +281,12 @@ class Cache:
             if clazz == None:
                 clazz = extract_class(data)
             if clazz != None:
-                ns = extract_namespace(data).split("::")
+                ns = extract_namespace(data)
                 c = None
-                if len(ns) == 1 and ns[0] == "":
+                if ns == None:
                     c = cache_findType(self.cache, None, 0, clazz)
                 else:
+                    ns = ns.split("::")
                     nsarg = (c_char_p * len(ns))()
                     for i in range(len(ns)):
                         nsarg[i] = ns[i]
@@ -267,7 +300,15 @@ class Cache:
                                 if add not in ret:
                                     ret.append(add)
                         cache_disposeCompletionResults(comp)
-            # TODO: add in stuff from "using namespace" directives
+            namespaces = extract_used_namespaces(data)
+            ns = extract_namespace(data)
+            if ns:
+                namespaces.append(ns)
+            for ns in namespaces:
+                ns = ns.split("::")
+                add = self.complete_namespace(ns)
+                if add:
+                    ret.extend(add)
         return ret
 
     def clangcomplete(self, filename, row, col, unsaved_files, membercomp):
