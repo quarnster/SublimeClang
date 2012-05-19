@@ -129,6 +129,11 @@ class Cache:
         return ret
 
     def find_type(self, data, typename):
+        extra = None
+        idx = typename.rfind("::")
+        if idx != -1:
+            extra = typename[:idx]
+            typename = typename[idx+2:]
         namespaces = extract_used_namespaces(data)
         namespaces.insert(0, None)
         namespaces.insert(1, extract_namespace(data))
@@ -136,6 +141,11 @@ class Cache:
         for ns in namespaces:
             nsarg = None
             nslen = 0
+            if extra:
+                if ns:
+                    ns = ns + "::" + extra
+                else:
+                    ns = extra
             if ns:
                 nsarg = self.get_native_namespace(ns.split("::"))
                 nslen = len(nsarg)
@@ -248,18 +258,7 @@ class Cache:
                 if clazz == None:
                     clazz = extract_class(data)
                 if clazz != None:
-                    namespaces = extract_used_namespaces(data)
-                    namespaces.insert(0, None)
-                    namespaces.insert(1, extract_namespace(data))
-                    for ns in namespaces:
-                        nsarg = None
-                        nslen = 0
-                        if ns:
-                            nsarg = self.get_native_namespace(ns.split("::"))
-                            nslen = len(nsarg)
-                        cursor = cache_findType(self.cache, nsarg, nslen, clazz)
-                        if not cursor is None and not cursor.kind.is_invalid():
-                            break
+                    cursor = self.find_type(data, clazz)
                     if not cursor is None and not cursor.kind.is_invalid():
                         func = False
                         if typename.endswith("()"):
