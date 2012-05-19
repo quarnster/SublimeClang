@@ -369,7 +369,7 @@ public:
             isStatic = clang_CXXMethod_isStatic(c);
     }
     Entry(const Entry& other)
-    : cursor(other.cursor), access(other.access), isStatic(other.isStatic)
+    : cursor(other.cursor), access(other.access), isStatic(other.isStatic), isBaseClass(other.isBaseClass)
     {
         display = new char[strlen(other.display)+1];
         memcpy(display, other.display, strlen(other.display)+1);
