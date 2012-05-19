@@ -1107,9 +1107,9 @@ class Cursor(Structure):
             return self
         elif self.result_type.kind == TypeKind.RECORD:
             return self.get_children()[0].get_resolved_cursor()
-        elif self.kind == CursorKind.CLASS_DECL or self.kind == CursorKind.ENUM_DECL:
+        elif self.kind == CursorKind.CLASS_DECL or self.kind == CursorKind.ENUM_DECL or self.kind == CursorKind.CLASS_TEMPLATE:
             return self
-        elif self.kind == CursorKind.TEMPLATE_REF or self.kind == CursorKind.TEMPLATE_TYPE_PARAMETER:
+        elif self.kind == CursorKind.TEMPLATE_TYPE_PARAMETER:
             return self
         elif self.kind.is_reference():
             ref = self.get_reference()
@@ -1190,9 +1190,10 @@ class Cursor(Structure):
                     c = children[i]
                     i += 1
 
-                if c.kind == CursorKind.TEMPLATE_REF:
-                    return self
-                elif c.kind.is_reference():
+                #if c.kind == CursorKind.TEMPLATE_REF:
+                #    return self
+                #el
+                if c.kind.is_reference():
                     i = 0
                     while i < len(children):
                         c = children[i]

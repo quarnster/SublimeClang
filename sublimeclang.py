@@ -458,7 +458,7 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
             return []
 
         line = view.substr(sublime.Region(view.line(locations[0]).begin(), locations[0]))
-        match = re.search("[,\s]*(\w+)\s+\w+$", line)
+        match = re.search(r"[,\s]*(\w+)\s+\w+$", line)
         if match != None:
             valid = ["new", "delete", "return", "goto", "case", "const", "static", "class", "struct", "typedef", "union"]
             if match.group(1) not in valid:

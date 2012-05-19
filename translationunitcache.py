@@ -128,6 +128,73 @@ class Cache:
             cache_disposeCompletionResults(comp)
         return ret
 
+    def find_type(self, data, typename):
+        namespaces = extract_used_namespaces(data)
+        namespaces.insert(0, None)
+        namespaces.insert(1, extract_namespace(data))
+        cursor = None
+        for ns in namespaces:
+            nsarg = None
+            nslen = 0
+            if ns:
+                nsarg = self.get_native_namespace(ns.split("::"))
+                nslen = len(nsarg)
+            cursor = cache_findType(self.cache, nsarg, nslen, typename)
+            if not cursor is None and not cursor.kind.is_invalid():
+                if cursor.kind.is_reference():
+                    cursor = cursor.get_referenced()
+                break
+        return cursor
+
+    def get_template_type_count(self, temp):
+        ret = []
+        for child in temp.get_children():
+            if child.kind == cindex.CursorKind.TEMPLATE_TYPE_PARAMETER:
+                ret.append(child)
+        return len(ret)
+
+    def solve_template_from_cursor(self, temp, member, template):
+        found = False
+        children = []
+        for child in member.get_children():
+            if not found:
+                if child.get_reference() == temp:
+                    found = True
+                continue
+            if child.kind == cindex.CursorKind.TEMPLATE_REF:
+                # Don't support nested templates for now
+                children = []
+                break
+            elif child.kind == cindex.CursorKind.TYPE_REF:
+                children.append((child.get_resolved_cursor(), None))
+        return temp, children
+
+    def solve_member(self, data, typecursor, member, template):
+        temp = None
+        pointer = False
+        if not member is None and not member.kind.is_invalid():
+            temp = member.get_returned_cursor()
+            pointer = member.result_type.kind == cindex.TypeKind.POINTER
+
+            if not temp is None and not temp.kind.is_invalid():
+                if temp.kind == cindex.CursorKind.TEMPLATE_TYPE_PARAMETER:
+                    off = 0
+                    for child in typecursor.get_children():
+                        if child.kind == cindex.CursorKind.TEMPLATE_TYPE_PARAMETER:
+                            if child == temp:
+                                break
+                            off += 1
+                    if template[1] and off < len(template[1]):
+                        template = template[1][off]
+                        if isinstance(template[0], cindex.Cursor):
+                            temp = template[0]
+                        else:
+                            temp = self.find_type(data, template[0])
+                elif temp.kind == cindex.CursorKind.CLASS_TEMPLATE:
+                    template = self.solve_template_from_cursor(temp, member, template)
+
+        return temp, template, pointer
+
     def complete(self, data, prefix):
         line = extract_line_at_offset(data, len(data)-1)
         before = line
@@ -166,21 +233,11 @@ class Cache:
             if typename == None:
                 return None
             cursor = None
+            template = solve_template(get_base_type(typename))
             if not var is None:
                 cursor = cindex.Cursor.get(self.tu, self.filename, line, column)
                 if cursor is None or cursor.kind.is_invalid() or cursor.spelling != var:
-                    namespaces = extract_used_namespaces(data)
-                    namespaces.insert(0, None)
-                    namespaces.insert(1, extract_namespace(data))
-                    for ns in namespaces:
-                        nsarg = None
-                        nslen = 0
-                        if ns:
-                            nsarg = self.get_native_namespace(ns.split("::"))
-                            nslen = len(nsarg)
-                        cursor = cache_findType(self.cache, nsarg, nslen, get_base_type(typename))
-                        if not cursor is None and not cursor.kind.is_invalid():
-                            break
+                    cursor = self.find_type(data, template[0])
                 else:
                     # It's going to be a declaration of some kind, so
                     # get the returned cursor
@@ -211,6 +268,7 @@ class Cache:
                         cursor = cursor.get_member(typename, func)
                         if not cursor is None and not cursor.kind.is_invalid():
                             cursor = cursor.get_resolved_cursor()
+            pointer = is_pointer(typename)
 
             if not cursor is None and not cursor.kind.is_invalid():
                 r = cursor
@@ -218,7 +276,8 @@ class Cache:
                 while len(tocomplete) and count < 10:
                     if r is None or \
                             not (r.kind == cindex.CursorKind.CLASS_DECL or \
-                            r.kind == cindex.CursorKind.STRUCT_DECL):
+                            r.kind == cindex.CursorKind.STRUCT_DECL or \
+                            r.kind == cindex.CursorKind.CLASS_TEMPLATE):
                         r = None
                         break
                     count += 1
@@ -233,22 +292,24 @@ class Cache:
                         function = True
                         tocomplete = tocomplete[1:]
                     elif match.group(2) == "[":
+                        # TODO: operator[]
                         tocomplete = tocomplete[1:]
 
                     left = re.match("(\.|\->)?(.*)", tocomplete)
                     tocomplete = left.group(2)
                     if left.group(1) != None:
                         tocomplete = left.group(1) + tocomplete
-                    # TODO: operator->
+                    if match.group(1) == None and match.group(2) == "->" and not pointer:
+                        comp = r.get_member("operator->", True)
+                        r, template, pointer = self.solve_member(data, r, comp, template)
+
                     if match.group(1):
                         member = match.group(1)
                         if "[" in member:
                             member = get_base_type(member)
-                        comp = r.get_member(member, function)
-                        if comp is None or comp.kind.is_invalid():
-                            r = None
-                            break
-                        r = comp.get_resolved_cursor()
+                        member = r.get_member(member, function)
+                        r, template, pointer = self.solve_member(data, r, member, template)
+
                 if not r is None and not r.kind.is_invalid():
                     clazz = extract_class_from_function(data)
                     if clazz == None:
@@ -263,6 +324,7 @@ class Cache:
                                     c.cursor.kind != cindex.CursorKind.TYPEDEF_DECL and \
                                     c.cursor.kind != cindex.CursorKind.CLASS_DECL and \
                                     c.cursor.kind != cindex.CursorKind.STRUCT_DECL and \
+                                    c.cursor.kind != cindex.CursorKind.CLASS_TEMPLATE and \
                                     (c.access == cindex.CXXAccessSpecifier.PUBLIC or selfcompletion):
                                 add = (c.display, c.insert)
                                 if add not in ret:
