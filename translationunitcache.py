@@ -250,6 +250,10 @@ class Cache:
                             break
                         r = comp.get_resolved_cursor()
                 if not r is None and not r.kind.is_invalid():
+                    clazz = extract_class_from_function(data)
+                    if clazz == None:
+                        clazz = extract_class(data)
+                    selfcompletion = clazz == r.spelling
                     comp = cache_completeCursor(self.cache, r)
                     if comp:
                         ret = []
@@ -259,7 +263,7 @@ class Cache:
                                     c.cursor.kind != cindex.CursorKind.TYPEDEF_DECL and \
                                     c.cursor.kind != cindex.CursorKind.CLASS_DECL and \
                                     c.cursor.kind != cindex.CursorKind.STRUCT_DECL and \
-                                    c.access == cindex.CXXAccessSpecifier.PUBLIC:
+                                    (c.access == cindex.CXXAccessSpecifier.PUBLIC or selfcompletion):
                                 add = (c.display, c.insert)
                                 if add not in ret:
                                     ret.append(add)
