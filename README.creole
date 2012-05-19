@@ -57,6 +57,7 @@ If you experience choppy typing it might be because you sources are too large fo
   * Toggle SublimeClang's vs. Sublime Text's completion when you don't need it using alt+d,alt+t
   * Set "auto_complete": false in the editor's preferences.\\
     You then lose the automatic as-you-type completion and have to trigger it manually. SublimeClang will still show you the completion menu automatically when you type "." or "->".
+  * Work on making completions faster is done in the clangexp branch, which will eventually get merged into master when [[https://github.com/wbond/sublime_package_control/issues/126|issue 126]] in Package Control is fixed. In the mean time you'll have to [[https://github.com/quarnster/SublimeClang/pull/58#issuecomment-5790749|switch branch manually]]. 
 
 === Show your support ===
 
