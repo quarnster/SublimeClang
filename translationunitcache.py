@@ -244,6 +244,7 @@ class Cache:
                 return None
             cursor = None
             template = solve_template(get_base_type(typename))
+            pointer = is_pointer(typename)
             if not var is None:
                 cursor = cindex.Cursor.get(self.tu, self.filename, line, column)
                 if cursor is None or cursor.kind.is_invalid() or cursor.spelling != var:
@@ -264,10 +265,8 @@ class Cache:
                         if typename.endswith("()"):
                             func = True
                             typename = typename[:-2]
-                        cursor = cursor.get_member(typename, func)
-                        if not cursor is None and not cursor.kind.is_invalid():
-                            cursor = cursor.get_resolved_cursor()
-            pointer = is_pointer(typename)
+                        member = cursor.get_member(typename, func)
+                        cursor, template, pointer = self.solve_member(data, cursor, member, template)
 
             if not cursor is None and not cursor.kind.is_invalid():
                 r = cursor
