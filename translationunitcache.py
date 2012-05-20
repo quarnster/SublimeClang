@@ -227,6 +227,17 @@ class Cache:
         ret = None
         if re.search("::$", before):
             match = re.search("([^\(\\s,]+::)+$", before)
+            if match == None:
+                ret = None
+                cached_results = cache_complete_startswith(self.cache, prefix)
+                if cached_results and len(cached_results[0]):
+                    ret = []
+                    for x in cached_results[0]:
+                        if x.cursor.kind != cindex.CursorKind.MACRO_DEFINITION and \
+                                x.cursor.kind != cindex.CursorKind.CXX_METHOD:
+                            ret.append((x.display, x.insert))
+                    cache_disposeCompletionResults(cached_results)
+                return ret
             before = match.group(1)
             namespace = before.split("::")
             namespace.pop()  # the last item is going to be "prefix"
