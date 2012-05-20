@@ -168,7 +168,8 @@ class Cache:
         children = []
         for child in member.get_children():
             if not found:
-                if child.get_reference() == temp:
+                ref = child.get_reference()
+                if not ref is None and ref == temp:
                     found = True
                 continue
             if child.kind == cindex.CursorKind.TEMPLATE_REF:
@@ -277,7 +278,7 @@ class Cache:
                 return None
             cursor = None
             template = solve_template(get_base_type(typename))
-            pointer = is_pointer(typename)
+            pointer = is_pointer(typename) or var == "this"
             if not var is None:
                 if line > 0 and column > 0:
                     cursor = cindex.Cursor.get(self.tu, self.filename, line, column)
