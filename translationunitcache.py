@@ -205,6 +205,19 @@ class Cache:
 
         return temp, template, pointer
 
+    def inherits(self, parent, child):
+        if child is None or child.kind.is_invalid():
+            return False
+        if parent == child:
+            return True
+        for c in child.get_children():
+            if c.kind == cindex.CursorKind.CXX_BASE_SPECIFIER:
+                for c2 in c.get_children():
+                    if c2.kind == cindex.CursorKind.TYPE_REF:
+                        c2 = c2.get_reference()
+                        return self.inherits(parent, c2)
+        return False
+
     def complete(self, data, prefix):
         line = extract_line_at_offset(data, len(data)-1)
         before = line
@@ -222,14 +235,21 @@ class Cache:
             if len(ret) == 0:
                 ret = None
                 typename = namespace.pop()
-                nsarg = self.get_native_namespace(namespace)
-                c = cache_findType(self.cache, nsarg, len(nsarg), typename)
+                c = self.find_type(data, typename)
                 if not c is None and not c.kind.is_invalid():
                     comp = cache_completeCursor(self.cache, c)
                     if comp and len(comp[0]):
+                        inherits = False
                         ret = []
+                        clazz = extract_class_from_function(data)
+                        if clazz == None:
+                            clazz = extract_class(data)
+                        if clazz != None:
+                            c2 = self.find_type(data, clazz)
+                            inherits = self.inherits(c, c2)
+
                         for c in comp[0]:
-                            if c.static or c.cursor.kind == cindex.CursorKind.ENUM_CONSTANT_DECL:
+                            if (inherits and c.access != cindex.CXXAccessSpecifier.PRIVATE) or c.static or c.cursor.kind == cindex.CursorKind.ENUM_CONSTANT_DECL:
                                 ret.append((c.display, c.insert))
                         cache_disposeCompletionResults(comp)
             return ret
