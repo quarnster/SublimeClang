@@ -541,7 +541,7 @@ CXChildVisitResult get_completion_children(CXCursor cursor, CXCursor parent, CXC
     if (ck == CXCursor_CXXBaseSpecifier)
     {
         CXCursor ref = clang_getCursorReferenced(cursor);
-        if (!clang_Cursor_isNull(ref))
+        if (!clang_Cursor_isNull(ref) && !clang_isInvalid(clang_getCursorKind(ref)))
         {
             CompletionVisitorData d(data->entries, CX_CXXPrivate, true);
             if (clang_getCursorKind(ref) == CXCursor_StructDecl)
