@@ -220,12 +220,14 @@ class Cache:
             ret = self.complete_namespace(namespace)
 
             if len(ret) == 0:
+                ret = None
                 typename = namespace.pop()
                 nsarg = self.get_native_namespace(namespace)
                 c = cache_findType(self.cache, nsarg, len(nsarg), typename)
                 if not c is None and not c.kind.is_invalid():
                     comp = cache_completeCursor(self.cache, c)
-                    if comp:
+                    if comp and len(comp[0]):
+                        ret = []
                         for c in comp[0]:
                             if c.static or c.cursor.kind == cindex.CursorKind.ENUM_CONSTANT_DECL:
                                 ret.append((c.display, c.insert))
@@ -315,7 +317,7 @@ class Cache:
                         clazz = extract_class(data)
                     selfcompletion = clazz == r.spelling
                     comp = cache_completeCursor(self.cache, r)
-                    if comp:
+                    if comp and len(comp[0]):
                         ret = []
                         for c in comp[0]:
                             if not c.static and c.cursor.kind != cindex.CursorKind.ENUM_CONSTANT_DECL and \

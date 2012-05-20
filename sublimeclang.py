@@ -486,7 +486,7 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
             if clang_fast_completions and not get_language(view).startswith("objc") and get_setting("enable_fast_completions", True, view):
                 data = view.substr(sublime.Region(0, locations[0]))
                 cached_results = tu.cache.complete(data, prefix)
-            if cached_results:
+            if cached_results != None:
                 print "found fast completions"
                 ret = cached_results
             else:
