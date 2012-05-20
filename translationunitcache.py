@@ -246,7 +246,8 @@ class Cache:
             template = solve_template(get_base_type(typename))
             pointer = is_pointer(typename)
             if not var is None:
-                cursor = cindex.Cursor.get(self.tu, self.filename, line, column)
+                if line > 0 and column > 0:
+                    cursor = cindex.Cursor.get(self.tu, self.filename, line, column)
                 if cursor is None or cursor.kind.is_invalid() or cursor.spelling != var:
                     cursor = self.find_type(data, template[0])
                 else:
@@ -279,7 +280,7 @@ class Cache:
                         r = None
                         break
                     count += 1
-                    match = re.search("([^\.\-\(]+)?(\(|\.|->)(.*)", tocomplete)
+                    match = re.search(r"([^\.\-\(:]+)?(\(|\.|->|::)(.*)", tocomplete)
                     if match == None:
                         break
 
@@ -293,7 +294,7 @@ class Cache:
                         # TODO: operator[]
                         tocomplete = tocomplete[1:]
 
-                    left = re.match("(\.|\->)?(.*)", tocomplete)
+                    left = re.match(r"(\.|\->|::)?(.*)", tocomplete)
                     tocomplete = left.group(2)
                     if left.group(1) != None:
                         tocomplete = left.group(1) + tocomplete
