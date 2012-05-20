@@ -1181,7 +1181,8 @@ class Cursor(Structure):
         if self.kind == CursorKind.FUNCTION_DECL or \
                     self.kind == CursorKind.FIELD_DECL or \
                     self.kind == CursorKind.CXX_METHOD or \
-                    self.kind == CursorKind.VAR_DECL:
+                    self.kind == CursorKind.VAR_DECL or \
+                    self.kind == CursorKind.PARM_DECL:
             children = self.get_children()
             if len(children) > 0:
                 c = children[0]
