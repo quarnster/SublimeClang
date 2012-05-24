@@ -182,10 +182,10 @@ class Cache:
 
     def solve_member(self, data, typecursor, member, template):
         temp = None
-        pointer = False
+        pointer = 0
         if not member is None and not member.kind.is_invalid():
             temp = member.get_returned_cursor()
-            pointer = member.result_type.kind == cindex.TypeKind.POINTER or member.type.kind == cindex.TypeKind.POINTER
+            pointer = member.get_returned_pointer_level()
 
             if not temp is None and not temp.kind.is_invalid():
                 if temp.kind == cindex.CursorKind.TEMPLATE_TYPE_PARAMETER:
@@ -278,7 +278,10 @@ class Cache:
                 return None
             cursor = None
             template = solve_template(get_base_type(typename))
-            pointer = is_pointer(typename) or var == "this"
+            pointer = get_pointer_level(typename)
+            if var == "this":
+                pointer = 1
+
             if not var is None:
                 if line > 0 and column > 0:
                     cursor = cindex.Cursor.get(self.tu, self.filename, line, column)
@@ -314,7 +317,7 @@ class Cache:
                         r = None
                         break
                     count += 1
-                    match = re.search(r"([^\.\-\(:]+)?(\(|\.|->|::)(.*)", tocomplete)
+                    match = re.search(r"^([^\.\-\(:\[]]+)?(\[\]|\(|\.|->|::)(.*)", tocomplete)
                     if match == None:
                         break
 
@@ -324,17 +327,26 @@ class Cache:
                     if match.group(2) == "(":
                         function = True
                         tocomplete = tocomplete[1:]
-                    elif match.group(2) == "[":
-                        # TODO: operator[]
-                        tocomplete = tocomplete[1:]
 
                     left = re.match(r"(\.|\->|::)?(.*)", tocomplete)
                     tocomplete = left.group(2)
                     if left.group(1) != None:
                         tocomplete = left.group(1) + tocomplete
-                    if match.group(1) == None and match.group(2) == "->" and not pointer:
-                        comp = r.get_member("operator->", True)
-                        r, template, pointer = self.solve_member(data, r, comp, template)
+                    if match.group(1) == None and pointer == 0:
+                        if match.group(2) == "->":
+                            comp = r.get_member("operator->", True)
+                            r, template, pointer = self.solve_member(data, r, comp, template)
+                        elif match.group(2) == "[]":
+                            # TODO: different index types?
+                            comp = r.get_member("operator[]", True)
+                            r, template, pointer = self.solve_member(data, r, comp, template)
+                    elif match.group(1) == None and pointer > 0:
+                        m2 = match.group(2)
+                        if (m2 == "->" or m2 == "[]"):
+                            pointer -= 1
+                        elif m2 == ".":
+                            r = None
+                            break
 
                     if match.group(1):
                         member = match.group(1)
@@ -343,7 +355,7 @@ class Cache:
                         member = r.get_member(member, function)
                         r, template, pointer = self.solve_member(data, r, member, template)
 
-                if not r is None and not r.kind.is_invalid():
+                if not r is None and not r.kind.is_invalid() and pointer == 0:
                     clazz = extract_class_from_function(data)
                     if clazz == None:
                         clazz = extract_class(data)

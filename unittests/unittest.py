@@ -1,33 +1,47 @@
 import translationunitcache
 import os
+import pickle
 
 opts = []
 
+golden = {}
+testsAdded = False
+tu = None
+currfile = None
 
-def add_test(output, golden_output_file):
+GOLDFILE = "unittests/gold.txt"
+
+
+if os.access(GOLDFILE, os.R_OK):
+    f = open(GOLDFILE)
+    golden = pickle.load(f)
+    f.close()
+
+
+def add_test(currtest):
+    global off
+    global testsAdded
+    output = tu.cache.complete(currtest, "")
+
+    key = "%s-%s" % (currfile, currtest)
+
     if output == None:
         output = []
-    output = [str(a)+"\n" for a in output]
-    if os.access(golden_output_file, os.R_OK):
-        f = open(golden_output_file)
-        golden_output = f.readlines()
-        f.close()
-        failed = len(golden_output) != len(output)
-        if not failed:
-            for i in range(len(output)):
-                if output[i] != golden_output[i]:
-                    print "output: %s\ngold: %s" % (output[i], golden_output[i])
-                    failed = True
-                    break
-        if failed:
-            raise Exception("Test failed: %s" % golden_output_file)
+    if not key in golden:
+        golden[key] = output
+        testsAdded = True
     else:
-        f = open(golden_output_file, "w")
-        f.writelines(output)
-        f.close()
+        gold = golden[key]
+        if len(gold) != len(output):
+            raise Exception("Length differs for test: %s %s" % (currfile, currtest))
+        for i in range(len(gold)):
+            if gold[i] != output[i]:
+                raise Exception("Mismatch in test:\n%s\n%s\n%s != %s" % (currfile, currtest, gold[i], output[i]))
 
 
 def get_tu(filename):
+    global currfile
+    currfile = filename
     myopts = []
     myopts.extend(opts)
     myopts.append("-x")
@@ -37,35 +51,138 @@ def get_tu(filename):
 # ---------------------------------------------------------
 
 tu = get_tu("unittests/1.cpp")
-add_test(tu.cache.complete("", ""), "unittests/1.txt")
+add_test("")
 
 # ---------------------------------------------------------
 
 tu = get_tu("unittests/2.cpp")
-add_test(tu.cache.complete("Class1 c;\nc.", ""), "unittests/2.txt")
-add_test(tu.cache.complete("void Class1::publicFunction() {", ""), "unittests/2_1.txt")
-add_test(tu.cache.complete("void Class2::something() {", ""), "unittests/2_2.txt")
-add_test(tu.cache.complete("Class1::", ""), "unittests/2_3.txt")
-add_test(tu.cache.complete("void Class2::something() { Class1::", ""), "unittests/2_4.txt")
-add_test(tu.cache.complete("Class3 c3; c3.", ""), "unittests/2_5.txt")
-add_test(tu.cache.complete("void Class2::something() { Class3::", ""), "unittests/2_6.txt")
-add_test(tu.cache.complete("void Class2::something() { Class3 c3; c3.", ""), "unittests/2_7.txt")
-add_test(tu.cache.complete("void Class2::something() { this->", ""), "unittests/2_8.txt")
-add_test(tu.cache.complete("void Class1::something() { this->", ""), "unittests/2_9.txt")
+add_test("Class1 c;\nc.")
+add_test("void Class1::publicFunction() {")
+add_test("void Class2::something() {")
+add_test("Class1::")
+add_test("void Class2::something() { Class1::")
+add_test("Class3 c3; c3.")
+add_test("void Class2::something() { Class3::")
+add_test("void Class2::something() { Class3 c3; c3.")
+add_test("void Class2::something() { this->")
+add_test("void Class1::something() { this->")
 
 # ---------------------------------------------------------
 
 tu = get_tu("unittests/3.cpp")
-add_test(tu.cache.complete("std::", ""), "unittests/3.txt")
-add_test(tu.cache.complete("std2::", ""), "unittests/3_1.txt")
-add_test(tu.cache.complete("Test::", ""), "unittests/3_2.txt")
-add_test(tu.cache.complete("namespace Test { ", ""), "unittests/3_3.txt")
-add_test(tu.cache.complete(" ", ""), "unittests/3_4.txt")
-add_test(tu.cache.complete("using namespace Test; ", ""), "unittests/3_5.txt")
-add_test(tu.cache.complete("using namespace Test;\nusing namespace std; ", ""), "unittests/3_6.txt")
-add_test(tu.cache.complete("std::vector<Test::Class1> t; t.", ""), "unittests/3_7.txt")
-add_test(tu.cache.complete("using namespace Class1; std::vector<Class1> t; t.", ""), "unittests/3_8.txt")
-add_test(tu.cache.complete("using namespace std; vector<Test::Class1> t; t.", ""), "unittests/3_9.txt")
-add_test(tu.cache.complete("vector<Test::Class1> t; t.", ""), "unittests/3_10.txt")
+add_test("std::")
+add_test("std2::")
+add_test("Test::")
+add_test("namespace Test { ")
+add_test(" ")
+add_test("using namespace Test; ")
+add_test("using namespace Test;\nusing namespace std; ")
+add_test("std::vector<Test::Class1> t; t.")
+add_test("using namespace Class1; std::vector<Class1> t; t.")
+add_test("using namespace std; vector<Test::Class1> t; t.")
+add_test("vector<Test::Class1> t; t.")
+
+# ---------------------------------------------------------
+
+tu = get_tu("unittests/4.cpp")
+add_test("C c; c.")
+add_test("C c; c->")
+add_test("C c; c[0].")
+add_test("C c; c[0]->")
+add_test("C *c; c[0].")
+add_test("C *c; c[0][0].")
+add_test("C *c; c[0]->")
+add_test("C *c; c->")
+add_test("C *c; c.")
+add_test("void C::something() { singleA.")
+add_test("void C::something() { singleA->")
+add_test("void C::something() { singleA[0].")
+add_test("void C::something() { singleA[0]->")
+add_test("void C::something() { singleA[0][0].")
+add_test("void C::something() { doubleA.")
+add_test("void C::something() { doubleA->")
+add_test("void C::something() { doubleA[0].")
+add_test("void C::something() { doubleA[0]->")
+add_test("void C::something() { doubleA[0][0].")
+add_test("void C::something() { doubleA[0][0]->")
+add_test("void C::something() { doubleA[0][0][0].")
+add_test("void C::something() { tripleA.")
+add_test("void C::something() { tripleA->")
+add_test("void C::something() { tripleA[0].")
+add_test("void C::something() { tripleA[0]->")
+add_test("void C::something() { tripleA[0][0].")
+add_test("void C::something() { tripleA[0][0]->")
+add_test("void C::something() { tripleA[0][0][0].")
+add_test("void C::something() { tripleA[0][0][0]->")
+add_test("void C::something() { tripleA[0][0][0][0].")
+add_test("void C::something() { singleB.")
+add_test("void C::something() { singleB->")
+add_test("void C::something() { singleB[0].")
+add_test("void C::something() { singleB[0]->")
+add_test("void C::something() { singleB[0][0].")
+add_test("void C::something() { doubleB.")
+add_test("void C::something() { doubleB->")
+add_test("void C::something() { doubleB[0].")
+add_test("void C::something() { doubleB[0]->")
+add_test("void C::something() { doubleB[0][0].")
+add_test("void C::something() { doubleB[0][0]->")
+add_test("void C::something() { doubleB[0][0][0].")
+add_test("void C::something() { tripleB.")
+add_test("void C::something() { tripleB->")
+add_test("void C::something() { tripleB[0].")
+add_test("void C::something() { tripleB[0]->")
+add_test("void C::something() { tripleB[0][0].")
+add_test("void C::something() { tripleB[0][0]->")
+add_test("void C::something() { tripleB[0][0][0].")
+add_test("void C::something() { tripleB[0][0][0]->")
+add_test("void C::something() { tripleB[0][0][0][0].")
+add_test("void C::something() { getSingleA().")
+add_test("void C::something() { getSingleA()->")
+add_test("void C::something() { getSingleA()[0].")
+add_test("void C::something() { getSingleA()[0]->")
+add_test("void C::something() { getSingleA()[0][0].")
+add_test("void C::something() { getDoubleA().")
+add_test("void C::something() { getDoubleA()->")
+add_test("void C::something() { getDoubleA()[0].")
+add_test("void C::something() { getDoubleA()[0]->")
+add_test("void C::something() { getDoubleA()[0][0].")
+add_test("void C::something() { getDoubleA()[0][0]->")
+add_test("void C::something() { getDoubleA()[0][0][0].")
+add_test("void C::something() { getTripleA().")
+add_test("void C::something() { getTripleA()->")
+add_test("void C::something() { getTripleA()[0].")
+add_test("void C::something() { getTripleA()[0]->")
+add_test("void C::something() { getTripleA()[0][0].")
+add_test("void C::something() { getTripleA()[0][0]->")
+add_test("void C::something() { getTripleA()[0][0][0].")
+add_test("void C::something() { getTripleA()[0][0][0]->")
+add_test("void C::something() { getTripleA()[0][0][0][0].")
+add_test("void C::something() { asinglemix.")
+add_test("void C::something() { asinglemix->")
+add_test("void C::something() { asinglemix[0].")
+add_test("void C::something() { asinglemix[0]->")
+add_test("void C::something() { asinglemix[0][0].")
+add_test("void C::something() { asinglemix[0][0]->")
+add_test("void C::something() { asinglemix.")
+add_test("void C::something() { adoublemix1->")
+add_test("void C::something() { adoublemix1[0].")
+add_test("void C::something() { adoublemix1[0]->")
+add_test("void C::something() { adoublemix1[0][0].")
+add_test("void C::something() { adoublemix1[0][0]->")
+add_test("void C::something() { adoublemix2->")
+add_test("void C::something() { adoublemix2[0].")
+add_test("void C::something() { adoublemix2[0]->")
+add_test("void C::something() { adoublemix2[0][0].")
+add_test("void C::something() { adoublemix2[0][0]->")
+
+if testsAdded:
+    f = open(GOLDFILE, "w")
+    pickle.dump(golden, f)
+    f.close()
+
+# for key in golden:
+#     print key
+#     for line in golden[key]:
+#         print "\t%s" % str(line)
 
 print "All is well"

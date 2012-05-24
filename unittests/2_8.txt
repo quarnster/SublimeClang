@@ -1,6 +1,0 @@
-('c2PrivateField\tint', 'c2PrivateField')
-('c2PrivateFunction()\tvoid', 'c2PrivateFunction()')
-('protectedField\tint', 'protectedField')
-('protectedFunction()\tvoid', 'protectedFunction()')
-('publicField\tint', 'publicField')
-('publicFunction()\tvoid', 'publicFunction()')

@@ -1,6 +1,0 @@
-('privateField\tint', 'privateField')
-('privateFunction()\tvoid', 'privateFunction()')
-('protectedField\tint', 'protectedField')
-('protectedFunction()\tvoid', 'protectedFunction()')
-('publicField\tint', 'publicField')
-('publicFunction()\tvoid', 'publicFunction()')

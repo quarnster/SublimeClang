@@ -1,2 +1,0 @@
-('publicField\tint', 'publicField')
-('publicFunction()\tvoid', 'publicFunction()')

@@ -1098,6 +1098,25 @@ class Cursor(Structure):
         Cursor_visit(self, Cursor_visit_callback(visitor), children)
         return children
 
+    def get_returned_pointer_level(self, curr=0):
+        ret = 0
+        type = None
+
+        if not self.result_type.kind.is_invalid():
+            type = self.result_type
+        else:
+            type = self.type
+        while not type is None:
+            if type.kind == TypeKind.POINTER:
+                type = type.get_pointee()
+            elif type.kind == TypeKind.CONSTANTARRAY:
+                type = type.get_array_element_type()
+            else:
+                break
+            ret += 1
+
+        return ret
+
     def get_resolved_cursor(self):
         #print "get_type"
         if self.kind == CursorKind.TYPEDEF_DECL:
@@ -1424,6 +1443,9 @@ class Type(Structure):
         Retrieve the result type associated with a function type.
         """
         return Type_get_result(self)
+
+    def get_array_element_type(self):
+        return _clang_getArrayElementType(self)
 
 ## CIndex Objects ##
 
@@ -2165,6 +2187,13 @@ Type_get_result.restype = Type
 Type_get_result.errcheck = Type.from_result
 if isWin64:
     Type_get_result.argtypes = [POINTER(Type)]
+
+_clang_getArrayElementType = lib.clang_getArrayElementType
+_clang_getArrayElementType.argtypes = [Type]
+_clang_getArrayElementType.restype = Type
+_clang_getArrayElementType.errcheck = Type.from_result
+if isWin64:
+    _clang_getArrayElementType.argtypes = [POINTER(Type)]
 
 # Index Functions
 Index_create = lib.clang_createIndex

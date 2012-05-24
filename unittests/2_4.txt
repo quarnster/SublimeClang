@@ -1,7 +1,0 @@
-('getInstance()\tClass1 *', 'getInstance()')
-('protectedField\tint', 'protectedField')
-('protectedFunction()\tvoid', 'protectedFunction()')
-('protectedStaticFunction()\tvoid', 'protectedStaticFunction()')
-('publicField\tint', 'publicField')
-('publicFunction()\tvoid', 'publicFunction()')
-('publicStaticFunction()\tvoid', 'publicStaticFunction()')
