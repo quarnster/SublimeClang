@@ -123,6 +123,9 @@ except:
     def status_message(msg):
         print msg
 
+    def expand_path(value, window):
+        return value
+
 
 class LockedVariable:
     def __init__(self, var):

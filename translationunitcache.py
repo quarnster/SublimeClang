@@ -261,7 +261,7 @@ class Cache:
                             inherits = self.inherits(c, c2)
 
                         for c in comp[0]:
-                            if (inherits and c.access != cindex.CXXAccessSpecifier.PRIVATE) or c.static or c.cursor.kind == cindex.CursorKind.ENUM_CONSTANT_DECL:
+                            if (inherits and c.access != cindex.CXXAccessSpecifier.PRIVATE) or (c.access == cindex.CXXAccessSpecifier.PUBLIC and c.static) or c.cursor.kind == cindex.CursorKind.ENUM_CONSTANT_DECL:
                                 ret.append((c.display, c.insert))
                         cache_disposeCompletionResults(comp)
             return ret
@@ -284,7 +284,7 @@ class Cache:
                     cursor = cindex.Cursor.get(self.tu, self.filename, line, column)
                 if cursor is None or cursor.kind.is_invalid() or cursor.spelling != var:
                     cursor = self.find_type(data, template[0])
-                else:
+                if not cursor is None and not cursor.kind.is_invalid():
                     # It's going to be a declaration of some kind, so
                     # get the returned cursor
                     cursor = cursor.get_returned_cursor()
@@ -358,7 +358,8 @@ class Cache:
                                     c.cursor.kind != cindex.CursorKind.CLASS_DECL and \
                                     c.cursor.kind != cindex.CursorKind.STRUCT_DECL and \
                                     c.cursor.kind != cindex.CursorKind.CLASS_TEMPLATE and \
-                                    (c.access == cindex.CXXAccessSpecifier.PUBLIC or selfcompletion):
+                                    (c.access == cindex.CXXAccessSpecifier.PUBLIC or \
+                                        (selfcompletion and not (c.baseclass and c.access == cindex.CXXAccessSpecifier.PRIVATE))):
                                 add = (c.display, c.insert)
                                 if add not in ret:
                                     ret.append(add)
@@ -394,7 +395,9 @@ class Cache:
                     comp = cache_completeCursor(self.cache, c)
                     if comp:
                         for c in comp[0]:
-                            if not c.static and not c.cursor.kind == cindex.CursorKind.ENUM_CONSTANT_DECL:
+                            if not c.static and \
+                                    not c.cursor.kind == cindex.CursorKind.ENUM_CONSTANT_DECL and \
+                                    not (c.baseclass and c.access == cindex.CXXAccessSpecifier.PRIVATE):
                                 add = (c.display, c.insert)
                                 if add not in ret:
                                     ret.append(add)

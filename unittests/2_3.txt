@@ -1,0 +1,1 @@
+('publicStaticFunction()\tvoid', 'publicStaticFunction()')
