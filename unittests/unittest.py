@@ -246,6 +246,16 @@ add_test("sp<C> t; t[0]->")
 
 # ---------------------------------------------------------
 
+tu = get_tu("unittests/6.cpp")
+add_test(" ")
+add_test("myenum::")
+add_test("myenum e; e.")
+add_test("m.")
+add_test("m s; s.")
+add_test("mystruct2 s; s.")
+add_test("A::")
+add_test("A a; a.")
+
 if (testsAdded or update) and not dryrun:
     f = gzip.GzipFile(GOLDFILE, "wb")
     pickle.dump(golden, f, -1)

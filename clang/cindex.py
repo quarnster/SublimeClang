@@ -1224,6 +1224,8 @@ class Cursor(Structure):
                             return definition.get_resolved_cursor()
                         i += 1
                     return None
+                elif c.kind == CursorKind.STRUCT_DECL:
+                    return c
                 else:
                     return None
             else:
