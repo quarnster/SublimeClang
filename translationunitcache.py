@@ -249,6 +249,10 @@ class Cache:
                 typename = namespace.pop()
                 c = self.find_type(data, typename)
                 if not c is None and not c.kind.is_invalid():
+                    # It's going to be a declaration of some kind, so
+                    # get the returned cursor
+                    c = c.get_returned_cursor()
+                if not c is None and not c.kind.is_invalid():
                     comp = cache_completeCursor(self.cache, c)
                     if comp and len(comp[0]):
                         inherits = False
@@ -336,15 +340,20 @@ class Cache:
                         if match.group(2) == "->":
                             comp = r.get_member("operator->", True)
                             r, template, pointer = self.solve_member(data, r, comp, template)
+                            ret = []
                         elif match.group(2) == "[]":
                             # TODO: different index types?
                             comp = r.get_member("operator[]", True)
                             r, template, pointer = self.solve_member(data, r, comp, template)
+                            ret = []
                     elif match.group(1) == None and pointer > 0:
                         m2 = match.group(2)
                         if (m2 == "->" or m2 == "[]"):
                             pointer -= 1
                         elif m2 == ".":
+                            # Trying to dot-complete a pointer, this is invalid
+                            # so there can be no completions
+                            ret = []
                             r = None
                             break
 

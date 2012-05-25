@@ -1,6 +1,8 @@
 import translationunitcache
 import os
 import pickle
+import sys
+import gzip
 
 opts = []
 
@@ -9,13 +11,30 @@ testsAdded = False
 tu = None
 currfile = None
 
-GOLDFILE = "unittests/gold.txt"
+GOLDFILE = "unittests/gold.txt.gz"
+debug = False
+onlywarn = False
+update = False
 
+for arg in sys.argv[1:]:
+    if arg == "-debug":
+        debug = True
+    elif arg == "-warn":
+        onlywarn = True
+    elif arg == "-update":
+        update = True
 
 if os.access(GOLDFILE, os.R_OK):
-    f = open(GOLDFILE)
+    f = gzip.GzipFile(GOLDFILE, 'rb')
     golden = pickle.load(f)
     f.close()
+
+
+def fail(message):
+    if onlywarn:
+        print message
+    else:
+        raise Exception(message)
 
 
 def add_test(currtest):
@@ -25,18 +44,28 @@ def add_test(currtest):
 
     key = "%s-%s" % (currfile, currtest)
 
-    if output == None:
-        output = []
+    if debug:
+        print key
+        if output == None:
+            print "\tNone"
+        else:
+            for data in output:
+                print "\t%s" % str(data)
     if not key in golden:
         golden[key] = output
         testsAdded = True
     else:
         gold = golden[key]
-        if len(gold) != len(output):
-            raise Exception("Length differs for test: %s %s" % (currfile, currtest))
-        for i in range(len(gold)):
-            if gold[i] != output[i]:
-                raise Exception("Mismatch in test:\n%s\n%s\n%s != %s" % (currfile, currtest, gold[i], output[i]))
+        if update:
+            golden[key] = output
+        if (gold == None and output != None) or (output == None and gold != None):
+            fail("Test failed: %s - %s" % (key, "gold was None, output wasn't %s" % str(output) if gold == None else "output was None, but gold wasn't %s" % str(gold)))
+        if gold != None:
+            if len(gold) != len(output):
+                fail("Length differs for test: %s %s" % (currfile, currtest))
+            for i in range(len(gold)):
+                if gold[i] != output[i]:
+                    fail("Mismatch in test:\n%s\n%s\n%s != %s" % (currfile, currtest, gold[i], output[i]))
 
 
 def get_tu(filename):
@@ -175,14 +204,9 @@ add_test("void C::something() { adoublemix2[0]->")
 add_test("void C::something() { adoublemix2[0][0].")
 add_test("void C::something() { adoublemix2[0][0]->")
 
-if testsAdded:
-    f = open(GOLDFILE, "w")
-    pickle.dump(golden, f)
+if testsAdded or update:
+    f = gzip.GzipFile(GOLDFILE, "wb")
+    pickle.dump(golden, f, -1)
     f.close()
-
-# for key in golden:
-#     print key
-#     for line in golden[key]:
-#         print "\t%s" % str(line)
 
 print "All is well"
