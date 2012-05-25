@@ -236,6 +236,13 @@ add_test("sp<B> t; t.get()->")
 add_test("sp<B> t; t->")
 add_test("sp<B> t; t[0].")
 add_test("sp<B> t; t[0]->")
+add_test("sp<C> t; t.")
+add_test("sp<C> t; t->")
+add_test("sp<C> t; t.get().")
+add_test("sp<C> t; t.get()->")
+add_test("sp<C> t; t[0].")
+add_test("sp<C> t; t[0]->")
+
 
 # ---------------------------------------------------------
 
