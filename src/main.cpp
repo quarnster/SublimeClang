@@ -206,8 +206,8 @@ void get_return_type(std::string& returnType, CXCursorKind ck)
     switch (ck)
     {
         default: break;
-        case CXCursor_ClassTemplate: // fall through
         case CXCursor_UnionDecl: returnType = "union"; break;
+        case CXCursor_ClassTemplate: // fall through
         case CXCursor_ClassDecl: returnType = "class"; break;
         case CXCursor_EnumDecl: returnType = "enum"; break;
         case CXCursor_StructDecl: returnType = "struct"; break;
