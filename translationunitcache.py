@@ -340,12 +340,14 @@ class Cache:
                         if match.group(2) == "->":
                             comp = r.get_member("operator->", True)
                             r, template, pointer = self.solve_member(data, r, comp, template)
-                            ret = []
+                            if comp is None or comp.kind.is_invalid():
+                                ret = []
                         elif match.group(2) == "[]":
                             # TODO: different index types?
                             comp = r.get_member("operator[]", True)
                             r, template, pointer = self.solve_member(data, r, comp, template)
-                            ret = []
+                            if comp is None or comp.kind.is_invalid():
+                                ret = []
                     elif match.group(1) == None and pointer > 0:
                         m2 = match.group(2)
                         if (m2 == "->" or m2 == "[]"):

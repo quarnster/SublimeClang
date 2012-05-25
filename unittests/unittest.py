@@ -15,6 +15,7 @@ GOLDFILE = "unittests/gold.txt.gz"
 debug = False
 onlywarn = False
 update = False
+debugnew = False
 
 for arg in sys.argv[1:]:
     if arg == "-debug":
@@ -23,6 +24,8 @@ for arg in sys.argv[1:]:
         onlywarn = True
     elif arg == "-update":
         update = True
+    elif arg == "-debugnew":
+        debugnew = True
 
 if os.access(GOLDFILE, os.R_OK):
     f = gzip.GzipFile(GOLDFILE, 'rb')
@@ -40,17 +43,23 @@ def fail(message):
 def add_test(currtest):
     global off
     global testsAdded
-    output = tu.cache.complete(currtest, "")
 
     key = "%s-%s" % (currfile, currtest)
+    dn = key not in golden and debugnew
 
-    if debug:
+    output = None
+    if dn or not debugnew:
+        output = tu.cache.complete(currtest, "")
+
+    if debug or dn:
         print key
         if output == None:
             print "\tNone"
         else:
             for data in output:
                 print "\t%s" % str(data)
+    if debugnew:
+        return
     if not key in golden:
         golden[key] = output
         testsAdded = True
@@ -110,6 +119,9 @@ add_test("std::vector<Test::Class1> t; t.")
 add_test("using namespace Class1; std::vector<Class1> t; t.")
 add_test("using namespace std; vector<Test::Class1> t; t.")
 add_test("vector<Test::Class1> t; t.")
+add_test("std::vector<Test::Class1> t; t[0].")
+add_test("std::string s; s.")
+
 
 # ---------------------------------------------------------
 
