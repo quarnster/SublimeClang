@@ -16,6 +16,7 @@ debug = False
 onlywarn = False
 update = False
 debugnew = False
+dryrun = False
 
 for arg in sys.argv[1:]:
     if arg == "-debug":
@@ -26,6 +27,10 @@ for arg in sys.argv[1:]:
         update = True
     elif arg == "-debugnew":
         debugnew = True
+    elif arg == "-dryrun":
+        dryrun = True
+    else:
+        raise Exception("Bad argument")
 
 if os.access(GOLDFILE, os.R_OK):
     f = gzip.GzipFile(GOLDFILE, 'rb')
@@ -216,7 +221,25 @@ add_test("void C::something() { adoublemix2[0]->")
 add_test("void C::something() { adoublemix2[0][0].")
 add_test("void C::something() { adoublemix2[0][0]->")
 
-if testsAdded or update:
+# ---------------------------------------------------------
+
+tu = get_tu("unittests/5.cpp")
+add_test("sp<A> t; t.")
+add_test("sp<A> t; t.get().")
+add_test("sp<A> t; t.get()->")
+add_test("sp<A> t; t->")
+add_test("sp<A> t; t[0].")
+add_test("sp<A> t; t[0]->")
+add_test("sp<B> t; t.")
+add_test("sp<B> t; t.get().")
+add_test("sp<B> t; t.get()->")
+add_test("sp<B> t; t->")
+add_test("sp<B> t; t[0].")
+add_test("sp<B> t; t[0]->")
+
+# ---------------------------------------------------------
+
+if (testsAdded or update) and not dryrun:
     f = gzip.GzipFile(GOLDFILE, "wb")
     pickle.dump(golden, f, -1)
     f.close()

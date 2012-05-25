@@ -844,6 +844,15 @@ public:
             {
                 return (*pos)->cursor;
             }
+            // see if it's a template
+            disp = type;
+            disp += "<";
+            pos = std::lower_bound(mEntries.begin(), mEntries.end(), disp.c_str(), EntryStringCompare());
+            if (pos != mEntries.end() && !strncmp((*pos)->display, disp.c_str(), disp.length()))
+            {
+                return (*pos)->cursor;
+            }
+
             return clang_getNullCursor();
         }
         // TODO: should use mNamespaces for the first namespace entry

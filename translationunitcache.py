@@ -321,7 +321,7 @@ class Cache:
                         r = None
                         break
                     count += 1
-                    match = re.search(r"^([^\.\-\(:\[]]+)?(\[\]|\(|\.|->|::)(.*)", tocomplete)
+                    match = re.search(r"^([^\.\-\(:\[\]]+)?(\[\]|\(|\.|->|::)(.*)", tocomplete)
                     if match == None:
                         break
 
@@ -340,6 +340,8 @@ class Cache:
                         if match.group(2) == "->":
                             comp = r.get_member("operator->", True)
                             r, template, pointer = self.solve_member(data, r, comp, template)
+                            if pointer > 0:
+                                pointer -= 1
                             if comp is None or comp.kind.is_invalid():
                                 ret = []
                         elif match.group(2) == "[]":
