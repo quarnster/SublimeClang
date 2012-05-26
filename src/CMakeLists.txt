@@ -31,7 +31,7 @@ target_link_libraries(
 if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
      add_custom_command(TARGET ${TARGETLIB}
         POST_BUILD
-        COMMAND install_name_tool -change /usr/local/lib/libclang.dylib libclang.dylib libcache.dylib
+        COMMAND install_name_tool -change /tmp/llvm-3.1.src/build/lib/liblibclang.3.1.dylib libclang.dylib libcache.dylib
         WORKING_DIRECTORY ${PROJECT_BINARY_DIR}
     )
 elseif(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
