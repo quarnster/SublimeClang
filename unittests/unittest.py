@@ -74,7 +74,7 @@ def add_test(currtest):
             golden[key] = output
         if (gold == None and output != None) or (output == None and gold != None):
             fail("Test failed: %s - %s" % (key, "gold was None, output wasn't %s" % str(output) if gold == None else "output was None, but gold wasn't %s" % str(gold)))
-        if gold != None:
+        if gold != None and output != None:
             if len(gold) != len(output):
                 fail("Length differs for test: %s %s" % (currfile, currtest))
             for i in range(len(gold)):

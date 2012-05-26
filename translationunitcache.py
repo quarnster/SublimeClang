@@ -291,6 +291,11 @@ class Cache:
                     cursor = cindex.Cursor.get(self.tu, self.filename, line, column)
                 if cursor is None or cursor.kind.is_invalid() or cursor.spelling != var:
                     cursor = self.find_type(data, template[0])
+                if not cursor is None and not cursor.kind.is_invalid() and \
+                        cursor.spelling == typename and \
+                        cursor.kind == cindex.CursorKind.VAR_DECL:
+                    # We're trying to use a variable as a type.. This isn't valid
+                    cursor = None
                 if not cursor is None and not cursor.kind.is_invalid():
                     # It's going to be a declaration of some kind, so
                     # get the returned cursor
@@ -309,7 +314,17 @@ class Cache:
                             typename = typename[:-2]
                         member = cursor.get_member(typename, func)
                         cursor, template, pointer = self.solve_member(data, cursor, member, template)
-
+                if cursor is None or cursor.kind.is_invalid():
+                    # Is it by any chance a struct variable?
+                    cursor = self.find_type(data, template[0])
+                    if cursor is None or cursor.kind.is_invalid() or \
+                            cursor.spelling != typename or \
+                            cursor.kind != cindex.CursorKind.VAR_DECL:
+                        cursor = None
+                    if not cursor is None and not cursor.kind.is_invalid():
+                        # It's going to be a declaration of some kind, so
+                        # get the returned cursor
+                        cursor = cursor.get_returned_cursor()
             if not cursor is None and not cursor.kind.is_invalid():
                 r = cursor
                 count = 0
