@@ -20,4 +20,3 @@ class B
 public:
     void bfunction();
 };
-

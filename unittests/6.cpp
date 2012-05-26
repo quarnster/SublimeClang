@@ -23,4 +23,5 @@ public:
         float f;
         int i;
     };
+    mystruct2 ms;
 };

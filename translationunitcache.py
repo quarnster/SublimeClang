@@ -249,7 +249,9 @@ class Cache:
                 typename = namespace.pop()
                 c = self.find_type(data, typename)
                 if not c is None and c.kind == cindex.CursorKind.ENUM_DECL:
+                    # It's not valid to complete enum::
                     c = None
+                    ret = []
                 if not c is None and not c.kind.is_invalid():
                     # It's going to be a declaration of some kind, so
                     # get the returned cursor
@@ -298,6 +300,7 @@ class Cache:
                         cursor.kind == cindex.CursorKind.VAR_DECL:
                     # We're trying to use a variable as a type.. This isn't valid
                     cursor = None
+                    ret = []
                 if not cursor is None and not cursor.kind.is_invalid():
                     # It's going to be a declaration of some kind, so
                     # get the returned cursor
@@ -384,6 +387,10 @@ class Cache:
                             member = get_base_type(member)
                         member = r.get_member(member, function)
                         r, template, pointer = self.solve_member(data, r, member, template)
+                        if r is None and not member is None:
+                            # This can't be completed as a cursor object isn't returned
+                            # from this member
+                            ret = []
 
                 if not r is None and not r.kind.is_invalid() and pointer == 0:
                     clazz = extract_class_from_function(data)

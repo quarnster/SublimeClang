@@ -38,8 +38,8 @@ if os.access(GOLDFILE, os.R_OK):
     f.close()
 
 
-def fail(message):
-    if onlywarn:
+def fail(message, forcewarn=False):
+    if onlywarn or forcewarn:
         print message
     else:
         raise Exception(message)
@@ -60,6 +60,8 @@ def add_test(currtest):
         print key
         if output == None:
             print "\tNone"
+        elif len(output) == 0:
+            print "\t[]"
         else:
             for data in output:
                 print "\t%s" % str(data)
@@ -75,11 +77,14 @@ def add_test(currtest):
         if (gold == None and output != None) or (output == None and gold != None):
             fail("Test failed: %s - %s" % (key, "gold was None, output wasn't %s" % str(output) if gold == None else "output was None, but gold wasn't %s" % str(gold)))
         if gold != None and output != None:
-            if len(gold) != len(output):
-                fail("Length differs for test: %s %s" % (currfile, currtest))
-            for i in range(len(gold)):
-                if gold[i] != output[i]:
-                    fail("Mismatch in test:\n%s\n%s\n%s != %s" % (currfile, currtest, gold[i], output[i]))
+            max = len(gold)
+            if len(output) > max:
+                max = len(output)
+            for i in range(max):
+                g = gold[i] if i < len(gold) else None
+                o = output[i] if i < len(output) else None
+                if g != o:
+                    fail("Mismatch in test: %s %s, %s != %s" % (currfile, currtest, g, o))
 
 
 def get_tu(filename):
@@ -242,6 +247,7 @@ add_test("sp<C> t; t.get().")
 add_test("sp<C> t; t.get()->")
 add_test("sp<C> t; t[0].")
 add_test("sp<C> t; t[0]->")
+add_test("sp<A> t; t->afunction().")
 
 
 # ---------------------------------------------------------
@@ -255,6 +261,9 @@ add_test("m s; s.")
 add_test("mystruct2 s; s.")
 add_test("A::")
 add_test("A a; a.")
+add_test("A a; a.f.")
+add_test("A a; a.i.")
+add_test("A a; a.ms.")
 
 if (testsAdded or update) and not dryrun:
     f = gzip.GzipFile(GOLDFILE, "wb")
