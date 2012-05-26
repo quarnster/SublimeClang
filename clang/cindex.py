@@ -1218,7 +1218,9 @@ class Cursor(Structure):
                     while i < len(children):
                         c = children[i]
                         if c.kind != CursorKind.NAMESPACE_REF:
-                            definition = c.get_definition()
+                            reference = c.get_reference()
+                            definition = reference.get_definition()
+
                             if definition is None or definition == c:
                                 return None
                             return definition.get_resolved_cursor()

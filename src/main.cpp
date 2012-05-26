@@ -24,6 +24,15 @@ freely, subject to the following restrictions:
 #include <stdio.h>
 #include <string>
 #include <vector>
+#include <algorithm>
+
+
+#if _WIN32
+   #define snprintf _snprintf_s
+   #define EXPORT __declspec(dllexport)
+#else
+   #define EXPORT
+#endif
 
 CXChildVisitResult haschildren_visitor(CXCursor cursor, CXCursor parent, CXClientData client_data)
 {
@@ -309,13 +318,13 @@ void dump(CXCursor cursor)
 
 std::string collapse(std::string before, char startT, char endT, char extraT='\0')
 {
-    int i = before.length();
+    int i = (int) before.length();
     int count = 0;
     int end = -1;
     while (i >= 0)
     {
-        int a = before.rfind(startT, i-1);
-        int b = before.rfind(endT, i-1);
+        int a = (int) before.rfind(startT, i-1);
+        int b = (int) before.rfind(endT, i-1);
         i = a > b ? a : b;
         if (i == -1)
             break;
@@ -398,13 +407,16 @@ void trim(std::vector<Entry*>& mEntries)
 {
     std::vector<Entry*>::iterator i = mEntries.begin();
     // Trim nameless completions
-    while (i < mEntries.end() && (*i)->display[0] == '\t')
+    while (i != mEntries.end() && (*i)->display[0] == '\t')
     {
         delete *i;
         mEntries.erase(i);
+        i = mEntries.begin();
     }
     // Trim duplicates
-    for (std::vector<Entry*>::iterator i = mEntries.begin()+1; i < mEntries.end(); i++)
+    if (mEntries.begin() == mEntries.end())
+        return;
+    for (std::vector<Entry*>::iterator i = mEntries.begin()+1; i != mEntries.end(); i++)
     {
         while (i != mEntries.end() && (*(*i)) == (*(*(i-1))))
         {
@@ -415,9 +427,15 @@ void trim(std::vector<Entry*>& mEntries)
             clang_visitChildren((*del)->cursor, haschildren_visitor, &hasChildren);
             if (hasChildren)
                 del = i-1;
-
+            bool begin = i == mEntries.begin();
+            if (!begin)
+                i = del-1;
             delete *del;
             mEntries.erase(del);
+            if (!begin)
+                i++;
+            else
+                i = mEntries.begin();
         }
     }
 }
@@ -452,7 +470,7 @@ public:
     CacheCompletionResults(std::vector<Entry*>::iterator start, std::vector<Entry*>::iterator end, bool de=false)
     : deleteEntries(de)
     {
-        length = end-start;
+        length = (unsigned int) (end-start);
         entries = new Entry*[length];
         int i = 0;
         while (start < end)
@@ -569,7 +587,7 @@ public:
     }
     virtual void execute()
     {
-        clang_visitChildren(mBase, &visitor, this);
+        clang_visitChildren(mBase, &NamespaceFinder::visitor, this);
     }
 
     virtual bool visitor(CXCursor cursor, CXCursor parent, bool &recurse, CXCursorKind ck) = 0;
@@ -870,40 +888,40 @@ private:
 extern "C"
 {
 
-CacheCompletionResults* cache_clangComplete(Cache* cache, const char *filename, unsigned int row, unsigned int col, CXUnsavedFile *unsaved, unsigned int usLength, bool memberCompletion)
+EXPORT CacheCompletionResults* cache_clangComplete(Cache* cache, const char *filename, unsigned int row, unsigned int col, CXUnsavedFile *unsaved, unsigned int usLength, bool memberCompletion)
 {
     return cache->clangComplete(filename, row, col, unsaved, usLength, memberCompletion);
 }
 
-CacheCompletionResults* cache_completeCursor(Cache* cache, CXCursor cur)
+EXPORT CacheCompletionResults* cache_completeCursor(Cache* cache, CXCursor cur)
 {
     return cache->completeCursor(cur);
 }
 
-CXCursor cache_findType(Cache* cache, const char **namespaces, unsigned int nsLength, const char *type)
+EXPORT CXCursor cache_findType(Cache* cache, const char **namespaces, unsigned int nsLength, const char *type)
 {
     return cache->findType(namespaces, nsLength, type);
 }
-CacheCompletionResults* cache_completeNamespace(Cache* cache, const char **namespaces, unsigned int length)
+EXPORT CacheCompletionResults* cache_completeNamespace(Cache* cache, const char **namespaces, unsigned int length)
 {
     return cache->getNamespaceMembers(namespaces, length);
 }
 
-CacheCompletionResults* cache_complete_startswith(Cache* cache, const char *prefix)
+EXPORT CacheCompletionResults* cache_complete_startswith(Cache* cache, const char *prefix)
 {
     return cache->complete(prefix);
 }
-void cache_disposeCompletionResults(CacheCompletionResults *comp)
+EXPORT void cache_disposeCompletionResults(CacheCompletionResults *comp)
 {
     delete comp;
 }
 
-Cache* createCache(CXCursor base)
+EXPORT Cache* createCache(CXCursor base)
 {
     return new Cache(base);
 }
 
-void deleteCache(Cache *cache)
+EXPORT void deleteCache(Cache *cache)
 {
     delete cache;
 }

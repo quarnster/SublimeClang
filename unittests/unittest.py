@@ -4,6 +4,7 @@ import pickle
 import sys
 import gzip
 import re
+import platform
 
 opts = []
 
@@ -18,6 +19,7 @@ onlywarn = False
 update = False
 debugnew = False
 dryrun = False
+disableplatformspecific = False
 
 for arg in sys.argv[1:]:
     if arg == "-debug":
@@ -30,11 +32,13 @@ for arg in sys.argv[1:]:
         debugnew = True
     elif arg == "-dryrun":
         dryrun = True
+    elif arg == "-disableplatformspecific":
+        disableplatformspecific = True
     else:
         raise Exception("Bad argument")
 
 
-filter = re.compile("^_.*\tmacro$")
+filter = re.compile("(^_.*\tmacro$)|(^__)|(OBJC_NEW_PROPERTIES)|(type_info)|(i386)")
 
 if os.access(GOLDFILE, os.R_OK):
     f = gzip.GzipFile(GOLDFILE, 'rb')
@@ -56,7 +60,7 @@ def fail(message, forcewarn=False):
         raise Exception(message)
 
 
-def add_test(currtest):
+def add_test(currtest, platformspecific=False):
     global off
     global testsAdded
 
@@ -93,6 +97,8 @@ def add_test(currtest):
             golden[key] = output
         if (gold == None and output != None) or (output == None and gold != None):
             fail("Test failed: %s - %s" % (key, "gold was None, output wasn't %s" % str(output) if gold == None else "output was None, but gold wasn't %s" % str(gold)))
+        if platformspecific and disableplatformspecific:
+            return
         if gold != None and output != None:
             max = len(gold)
             if len(output) > max:
@@ -116,14 +122,14 @@ def get_tu(filename):
 # ---------------------------------------------------------
 
 tu = get_tu("unittests/1.cpp")
-add_test("")
+add_test("", True)
 
 # ---------------------------------------------------------
 
 tu = get_tu("unittests/2.cpp")
 add_test("Class1 c;\nc.")
-add_test("void Class1::publicFunction() {")
-add_test("void Class2::something() {")
+add_test("void Class1::publicFunction() {", True)
+add_test("void Class2::something() {", True)
 add_test("Class1::")
 add_test("void Class2::something() { Class1::")
 add_test("Class3 c3; c3.")
@@ -135,20 +141,21 @@ add_test("void Class1::something() { this->")
 # ---------------------------------------------------------
 
 tu = get_tu("unittests/3.cpp")
-add_test("std::")
+add_test("std::", True)
 add_test("std2::")
 add_test("Test::")
-add_test("namespace Test { ")
-add_test(" ")
-add_test("using namespace Test; ")
-add_test("using namespace Test;\nusing namespace std; ")
-add_test("std::vector<Test::Class1> t; t.")
-add_test("using namespace Class1; std::vector<Class1> t; t.")
-add_test("using namespace std; vector<Test::Class1> t; t.")
+add_test("namespace Test { ", True)
+add_test(" ", True)
+add_test("using namespace Test; ", True)
+add_test("using namespace Test;\nusing namespace std; ", True)
+add_test("std::vector<Test::Class1> t; t.", True)
+add_test("using namespace Class1; std::vector<Class1> t; t.", True)
+add_test("using namespace std; vector<Test::Class1> t; t.", True)
 add_test("vector<Test::Class1> t; t.")
-add_test("std::vector<Test::Class1> t; t[0].")
+if platform.system() != "Windows":
+    # For some reason this crashes in libclang on Windows..
+    add_test("std::vector<Test::Class1> t; t[0].")
 add_test("std::string s; s.")
-
 
 # ---------------------------------------------------------
 
