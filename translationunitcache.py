@@ -248,6 +248,8 @@ class Cache:
                 ret = None
                 typename = namespace.pop()
                 c = self.find_type(data, typename)
+                if not c is None and c.kind == cindex.CursorKind.ENUM_DECL:
+                    c = None
                 if not c is None and not c.kind.is_invalid():
                     # It's going to be a declaration of some kind, so
                     # get the returned cursor
