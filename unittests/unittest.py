@@ -3,6 +3,7 @@ import os
 import pickle
 import sys
 import gzip
+import re
 
 opts = []
 
@@ -32,9 +33,19 @@ for arg in sys.argv[1:]:
     else:
         raise Exception("Bad argument")
 
+
+filter = re.compile("^_.*\tmacro$")
+
 if os.access(GOLDFILE, os.R_OK):
     f = gzip.GzipFile(GOLDFILE, 'rb')
     golden = pickle.load(f)
+    for key in golden:
+        if golden[key]:
+            new = []
+            for name in golden[key]:
+                if not filter.match(name[0]):
+                    new.append(name)
+            golden[key] = new
     f.close()
 
 
@@ -55,6 +66,12 @@ def add_test(currtest):
     output = None
     if dn or not debugnew:
         output = tu.cache.complete(currtest, "")
+    if output:
+        new = []
+        for name in output:
+            if not filter.match(name[0]):
+                new.append(name)
+        output = new
 
     if debug or dn:
         print key
