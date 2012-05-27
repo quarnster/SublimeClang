@@ -268,8 +268,13 @@ class Cache:
                             c2 = self.find_type(data, clazz)
                             inherits = self.inherits(c, c2)
 
+                        selfcompletion = clazz == c.spelling
+
                         for c in comp[0]:
-                            if (inherits and c.access != cindex.CXXAccessSpecifier.PRIVATE) or (c.access == cindex.CXXAccessSpecifier.PUBLIC and c.static) or c.cursor.kind == cindex.CursorKind.ENUM_CONSTANT_DECL:
+                            if (selfcompletion and not c.baseclass) or \
+                                (inherits and not c.access == cindex.CXXAccessSpecifier.PRIVATE) or \
+                                    (c.access == cindex.CXXAccessSpecifier.PUBLIC and c.static) or \
+                                    c.cursor.kind == cindex.CursorKind.ENUM_CONSTANT_DECL:
                                 ret.append((c.display, c.insert))
                         cache_disposeCompletionResults(comp)
             return ret

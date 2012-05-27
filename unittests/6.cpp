@@ -25,3 +25,21 @@ public:
     };
     mystruct2 ms;
 };
+
+class MyStaticClass
+{
+public:
+    static int publicStaticField;
+    int publicField;
+protected:
+    static int protectedStaticField;
+    int protectedField;
+private:
+    static int privateStaticField;
+    int privateField;
+};
+
+class Child : public MyStaticClass
+{
+
+};

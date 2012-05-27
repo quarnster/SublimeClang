@@ -22,8 +22,6 @@ class Class2 : public Class1
 private:
     void c2PrivateFunction();
     int c2PrivateField;
-
-
 };
 
 typedef Class2 Class3;

@@ -374,8 +374,16 @@ public:
         insert = new char[ins.length()+1];
         memcpy(insert, ins.c_str(), ins.length()+1);
 
-        if (!clang_Cursor_isNull(c) && clang_getCursorKind(c) == CXCursor_CXXMethod)
-            isStatic = clang_CXXMethod_isStatic(c);
+        if (!clang_Cursor_isNull(c))
+        {
+            CXCursorKind ck = clang_getCursorKind(c);
+            switch (ck)
+            {
+                case CXCursor_CXXMethod: isStatic = clang_CXXMethod_isStatic(c); break;
+                case CXCursor_VarDecl: isStatic = true; break;
+                default: isStatic = false; break;
+            }
+        }
     }
     Entry(const Entry& other)
     : cursor(other.cursor), access(other.access), isStatic(other.isStatic), isBaseClass(other.isBaseClass)
