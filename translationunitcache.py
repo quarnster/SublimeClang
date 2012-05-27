@@ -406,7 +406,10 @@ class Cache:
                                 tempnames.append(child.spelling)
                         count = min(len(template[1]), len(tempnames))
                         for i in range(count):
-                            replaces.append((r"(^|,|\(|\d:|\s+)(%s)($|,|\s+|\))" % tempnames[i], r"\1%s\3" % template[1][i][0]))
+                            s = template[1][i][0]
+                            if not isinstance(s, str):
+                                s = s.spelling
+                            replaces.append((r"(^|,|\(|\d:|\s+)(%s)($|,|\s+|\))" % tempnames[i], r"\1%s\3" % s))
                     if comp and len(comp[0]):
                         ret = []
                         for c in comp[0]:

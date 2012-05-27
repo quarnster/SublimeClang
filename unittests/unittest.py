@@ -279,6 +279,12 @@ add_test("sp2<A, B> t; t.funca()->")
 add_test("sp2<A, B> t; t.funcb()->")
 add_test("sp2<A, B> t; t.funca().")
 add_test("sp2<A, B> t; t.funcb().")
+add_test("C c; c.")
+add_test("C c; c.m_sp2.")
+add_test("C c; c.m_sp2.funca()->")
+add_test("C c; c.m_sp2.funcb()->")
+add_test("C c; c.m_sp2.funca().")
+add_test("C c; c.m_sp2.funcb().")
 
 # ---------------------------------------------------------
 

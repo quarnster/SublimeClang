@@ -29,3 +29,10 @@ class B
 public:
     void bfunction();
 };
+
+
+class C
+{
+public:
+    sp2<A, B> m_sp2;
+};
