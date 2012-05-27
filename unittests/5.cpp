@@ -9,6 +9,15 @@ private:
     T* mT;
 };
 
+template<typename T, typename T2>
+class sp2
+{
+public:
+    T* funca();
+    T2* funcb();
+    void dosomething(T t, T2* t2);
+};
+
 class A
 {
 public:

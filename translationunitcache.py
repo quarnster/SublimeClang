@@ -398,6 +398,15 @@ class Cache:
                         clazz = extract_class(data)
                     selfcompletion = clazz == r.spelling
                     comp = cache_completeCursor(self.cache, r)
+                    replaces = []
+                    if template[1] != None:
+                        tempnames = []
+                        for child in r.get_children():
+                            if child.kind == cindex.CursorKind.TEMPLATE_TYPE_PARAMETER:
+                                tempnames.append(child.spelling)
+                        count = min(len(template[1]), len(tempnames))
+                        for i in range(count):
+                            replaces.append((r"(^|,|\(|\d:|\s+)(%s)($|,|\s+|\))" % tempnames[i], r"\1%s\3" % template[1][i][0]))
                     if comp and len(comp[0]):
                         ret = []
                         for c in comp[0]:
@@ -409,7 +418,12 @@ class Cache:
                                     c.cursor.kind != cindex.CursorKind.CLASS_TEMPLATE and \
                                     (c.access == cindex.CXXAccessSpecifier.PUBLIC or \
                                         (selfcompletion and not (c.baseclass and c.access == cindex.CXXAccessSpecifier.PRIVATE))):
-                                add = (c.display, c.insert)
+                                disp = c.display
+                                ins = c.insert
+                                for r in replaces:
+                                    disp = re.sub(r[0], r[1], disp)
+                                    ins = re.sub(r[0], r[1], ins)
+                                add = (disp, ins)
                                 if add not in ret:
                                     ret.append(add)
                         cache_disposeCompletionResults(comp)

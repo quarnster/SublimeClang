@@ -1,3 +1,5 @@
+import sys
+sys.path.append(".")
 import translationunitcache
 import os
 import pickle
@@ -272,7 +274,11 @@ add_test("sp<C> t; t.get()->")
 add_test("sp<C> t; t[0].")
 add_test("sp<C> t; t[0]->")
 add_test("sp<A> t; t->afunction().")
-
+add_test("sp2<A, B> t; t.")
+add_test("sp2<A, B> t; t.funca()->")
+add_test("sp2<A, B> t; t.funcb()->")
+add_test("sp2<A, B> t; t.funca().")
+add_test("sp2<A, B> t; t.funcb().")
 
 # ---------------------------------------------------------
 

@@ -427,15 +427,16 @@ void trim(std::vector<Entry*>& mEntries)
             clang_visitChildren((*del)->cursor, haschildren_visitor, &hasChildren);
             if (hasChildren)
                 del = i-1;
-            bool begin = i == mEntries.begin();
+            bool begin = del == mEntries.begin();
             if (!begin)
                 i = del-1;
             delete *del;
             mEntries.erase(del);
-            if (!begin)
-                i++;
-            else
+            if (begin)
+            {
                 i = mEntries.begin();
+            }
+            i++;
         }
     }
 }

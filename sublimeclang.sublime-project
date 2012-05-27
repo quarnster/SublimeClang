@@ -1,0 +1,41 @@
+{
+	"folders":
+	[
+		{
+			"path": "."
+		}
+	],
+    "build_systems":
+    [
+        {
+            "name": "SublimeClang",
+            "cmd": ["make", "-j3"],
+            "file_regex": "^(..[^:]*):([0-9]+):?([0-9]+)?:? (.*)$",
+            "working_dir": "${project_path}/src/build/"
+        },
+        {
+            "name": "SublimeClang - unittests",
+            "cmd": ["python", "unittests/unittest.py"],
+            "file_regex": "^(..[^:]*):([0-9]+):?([0-9]+)?:? (.*)$",
+            "working_dir": "${project_path}"
+        },
+        {
+            "name": "SublimeClang - unittests -warn -dryrun",
+            "cmd": ["python", "unittests/unittest.py", "-warn", "-dryrun"],
+            "file_regex": "^(..[^:]*):([0-9]+):?([0-9]+)?:? (.*)$",
+            "working_dir": "${project_path}"
+        },
+        {
+            "name": "SublimeClang - unittests - debug",
+            "cmd": ["python", "unittests/unittest.py", "-warn", "-debug", "-dryrun"],
+            "file_regex": "^(..[^:]*):([0-9]+):?([0-9]+)?:? (.*)$",
+            "working_dir": "${project_path}"
+        },
+        {
+            "name": "SublimeClang - unittests - debugnew",
+            "cmd": ["python", "unittests/unittest.py", "-debugnew"],
+            "file_regex": "^(..[^:]*):([0-9]+):?([0-9]+)?:? (.*)$",
+            "working_dir": "${project_path}"
+        }
+    ]
+}

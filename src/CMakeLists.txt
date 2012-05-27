@@ -20,6 +20,8 @@ include_directories(
 )
 
 set(TARGETLIB ${LIBPREFIX}cache${LIBSUFFIX})
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/..)
+
 
 link_directories(${PROJECT_SOURCE_DIR}/..)
 add_library(${TARGETLIB} SHARED main.cpp )
@@ -27,11 +29,10 @@ target_link_libraries(
     ${TARGETLIB}
     ${LIBPREFIX}clang${LIBSUFFIX}
 )
-
 if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
      add_custom_command(TARGET ${TARGETLIB}
         POST_BUILD
-        COMMAND install_name_tool -change /tmp/llvm-3.1.src/build/lib/liblibclang.3.1.dylib libclang.dylib libcache.dylib
+        COMMAND install_name_tool -change /tmp/llvm-3.1.src/build/lib/liblibclang.3.1.dylib libclang.dylib $<TARGET_FILE:cache>
         WORKING_DIRECTORY ${PROJECT_BINARY_DIR}
     )
 elseif(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
@@ -50,3 +51,4 @@ elseif(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
     add_dependencies(${TARGETLIB} linklib)
 
 endif()
+
