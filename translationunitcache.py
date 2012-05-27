@@ -407,7 +407,7 @@ class Cache:
                         count = min(len(template[1]), len(tempnames))
                         for i in range(count):
                             s = template[1][i][0]
-                            if not isinstance(s, str):
+                            if isinstance(s, cindex.Cursor):
                                 s = s.spelling
                             replaces.append((r"(^|,|\(|\d:|\s+)(%s)($|,|\s+|\))" % tempnames[i], r"\1%s\3" % s))
                     if comp and len(comp[0]):
