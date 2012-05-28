@@ -290,7 +290,7 @@ add_test("C c; c.m_sp2.funcb().")
 # ---------------------------------------------------------
 
 tu = get_tu("unittests/6.cpp")
-add_test(" ")
+add_test(" ", True)
 add_test("myenum::")
 add_test("myenum e; e.")
 add_test("m.")

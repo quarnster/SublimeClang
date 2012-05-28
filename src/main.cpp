@@ -23,6 +23,7 @@ freely, subject to the following restrictions:
 #include "clang-c/Index.h"
 #include <stdio.h>
 #include <string>
+#include <string.h>
 #include <vector>
 #include <algorithm>
 
