@@ -300,6 +300,8 @@ class Cache:
                     cursor = cindex.Cursor.get(self.tu, self.filename, line, column)
                 if cursor is None or cursor.kind.is_invalid() or cursor.spelling != var:
                     cursor = self.find_type(data, template[0])
+                else:
+                    pointer = 0  # get the pointer level from the cursor instead
                 if not cursor is None and not cursor.kind.is_invalid() and \
                         cursor.spelling == typename and \
                         cursor.kind == cindex.CursorKind.VAR_DECL:

@@ -326,6 +326,13 @@ add_test("TS[0].")
 add_test("TS t; t.")
 add_test("TS t; t[0].")
 
+f = open("unittests/7.cpp")
+data = f.read()
+f.close()
+add_test(data + "t.")
+add_test(data + "t->")
+
+
 if (testsAdded or update) and not dryrun:
     f = gzip.GzipFile(GOLDFILE, "wb")
     pickle.dump(golden, f, -1)

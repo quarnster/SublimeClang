@@ -20,3 +20,5 @@ typedef struct TestStruct
     unsigned int testfield;
 
 } TS[10];
+
+Test *t;
