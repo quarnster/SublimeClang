@@ -307,6 +307,16 @@ add_test("Child::")
 add_test("void Child::something() { MyStaticClass::")
 add_test("void Child::something() { Child::")
 
+tu = get_tu("unittests/7.cpp")
+add_test("A a; a.")
+add_test("AArray.")
+add_test("AArray[0].")
+add_test("AArray test; test.")
+add_test("AArray test; test[0].")
+add_test("AArray *test; test.")
+add_test("AArray *test; test[0].")
+add_test("AArray *test; test[0][0].")
+
 if (testsAdded or update) and not dryrun:
     f = gzip.GzipFile(GOLDFILE, "wb")
     pickle.dump(golden, f, -1)

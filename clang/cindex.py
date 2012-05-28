@@ -1111,6 +1111,12 @@ class Cursor(Structure):
                 type = type.get_pointee()
             elif type.kind == TypeKind.CONSTANTARRAY:
                 type = type.get_array_element_type()
+            elif type.kind == TypeKind.TYPEDEF:
+                if self.kind == CursorKind.TYPEDEF_DECL:
+                    for child in self.get_children():
+                        if child.kind == CursorKind.INTEGER_LITERAL:
+                            ret += 1
+                break
             else:
                 break
             ret += 1
@@ -1121,7 +1127,12 @@ class Cursor(Structure):
         #print "get_type"
         if self.kind == CursorKind.TYPEDEF_DECL:
             children = self.get_children()
-            if len(children) == 1:
+            simple = True
+            for child in children[1:]:
+                if child.kind != CursorKind.INTEGER_LITERAL:
+                    simple = False
+                    break
+            if simple:
                 return children[0].get_resolved_cursor()
             return self
         elif self.result_type.kind == TypeKind.RECORD:

@@ -309,6 +309,7 @@ class Cache:
                 if not cursor is None and not cursor.kind.is_invalid():
                     # It's going to be a declaration of some kind, so
                     # get the returned cursor
+                    pointer += cursor.get_returned_pointer_level()
                     cursor = cursor.get_returned_cursor()
             else:
                 # Probably a member of the current class
