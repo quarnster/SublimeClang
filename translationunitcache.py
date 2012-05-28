@@ -397,6 +397,8 @@ class Cache:
                             # This can't be completed as a cursor object isn't returned
                             # from this member
                             ret = []
+                        if match.group(2) != "(":
+                            tocomplete = match.group(2) + tocomplete
 
                 if not r is None and not r.kind.is_invalid() and pointer == 0:
                     clazz = extract_class_from_function(data)

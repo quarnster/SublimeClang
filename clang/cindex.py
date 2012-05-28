@@ -1112,8 +1112,13 @@ class Cursor(Structure):
             elif type.kind == TypeKind.CONSTANTARRAY:
                 type = type.get_array_element_type()
             elif type.kind == TypeKind.TYPEDEF:
+                children = self.get_children()
+                if len(children) == 1 and children[0].kind == CursorKind.TYPE_REF:
+                    ref = children[0].get_reference()
+                    return ret + ref.get_returned_pointer_level()
+
                 if self.kind == CursorKind.TYPEDEF_DECL:
-                    for child in self.get_children():
+                    for child in children:
                         if child.kind == CursorKind.INTEGER_LITERAL:
                             ret += 1
                 break
@@ -1125,6 +1130,10 @@ class Cursor(Structure):
 
     def get_resolved_cursor(self):
         #print "get_type"
+        if self.kind == CursorKind.STRUCT_DECL or \
+                self.kind == CursorKind.CLASS_DECL or \
+                self.kind == CursorKind.CLASS_TEMPLATE:
+            return self
         if self.kind == CursorKind.TYPEDEF_DECL:
             children = self.get_children()
             simple = True
