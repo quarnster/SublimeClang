@@ -18,6 +18,12 @@ Please go [[https://github.com/quarnster/SublimeClang/issues?sort=created&direct
     *** You can probably get away with installing clang from the ubuntu repos (note that this plugin relies on features from clang 3.0) or
     *** Downloading a binary that matches your distribution
   ## Make sure libclang.so is in your path. Putting it in ~~/.config/sublime-text-2/Packages/SublimeClang/ should work but if that fails, /usr/lib is probably a good choice to try as an alternative. It's also been reported that "libLLVM-3.0.so" could be a dependency of libclang.so, so you might have to copy that file as well.
+  # LibCache will have to be compiled:
+  ## cd src
+  ## mkdir build
+  ## cd build
+  ## cmake ..
+  ## make
 
 === Installation ===
     # The easiest way to install SublimeClang is via the excellent Package Control Plugin
@@ -51,14 +57,6 @@ There's also the following key-bindings (tweak Default.sublime-keymaps to change
       |alt+d,alt+s|Run the Clang static analyzer on the current file|
       |alt+d,alt+o|Run the Clang static analyzer on the current project|
       |alt+d,alt+f|Toggle whether fast (but possibly inaccurate) completions are used or not|
-
-=== Notes ===
-
-If you experience choppy typing it might be because you sources are too large for clang to be efficiently queried for completion at each typed character. To improve the situation you can either:
-  * Toggle SublimeClang's vs. Sublime Text's completion when you don't need it using alt+d,alt+t
-  * Set "auto_complete": false in the editor's preferences.\\
-    You then lose the automatic as-you-type completion and have to trigger it manually. SublimeClang will still show you the completion menu automatically when you type "." or "->".
-  * Work on making completions faster is done in the clangexp branch, which will eventually get merged into master when [[https://github.com/wbond/sublime_package_control/issues/126|issue 126]] in Package Control is fixed. In the mean time you'll have to [[https://github.com/quarnster/SublimeClang/pull/58#issuecomment-5790749|switch branch manually]]. 
 
 === Show your support ===
 
