@@ -341,6 +341,7 @@ class Cache:
                         cursor = cursor.get_returned_cursor()
             if not cursor is None and not cursor.kind.is_invalid():
                 r = cursor
+                m2 = None
                 count = 0
                 while len(tocomplete) and count < 10:
                     if r is None or \
@@ -360,6 +361,8 @@ class Cache:
                         if match == None:
                             break
 
+                    if r.kind == cindex.CursorKind.OBJC_INTERFACE_DECL:
+                        pointer = 0
                     tocomplete = match.group(3)
                     count = 1
                     function = False
@@ -371,6 +374,7 @@ class Cache:
                     tocomplete = left.group(2)
                     if left.group(1) != None:
                         tocomplete = left.group(1) + tocomplete
+                    m2 = match.group(2)
                     if match.group(1) == None and pointer == 0:
                         if match.group(2) == "->":
                             comp = r.get_member("operator->", True)
@@ -386,7 +390,6 @@ class Cache:
                             if comp is None or comp.kind.is_invalid():
                                 ret = []
                     elif match.group(1) == None and pointer > 0:
-                        m2 = match.group(2)
                         if (m2 == "->" or m2 == "[]"):
                             pointer -= 1
                         elif m2 == ".":
@@ -401,8 +404,9 @@ class Cache:
                         if "[" in member:
                             member = get_base_type(member)
                         if "]" in member:
-                            function = True
                             member = member[:member.find("]")]
+                        if match.group(2) == " ":
+                            function = True
                         member = r.get_member(member, function)
                         r, template, pointer = self.solve_member(data, r, member, template)
                         if r is None and not member is None:
@@ -434,11 +438,23 @@ class Cache:
                         ret = []
                         if r.kind == cindex.CursorKind.OBJC_INTERFACE_DECL:
                             isStatic = var == None
-                            for c in comp[0]:
-                                if c.static == isStatic:
-                                    add = (c.display, c.insert)
-                                    if add not in ret:
-                                        ret.append(add)
+                            if m2 == ".":
+                                for c in comp[0]:
+                                    add = True
+                                    for child in c.cursor.get_children():
+                                        if child.kind == cindex.CursorKind.PARM_DECL:
+                                            add = False
+                                            break
+                                    if add:
+                                        add = (c.display, c.insert)
+                                        if add not in ret:
+                                            ret.append(add)
+                            else:
+                                for c in comp[0]:
+                                    if c.static == isStatic:
+                                        add = (c.display, c.insert)
+                                        if add not in ret:
+                                            ret.append(add)
                         else:
                             for c in comp[0]:
                                 if not c.static and c.cursor.kind != cindex.CursorKind.ENUM_CONSTANT_DECL and \

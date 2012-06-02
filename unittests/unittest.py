@@ -354,7 +354,9 @@ add_test("World * w; [[w world] ")
 add_test("World * w; [[w blah] ")
 add_test("World2 * w; [[w world2] ")
 add_test("World2 * w; [[[w world2] world] ")
-
+add_test("World2 * w; w.")
+add_test("World2 * w; w.world2.")
+add_test("World2 * w; w.world2.world.")
 
 if (testsAdded or update) and not dryrun:
     f = gzip.GzipFile(GOLDFILE, "wb")

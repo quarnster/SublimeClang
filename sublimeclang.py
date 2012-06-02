@@ -403,7 +403,7 @@ def is_member_completion(view, caret):
     if member_regex.search(line) != None:
         return True
     elif get_language(view).startswith("objc"):
-        return re.search("[ \t]*\[[\w]+ $", line) != None
+        return re.search(r"\[[\s\w\]]+\s+$", line) != None
     return False
 
 
@@ -483,7 +483,7 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
                 start = time.time()
 
             cached_results = None
-            if clang_fast_completions and not get_language(view).startswith("objc") and get_setting("enable_fast_completions", True, view):
+            if clang_fast_completions and get_setting("enable_fast_completions", True, view):
                 data = view.substr(sublime.Region(0, locations[0]))
                 cached_results = tu.cache.complete(data, prefix)
             if cached_results != None:

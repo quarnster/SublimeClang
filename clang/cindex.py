@@ -1295,8 +1295,19 @@ class Cursor(Structure):
                 return child
             elif not function and (child.kind == CursorKind.FIELD_DECL or child.kind == CursorKind.VAR_DECL) and child.spelling == membername:
                 return child
-            #elif child.spelling == membername:
-            #    print "unhandled kind: %s" % child.kind
+            # elif child.spelling == membername:
+            #     print "unhandled kind: %s" % child.kind
+        if self.kind == CursorKind.OBJC_INTERFACE_DECL:
+            for child in self.get_children():
+                if child.kind == CursorKind.OBJC_INSTANCE_METHOD_DECL and child.spelling == membername:
+                    ret = True
+                    for c2 in child.get_children():
+                        if c2.kind == CursorKind.PARM_DECL:
+                            ret = False
+                            break
+                    if ret:
+                        return child
+
         # Not found in this class, try base class
         for child in self.get_children():
             if child.kind == CursorKind.CXX_BASE_SPECIFIER:
