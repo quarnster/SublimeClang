@@ -15,3 +15,10 @@
 - (void) setWorld:(Hello*) world;
 @end
 
+@interface World2
+{
+
+}
+- (World*) world2;
+- (void) setWorld2:(World*) world2;
+@end

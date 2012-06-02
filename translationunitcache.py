@@ -278,7 +278,7 @@ class Cache:
                                 ret.append((c.display, c.insert))
                         cache_disposeCompletionResults(comp)
             return ret
-        elif re.search(r"(\[[\w]+(\s+[^\]]+\]+)?\s+$|([^ \t]+)(\.|\->)$)", before):
+        elif re.search(r"([\w\]]+\s+$|([^ \t]+)(\.|\->)$)", before):
             comp = data
             if len(prefix) > 0:
                 comp = data[:-len(prefix)]

@@ -352,6 +352,8 @@ add_test("Hello * h; [h ")
 add_test("World * w; [w ")
 add_test("World * w; [[w world] ")
 add_test("World * w; [[w blah] ")
+add_test("World2 * w; [[w world2] ")
+add_test("World2 * w; [[[w world2] world] ")
 
 
 if (testsAdded or update) and not dryrun:
