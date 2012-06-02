@@ -226,8 +226,8 @@ class Cache:
             before = line[:-len(prefix)]
 
         ret = None
-        if re.search("::$", before):
-            match = re.search("([^\(\\s,]+::)+$", before)
+        if re.search(r"::$", before):
+            match = re.search(r"([^\(\s,]+::)+$", before)
             if match == None:
                 ret = None
                 cached_results = cache_complete_startswith(self.cache, prefix)
@@ -278,7 +278,7 @@ class Cache:
                                 ret.append((c.display, c.insert))
                         cache_disposeCompletionResults(comp)
             return ret
-        elif re.search("([^ \t]+)(\.|\->)$", before):
+        elif re.search(r"(\[[\w]+(\s+[^\]]+\]+)?\s+$|([^ \t]+)(\.|\->)$)", before):
             comp = data
             if len(prefix) > 0:
                 comp = data[:-len(prefix)]
@@ -328,11 +328,12 @@ class Cache:
                         member = cursor.get_member(typename, func)
                         cursor, template, pointer = self.solve_member(data, cursor, member, template)
                 if cursor is None or cursor.kind.is_invalid():
-                    # Is it by any chance a struct variable?
+                    # Is it by any chance a struct variable or an ObjC class?
                     cursor = self.find_type(data, template[0])
                     if cursor is None or cursor.kind.is_invalid() or \
                             cursor.spelling != typename or \
-                            cursor.kind != cindex.CursorKind.VAR_DECL:
+                            (cursor.kind != cindex.CursorKind.VAR_DECL and \
+                             cursor.kind != cindex.CursorKind.OBJC_INTERFACE_DECL):
                         cursor = None
                     if not cursor is None and not cursor.kind.is_invalid():
                         # It's going to be a declaration of some kind, so
@@ -345,13 +346,19 @@ class Cache:
                     if r is None or \
                             not (r.kind == cindex.CursorKind.CLASS_DECL or \
                             r.kind == cindex.CursorKind.STRUCT_DECL or \
+                            r.kind == cindex.CursorKind.OBJC_INTERFACE_DECL or \
                             r.kind == cindex.CursorKind.CLASS_TEMPLATE):
                         r = None
                         break
                     count += 1
                     match = re.search(r"^([^\.\-\(:\[\]]+)?(\[\]|\(|\.|->|::)(.*)", tocomplete)
                     if match == None:
-                        break
+                        if "]" in tocomplete:
+                            # probably Objective C code
+                            match = re.search(r"^\s+(\S+)(\s+)(.*)", tocomplete)
+
+                        if match == None:
+                            break
 
                     tocomplete = match.group(3)
                     count = 1
@@ -393,6 +400,9 @@ class Cache:
                         member = match.group(1)
                         if "[" in member:
                             member = get_base_type(member)
+                        if "]" in member:
+                            function = True
+                            member = member[:member.find("]")]
                         member = r.get_member(member, function)
                         r, template, pointer = self.solve_member(data, r, member, template)
                         if r is None and not member is None:
@@ -402,7 +412,7 @@ class Cache:
                         if match.group(2) != "(":
                             tocomplete = match.group(2) + tocomplete
 
-                if not r is None and not r.kind.is_invalid() and pointer == 0:
+                if not r is None and not r.kind.is_invalid() and (pointer == 0 or r.kind == cindex.CursorKind.OBJC_INTERFACE_DECL):
                     clazz = extract_class_from_function(data)
                     if clazz == None:
                         clazz = extract_class(data)
@@ -422,23 +432,31 @@ class Cache:
                             replaces.append((r"(^|,|\(|\d:|\s+)(%s)($|,|\s+|\))" % tempnames[i], r"\1%s\3" % s))
                     if comp and len(comp[0]):
                         ret = []
-                        for c in comp[0]:
-                            if not c.static and c.cursor.kind != cindex.CursorKind.ENUM_CONSTANT_DECL and \
-                                    c.cursor.kind != cindex.CursorKind.ENUM_DECL and \
-                                    c.cursor.kind != cindex.CursorKind.TYPEDEF_DECL and \
-                                    c.cursor.kind != cindex.CursorKind.CLASS_DECL and \
-                                    c.cursor.kind != cindex.CursorKind.STRUCT_DECL and \
-                                    c.cursor.kind != cindex.CursorKind.CLASS_TEMPLATE and \
-                                    (c.access == cindex.CXXAccessSpecifier.PUBLIC or \
-                                        (selfcompletion and not (c.baseclass and c.access == cindex.CXXAccessSpecifier.PRIVATE))):
-                                disp = c.display
-                                ins = c.insert
-                                for r in replaces:
-                                    disp = re.sub(r[0], r[1], disp)
-                                    ins = re.sub(r[0], r[1], ins)
-                                add = (disp, ins)
-                                if add not in ret:
-                                    ret.append(add)
+                        if r.kind == cindex.CursorKind.OBJC_INTERFACE_DECL:
+                            isStatic = var == None
+                            for c in comp[0]:
+                                if c.static == isStatic:
+                                    add = (c.display, c.insert)
+                                    if add not in ret:
+                                        ret.append(add)
+                        else:
+                            for c in comp[0]:
+                                if not c.static and c.cursor.kind != cindex.CursorKind.ENUM_CONSTANT_DECL and \
+                                        c.cursor.kind != cindex.CursorKind.ENUM_DECL and \
+                                        c.cursor.kind != cindex.CursorKind.TYPEDEF_DECL and \
+                                        c.cursor.kind != cindex.CursorKind.CLASS_DECL and \
+                                        c.cursor.kind != cindex.CursorKind.STRUCT_DECL and \
+                                        c.cursor.kind != cindex.CursorKind.CLASS_TEMPLATE and \
+                                        (c.access == cindex.CXXAccessSpecifier.PUBLIC or \
+                                            (selfcompletion and not (c.baseclass and c.access == cindex.CXXAccessSpecifier.PRIVATE))):
+                                    disp = c.display
+                                    ins = c.insert
+                                    for r in replaces:
+                                        disp = re.sub(r[0], r[1], disp)
+                                        ins = re.sub(r[0], r[1], ins)
+                                    add = (disp, ins)
+                                    if add not in ret:
+                                        ret.append(add)
                         cache_disposeCompletionResults(comp)
             return ret
         else:

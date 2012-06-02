@@ -117,8 +117,11 @@ def get_tu(filename):
     currfile = filename
     myopts = []
     myopts.extend(opts)
-    myopts.append("-x")
-    myopts.append("c++")
+    if filename.endswith(".cpp"):
+        myopts.append("-x")
+        myopts.append("c++")
+    else:
+        myopts.append("-ObjC")
     return translationunitcache.tuCache.get_translation_unit(filename, myopts)
 
 # ---------------------------------------------------------
@@ -307,6 +310,8 @@ add_test("Child::")
 add_test("void Child::something() { MyStaticClass::")
 add_test("void Child::something() { Child::")
 
+# ---------------------------------------------------------
+
 tu = get_tu("unittests/7.cpp")
 add_test("A a; a.")
 add_test("AArray.")
@@ -331,6 +336,22 @@ data = f.read()
 f.close()
 add_test(data + "t.")
 add_test(data + "t->")
+
+# ---------------------------------------------------------
+
+opts = [
+            "-I/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/llvm-gcc-4.2/lib/gcc/i686-apple-darwin11/4.2.1/include/",
+            "-isysroot",
+            "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.7.sdk/",
+            "-F/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.7.sdk/System/Library/Frameworks",
+            "-ICocoa"]
+tu = get_tu("unittests/8.mm")
+add_test(" ", True)
+add_test("[Hello ")
+add_test("Hello * h; [h ")
+add_test("World * w; [w ")
+add_test("World * w; [[w world] ")
+add_test("World * w; [[w blah] ")
 
 
 if (testsAdded or update) and not dryrun:

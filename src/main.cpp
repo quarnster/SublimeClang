@@ -224,6 +224,7 @@ void get_return_type(std::string& returnType, CXCursorKind ck)
         case CXCursor_MacroDefinition: returnType = "macro"; break;
         case CXCursor_Namespace: returnType = "namespace"; break;
         case CXCursor_TypedefDecl: returnType = "typedef"; break;
+        case CXCursor_ObjCInterfaceDecl: returnType = "interface"; break;
     }
 }
 
@@ -382,6 +383,7 @@ public:
             {
                 case CXCursor_CXXMethod: isStatic = clang_CXXMethod_isStatic(c); break;
                 case CXCursor_VarDecl: isStatic = true; break;
+                case CXCursor_ObjCClassMethodDecl: isStatic = true; break;
                 default: isStatic = false; break;
             }
         }
@@ -535,6 +537,10 @@ void add_completion_children(CXCursor cursor, CXCursorKind ck, bool &recurse, Co
             recurse = true;
             // fall through
         case CXCursor_Namespace:
+        case CXCursor_ObjCInterfaceDecl:
+        case CXCursor_ObjCPropertyDecl:
+        case CXCursor_ObjCClassMethodDecl:
+        case CXCursor_ObjCInstanceMethodDecl:
         case CXCursor_ClassTemplate:
         case CXCursor_ClassDecl:
         case CXCursor_CXXMethod:

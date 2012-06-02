@@ -1132,7 +1132,8 @@ class Cursor(Structure):
         #print "get_type"
         if self.kind == CursorKind.STRUCT_DECL or \
                 self.kind == CursorKind.CLASS_DECL or \
-                self.kind == CursorKind.CLASS_TEMPLATE:
+                self.kind == CursorKind.CLASS_TEMPLATE or \
+                self.kind == CursorKind.OBJC_INTERFACE_DECL:
             return self
         if self.kind == CursorKind.TYPEDEF_DECL:
             children = self.get_children()
@@ -1220,6 +1221,9 @@ class Cursor(Structure):
         if self.kind == CursorKind.FUNCTION_DECL or \
                     self.kind == CursorKind.FIELD_DECL or \
                     self.kind == CursorKind.CXX_METHOD or \
+                    self.kind == CursorKind.OBJC_INSTANCE_METHOD_DECL or \
+                    self.kind == CursorKind.OBJC_CLASS_METHOD_DECL or \
+                    self.kind == CursorKind.OBJC_PROPERTY_DECL or \
                     self.kind == CursorKind.VAR_DECL or \
                     self.kind == CursorKind.PARM_DECL:
             children = self.get_children()
@@ -1240,6 +1244,8 @@ class Cursor(Structure):
                         if c.kind != CursorKind.NAMESPACE_REF:
                             reference = c.get_reference()
                             definition = reference.get_definition()
+                            if definition is None:
+                                definition = reference
 
                             if definition is None or definition == c:
                                 return None
@@ -1285,12 +1291,12 @@ class Cursor(Structure):
     def get_member(self, membername, function):
         #print "want to get the cursor for: %s->%s%s" % (self.spelling, membername, "()" if function else "")
         for child in self.get_children():
-            if function and child.kind == CursorKind.CXX_METHOD and child.spelling == membername:
+            if function and (child.kind == CursorKind.CXX_METHOD or child.kind == CursorKind.OBJC_INSTANCE_METHOD_DECL) and child.spelling == membername:
                 return child
             elif not function and (child.kind == CursorKind.FIELD_DECL or child.kind == CursorKind.VAR_DECL) and child.spelling == membername:
                 return child
-            elif child.spelling == membername:
-                print "unhandled kind: %s" % child.kind
+            #elif child.spelling == membername:
+            #    print "unhandled kind: %s" % child.kind
         # Not found in this class, try base class
         for child in self.get_children():
             if child.kind == CursorKind.CXX_BASE_SPECIFIER:

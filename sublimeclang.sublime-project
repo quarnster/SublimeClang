@@ -37,5 +37,16 @@
             "file_regex": "^(..[^:]*):([0-9]+):?([0-9]+)?:? (.*)$",
             "working_dir": "${project_path}"
         }
-    ]
+    ],
+    "settings":
+    {
+        "sublimeclang_options":
+        [
+            "-I/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/llvm-gcc-4.2/lib/gcc/i686-apple-darwin11/4.2.1/include/",
+            "-isysroot",
+            "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.7.sdk/",
+            "-F/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.7.sdk/System/Library/Frameworks",
+            "-ICocoa"
+        ]
+    }
 }
