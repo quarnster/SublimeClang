@@ -650,6 +650,17 @@ class TranslationUnitCache(Worker):
         self.parsingList.unlock()
         return ret
 
+    def add_ex(self, filename, opts, opts_script, on_done=None):
+        tu = self.translationUnits.lock()
+        pl = self.parsingList.lock()
+        if filename not in tu and filename not in pl:
+            pl.append(filename)
+            self.tasks.put((
+                self.task_parse,
+                (filename, opts, opts_script, on_done)))
+        self.translationUnits.unlock()
+        self.parsingList.unlock()
+
     def add(self, view, filename, on_done=None):
         ret = False
         tu = self.translationUnits.lock()
@@ -692,6 +703,7 @@ class TranslationUnitCache(Worker):
         tus = self.translationUnits.lock()
         if filename not in tus:
             self.translationUnits.unlock()
+            pre_script_opts = list(opts)
 
             if opts_script:
                 # shlex.split barfs if fed with an unicode strings
@@ -711,16 +723,22 @@ class TranslationUnitCache(Worker):
             tu = self.index.parse(None, opts, unsaved_files,
                                   self.index_parse_options)
             if tu != None:
-                # Apparently the options aren't used in the first parse,
-                # so reparse to heat up the cache
-                tu.reparse(unsaved_files)
                 tu = TranslationUnitCache.LockedTranslationUnit(tu, filename)
+                tu.opts = pre_script_opts
                 tus = self.translationUnits.lock()
                 tus[filename] = tu
                 self.translationUnits.unlock()
         else:
             tu = tus[filename]
+            recompile = tu.opts != opts
+
+            if recompile:
+                del tus[filename]
             self.translationUnits.unlock()
+
+            if recompile:
+                self.set_status("Options change detected. Will recompile %s" % filename)
+                self.add_ex(filename, opts, opts_script, None)
         return tu
 
     def remove(self, filename):

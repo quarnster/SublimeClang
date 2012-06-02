@@ -102,14 +102,14 @@ def add_test(currtest, platformspecific=False):
         if platformspecific and disableplatformspecific:
             return
         if gold != None and output != None:
-            max = len(gold)
-            if len(output) > max:
-                max = len(output)
-            for i in range(max):
-                g = gold[i] if i < len(gold) else None
-                o = output[i] if i < len(output) else None
-                if g != o:
-                    fail("Mismatch in test: %s %s, %s != %s" % (currfile, currtest, g, o))
+            goldset = set(gold)
+            outputset = set(output)
+            ingold = goldset - outputset
+            inoutput = outputset - goldset
+            for i in ingold:
+                fail("Test failed: %s - Was in gold but not output: %s" % (key, i))
+            for i in inoutput:
+                fail("Test failed: %s - Was in output but not gold: %s" % (key, i))
 
 
 def get_tu(filename):
