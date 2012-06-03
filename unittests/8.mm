@@ -68,7 +68,6 @@
 }
 @end
 
-void test()
-{
-    Hello *h;
-}
+@interface World4 (MyCategory)
+- (void) MyCategoryMethod;
+@end

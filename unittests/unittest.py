@@ -7,6 +7,7 @@ import sys
 import gzip
 import re
 import platform
+from clang import cindex
 
 opts = []
 
@@ -389,6 +390,14 @@ add_test("""@implementation World4
 - (void) myworld
 {
     """)
+add_test("World4 *w; w.")
+add_test("World4 *w; w->")
+add_test("World4 *w; [w ")
+
+# ---------------------------------------------------------
+
+tu = get_tu("unittests/9.mm")
+add_test("[NSString ")
 
 if (testsAdded or update) and not dryrun:
     f = gzip.GzipFile(GOLDFILE, "wb")

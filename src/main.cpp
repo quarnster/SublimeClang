@@ -25,6 +25,7 @@ freely, subject to the following restrictions:
 #include <string>
 #include <string.h>
 #include <vector>
+#include <map>
 #include <algorithm>
 
 
@@ -34,6 +35,75 @@ freely, subject to the following restrictions:
 #else
    #define EXPORT
 #endif
+
+bool operator<(const CXCursor &c1, const CXCursor &c2)
+{
+    CXString s1 = clang_getCursorUSR(c1);
+    CXString s2 = clang_getCursorUSR(c2);
+    const char *cstr1 = clang_getCString(s1);
+    const char *cstr2 = clang_getCString(s2);
+    bool ret = strcmp(cstr1, cstr2) < 0;
+    clang_disposeString(s1);
+    clang_disposeString(s2);
+    return ret;
+}
+
+typedef std::vector<CXCursor> CursorList;
+typedef std::map<CXCursor, CursorList> CategoryContainer;
+
+
+void dump(CXCursor cursor)
+{
+    if (clang_Cursor_isNull(cursor))
+    {
+        printf("NULL");
+        return;
+    }
+    CXString s = clang_getCursorSpelling(cursor);
+    const char *str = clang_getCString(s);
+    if (str)
+    {
+        printf("%s - %d\n", str, clang_getCursorKind(cursor));
+    }
+    clang_disposeString(s);
+
+}
+
+CXChildVisitResult get_first_child_visitor(CXCursor cursor, CXCursor parent, CXClientData client_data)
+{
+    *((CXCursor*) client_data) = cursor;
+    return CXChildVisit_Break;
+}
+
+CXChildVisitResult get_objc_categories_visitor(CXCursor cursor, CXCursor parent, CXClientData client_data)
+{
+    if (clang_Cursor_isNull(cursor))
+        return CXChildVisit_Break;
+    CXCursorKind kind = clang_getCursorKind(cursor);
+    if (kind == CXCursor_ObjCCategoryDecl)
+    {
+        CXCursor child = clang_getNullCursor();
+        clang_visitChildren(cursor, get_first_child_visitor, &child);
+        if (!clang_Cursor_isNull(child))
+        {
+            CXCursor ref = clang_getCursorReferenced(child);
+            if (!clang_Cursor_isNull(ref))
+            {
+                CategoryContainer* cont = (CategoryContainer*) client_data;
+                CategoryContainer::iterator i = cont->find(ref);
+                if (i == cont->end())
+                {
+                    CursorList add;
+                    (*cont)[ref] = add;
+                }
+                (*cont)[ref].push_back(cursor);
+            }
+        }
+    }
+    return CXChildVisit_Continue;
+}
+
+
 
 CXChildVisitResult haschildren_visitor(CXCursor cursor, CXCursor parent, CXClientData client_data)
 {
@@ -55,7 +125,7 @@ CXChildVisitResult getchildren_visitor(CXCursor cursor, CXCursor parent, CXClien
 {
     if (clang_Cursor_isNull(cursor))
         return CXChildVisit_Break;
-    std::vector<CXCursor>* children = (std::vector<CXCursor> *) client_data;
+    CursorList* children = (CursorList *) client_data;
     children->push_back(cursor);
     return CXChildVisit_Continue;
 }
@@ -70,7 +140,7 @@ CXCursor get_resolved_cursor(CXCursor self)
     CXType result_type = clang_getCursorResultType(self);
     if (result_type.kind == CXType_Record)
     {
-        std::vector<CXCursor> children;
+        CursorList children;
         clang_visitChildren(self, getchildren_visitor, &children);
         return get_resolved_cursor(children[0]);
     }
@@ -90,9 +160,9 @@ CXCursor get_resolved_cursor(CXCursor self)
     }
     if (clang_isDeclaration(kind))
     {
-        std::vector<CXCursor> children;
+        CursorList children;
         clang_visitChildren(self, getchildren_visitor, &children);
-        for (std::vector<CXCursor>::iterator i = children.begin(); i != children.end(); ++i)
+        for (CursorList::iterator i = children.begin(); i != children.end(); ++i)
         {
             CXCursor &child = *i;
             CXCursorKind ck = clang_getCursorKind(child);
@@ -137,7 +207,7 @@ CXCursor get_returned_cursor(CXCursor self)
         case CXCursor_CXXMethod:
         case CXCursor_VarDecl:
         {
-            std::vector<CXCursor> children;
+            CursorList children;
             clang_visitChildren(self, getchildren_visitor, &children);
             if (children.size() > 0)
             {
@@ -161,7 +231,7 @@ CXCursor get_returned_cursor(CXCursor self)
                 }
                 else if (clang_isReference(ck))
                 {
-                    for (std::vector<CXCursor>::iterator i = children.begin(); i != children.end(); ++i)
+                    for (CursorList::iterator i = children.begin(); i != children.end(); ++i)
                     {
                         CXCursor &c = *i;
                         ck = clang_getCursorKind(c);
@@ -189,7 +259,7 @@ CXCursor get_returned_cursor(CXCursor self)
         default: break;
         case CXType_Record:
         {
-            std::vector<CXCursor> children;
+            CursorList children;
             clang_visitChildren(self, getchildren_visitor, &children);
             return children[0];
         }
@@ -217,6 +287,7 @@ void get_return_type(std::string& returnType, CXCursorKind ck)
     {
         default: break;
         case CXCursor_UnionDecl: returnType = "union"; break;
+        case CXCursor_ObjCInterfaceDecl: // fall through
         case CXCursor_ClassTemplate: // fall through
         case CXCursor_ClassDecl: returnType = "class"; break;
         case CXCursor_EnumDecl: returnType = "enum"; break;
@@ -224,7 +295,6 @@ void get_return_type(std::string& returnType, CXCursorKind ck)
         case CXCursor_MacroDefinition: returnType = "macro"; break;
         case CXCursor_Namespace: returnType = "namespace"; break;
         case CXCursor_TypedefDecl: returnType = "typedef"; break;
-        case CXCursor_ObjCInterfaceDecl: returnType = "interface"; break;
     }
 }
 
@@ -298,24 +368,6 @@ void parse_res(std::string& insertion, std::string& representation, CXCursor cur
         clang_disposeString(s);
         representation += "\t" + returnType;
     }
-}
-
-
-void dump(CXCursor cursor)
-{
-    if (clang_Cursor_isNull(cursor))
-    {
-        printf("NULL");
-        return;
-    }
-    CXString s = clang_getCursorSpelling(cursor);
-    const char *str = clang_getCString(s);
-    if (str)
-    {
-        printf("%s - %d\n", str, clang_getCursorKind(cursor));
-    }
-    clang_disposeString(s);
-
 }
 
 std::string collapse(std::string before, char startT, char endT, char extraT='\0')
@@ -435,7 +487,8 @@ void trim(std::vector<Entry*>& mEntries)
             bool hasChildren = false;
             // Just to make sure that a forward declaration rather than the
             // real declaration is removed as a duplicate
-            clang_visitChildren((*del)->cursor, haschildren_visitor, &hasChildren);
+            if (clang_getCursorKind((*del)->cursor) != CXCursor_ObjCImplementationDecl)
+                clang_visitChildren((*del)->cursor, haschildren_visitor, &hasChildren);
             if (hasChildren)
                 del = i-1;
             bool begin = del == mEntries.begin();
@@ -504,6 +557,7 @@ public:
         delete[] entries;
     }
 
+
     Entry** entries;
     unsigned int length;
     bool deleteEntries;
@@ -516,6 +570,7 @@ public:
     : entries(e), access(a), isBaseClass(base)
     {
     }
+    CursorList mParents;
     std::vector<Entry*> &entries;
     CX_CXXAccessSpecifier access;
     bool isBaseClass;
@@ -578,12 +633,17 @@ CXChildVisitResult get_completion_children(CXCursor cursor, CXCursor parent, CXC
         CXCursor ref = clang_getCursorReferenced(cursor);
         if (!clang_Cursor_isNull(ref) && !clang_isInvalid(clang_getCursorKind(ref)))
         {
+            data->mParents.push_back(ref);
             CompletionVisitorData d(data->entries, ck == CXCursor_CXXBaseSpecifier ? CX_CXXPrivate : CX_CXXProtected, true);
             if (clang_getCursorKind(ref) == CXCursor_StructDecl)
             {
                 d.access = CX_CXXPublic;
             }
             clang_visitChildren(ref, get_completion_children, &d);
+            for (CursorList::iterator i = d.mParents.begin(); i != d.mParents.end(); i++)
+            {
+                data->mParents.push_back(*i);
+            }
         }
     }
 
@@ -611,7 +671,7 @@ public:
 
 protected:
     CXCursor mBase;
-    std::vector<CXCursor> mParents;
+    CursorList mParents;
     const char **namespaces;
     unsigned int namespaceCount;
 
@@ -782,6 +842,7 @@ public:
             }
         }
         trim(mEntries);
+        clang_visitChildren(base, get_objc_categories_visitor, &mObjCCategories);
     }
     ~Cache()
     {
@@ -859,14 +920,32 @@ public:
         std::vector<Entry*>& entries = d.getEntries();
         return new CacheCompletionResults(entries.begin(), entries.end(), true);
     }
+    void addCategories(CXCursor cur, CompletionVisitorData* d)
+    {
+        CategoryContainer::iterator i = mObjCCategories.find(cur);
+        if (i != mObjCCategories.end())
+        {
+            CursorList &list = (*i).second;
+            for (CursorList::iterator pos = list.begin(); pos != list.end(); pos++)
+            {
+                clang_visitChildren(*pos, get_completion_children, d);
+            }
+        }
+    }
     CacheCompletionResults* completeCursor(CXCursor cur)
     {
         std::vector<Entry *> entries;
         CompletionVisitorData d(entries, clang_getCursorKind(cur) == CXCursor_ClassDecl ? CX_CXXPrivate : CX_CXXPublic);
         clang_visitChildren(cur, get_completion_children, &d);
+        addCategories(cur, &d);
+        for (CursorList::iterator i = d.mParents.begin(); i != d.mParents.end(); i++)
+        {
+            addCategories(*i, &d);
+        }
 
         std::sort(entries.begin(), entries.end(), EntryCompare());
         trim(mEntries);
+
         return new CacheCompletionResults(entries.begin(), entries.end(), true);
     }
     CXCursor findType(const char ** namespaces, unsigned int nsLength, const char *type)
@@ -897,6 +976,7 @@ public:
         return d.getCursor();
     }
 private:
+    CategoryContainer   mObjCCategories;
     CXCursor            mBaseCursor;
     std::vector<Entry*> mEntries;
     std::vector<Entry*> mNamespaces;
