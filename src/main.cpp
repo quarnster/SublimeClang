@@ -628,23 +628,30 @@ CXChildVisitResult get_completion_children(CXCursor cursor, CXCursor parent, CXC
     CompletionVisitorData* data = (CompletionVisitorData*) client_data;
 
     add_completion_children(cursor, ck, recurse, data);
-    if (ck == CXCursor_CXXBaseSpecifier || ck == CXCursor_ObjCSuperClassRef)
+    switch (ck)
     {
-        CXCursor ref = clang_getCursorReferenced(cursor);
-        if (!clang_Cursor_isNull(ref) && !clang_isInvalid(clang_getCursorKind(ref)))
+        case CXCursor_CXXBaseSpecifier:
+        case CXCursor_ObjCSuperClassRef:
+        case CXCursor_ObjCProtocolRef:
         {
-            data->mParents.push_back(ref);
-            CompletionVisitorData d(data->entries, ck == CXCursor_CXXBaseSpecifier ? CX_CXXPrivate : CX_CXXProtected, true);
-            if (clang_getCursorKind(ref) == CXCursor_StructDecl)
+            CXCursor ref = clang_getCursorReferenced(cursor);
+            if (!clang_Cursor_isNull(ref) && !clang_isInvalid(clang_getCursorKind(ref)))
             {
-                d.access = CX_CXXPublic;
+                data->mParents.push_back(ref);
+                CompletionVisitorData d(data->entries, ck == CXCursor_CXXBaseSpecifier ? CX_CXXPrivate : CX_CXXProtected, true);
+                if (clang_getCursorKind(ref) == CXCursor_StructDecl)
+                {
+                    d.access = CX_CXXPublic;
+                }
+                clang_visitChildren(ref, get_completion_children, &d);
+                for (CursorList::iterator i = d.mParents.begin(); i != d.mParents.end(); i++)
+                {
+                    data->mParents.push_back(*i);
+                }
             }
-            clang_visitChildren(ref, get_completion_children, &d);
-            for (CursorList::iterator i = d.mParents.begin(); i != d.mParents.end(); i++)
-            {
-                data->mParents.push_back(*i);
-            }
+            break;
         }
+        default: break;
     }
 
     if (recurse)

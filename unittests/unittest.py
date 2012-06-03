@@ -394,10 +394,13 @@ add_test("World4 *w; w.")
 add_test("World4 *w; w->")
 add_test("World4 *w; [w ")
 
+add_test("World5 *w; [w ")
+
 # ---------------------------------------------------------
 
 tu = get_tu("unittests/9.mm")
 add_test("[NSString ")
+add_test("NSString *s; [s ")
 
 if (testsAdded or update) and not dryrun:
     f = gzip.GzipFile(GOLDFILE, "wb")

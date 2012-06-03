@@ -71,3 +71,11 @@
 @interface World4 (MyCategory)
 - (void) MyCategoryMethod;
 @end
+
+@protocol Serializeable
+-(void) serialize;
+-(void) deserialize;
+@end
+
+@interface World5 : World4<Serializeable>
+@end
