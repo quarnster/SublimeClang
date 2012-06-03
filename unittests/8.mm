@@ -1,5 +1,6 @@
 @interface Hello
 {
+@public int publicInt;
 }
 + classMethod;
 + classMethod2;
@@ -7,9 +8,19 @@
 - objMethod2;
 @end
 
+@interface Hello2
+{
+@public int publicHello2Int;
+}
++ hello2ClassMethod;
+- hello2ClassMethod;
+@end
+
+
 @interface World
 {
-    Hello* world;
+@public
+    Hello2* worldVar;
 }
 - (Hello*) world;
 - (void) setWorld:(Hello*) world;
@@ -24,4 +35,40 @@
 @end
 
 @interface World3 : World2
+{
+@private
+    int privateVariable;
+@protected
+    int protectedVariable;
+@public
+    int publicVariable;
+
+}
+@property float value;
+- (void) something;
+
 @end
+
+@implementation World3
+- (void) something
+{
+    World3* w;
+    w.something;
+}
+@end
+
+@interface World4 : World3
+- (void) myworld;
+@end
+
+@implementation World4
+- (void) myworld
+{
+
+}
+@end
+
+void test()
+{
+    Hello *h;
+}

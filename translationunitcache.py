@@ -278,7 +278,7 @@ class Cache:
                                 ret.append((c.display, c.insert))
                         cache_disposeCompletionResults(comp)
             return ret
-        elif re.search(r"([\w\]]+\s+$|([^ \t]+)(\.|\->)$)", before):
+        elif re.search(r"(\w+\]+\s+$|\[\w+\s+$|([^ \t]+)(\.|\->)$)", before):
             comp = data
             if len(prefix) > 0:
                 comp = data[:-len(prefix)]
@@ -374,8 +374,9 @@ class Cache:
                     tocomplete = left.group(2)
                     if left.group(1) != None:
                         tocomplete = left.group(1) + tocomplete
-                    m2 = match.group(2)
-                    if match.group(1) == None and pointer == 0:
+                    nextm2 = match.group(2)
+
+                    if match.group(1) == None and pointer == 0 and r.kind != cindex.CursorKind.OBJC_INTERFACE_DECL:
                         if match.group(2) == "->":
                             comp = r.get_member("operator->", True)
                             r, template, pointer = self.solve_member(data, r, comp, template)
@@ -390,9 +391,9 @@ class Cache:
                             if comp is None or comp.kind.is_invalid():
                                 ret = []
                     elif match.group(1) == None and pointer > 0:
-                        if (m2 == "->" or m2 == "[]"):
+                        if (nextm2 == "->" or nextm2 == "[]"):
                             pointer -= 1
-                        elif m2 == ".":
+                        elif nextm2 == ".":
                             # Trying to dot-complete a pointer, this is invalid
                             # so there can be no completions
                             ret = []
@@ -405,7 +406,7 @@ class Cache:
                             member = get_base_type(member)
                         if "]" in member:
                             member = member[:member.find("]")]
-                        if match.group(2) == " ":
+                        if m2 == " ":
                             function = True
                         member = r.get_member(member, function)
                         r, template, pointer = self.solve_member(data, r, member, template)
@@ -415,6 +416,7 @@ class Cache:
                             ret = []
                         if match.group(2) != "(":
                             tocomplete = match.group(2) + tocomplete
+                    m2 = nextm2
 
                 if not r is None and not r.kind.is_invalid() and (pointer == 0 or r.kind == cindex.CursorKind.OBJC_INTERFACE_DECL):
                     clazz = extract_class_from_function(data)
@@ -441,6 +443,8 @@ class Cache:
                             if m2 == ".":
                                 for c in comp[0]:
                                     add = True
+                                    if c.cursor.kind == cindex.CursorKind.OBJC_IVAR_DECL:
+                                        continue
                                     for child in c.cursor.get_children():
                                         if child.kind == cindex.CursorKind.PARM_DECL:
                                             add = False
@@ -449,9 +453,16 @@ class Cache:
                                         add = (c.display, c.insert)
                                         if add not in ret:
                                             ret.append(add)
+                            elif m2 == "->":
+                                for c in comp[0]:
+                                    if c.cursor.kind != cindex.CursorKind.OBJC_IVAR_DECL:
+                                        continue
+                                    add = (c.display, c.insert)
+                                    if add not in ret:
+                                        ret.append(add)
                             else:
                                 for c in comp[0]:
-                                    if c.static == isStatic:
+                                    if c.static == isStatic and c.cursor.kind != cindex.CursorKind.OBJC_IVAR_DECL:
                                         add = (c.display, c.insert)
                                         if add not in ret:
                                             ret.append(add)

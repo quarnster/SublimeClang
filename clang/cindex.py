@@ -1224,6 +1224,7 @@ class Cursor(Structure):
                     self.kind == CursorKind.OBJC_INSTANCE_METHOD_DECL or \
                     self.kind == CursorKind.OBJC_CLASS_METHOD_DECL or \
                     self.kind == CursorKind.OBJC_PROPERTY_DECL or \
+                    self.kind == CursorKind.OBJC_IVAR_DECL or \
                     self.kind == CursorKind.VAR_DECL or \
                     self.kind == CursorKind.PARM_DECL:
             children = self.get_children()
@@ -1244,7 +1245,7 @@ class Cursor(Structure):
                         if c.kind != CursorKind.NAMESPACE_REF:
                             reference = c.get_reference()
                             definition = reference.get_definition()
-                            if definition is None:
+                            if definition is None or reference.kind == CursorKind.OBJC_INTERFACE_DECL:
                                 definition = reference
 
                             if definition is None or definition == c:
@@ -1293,7 +1294,7 @@ class Cursor(Structure):
         for child in self.get_children():
             if function and (child.kind == CursorKind.CXX_METHOD or child.kind == CursorKind.OBJC_INSTANCE_METHOD_DECL) and child.spelling == membername:
                 return child
-            elif not function and (child.kind == CursorKind.FIELD_DECL or child.kind == CursorKind.VAR_DECL) and child.spelling == membername:
+            elif not function and (child.kind == CursorKind.FIELD_DECL or child.kind == CursorKind.VAR_DECL or child.kind == CursorKind.OBJC_IVAR_DECL) and child.spelling == membername:
                 return child
             # elif child.spelling == membername:
             #     print "unhandled kind: %s" % child.kind

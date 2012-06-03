@@ -368,6 +368,27 @@ add_test("""@implementation World2
 
 add_test("World3 *w; w.")
 add_test("World3 *w; [w ")
+add_test("World3 *w; w->")
+add_test("World *w; w.")
+add_test("World *w; w->")
+add_test("World *w; w.world.")
+add_test("World *w; w.world->")
+add_test("World *w; w->worldVar.")
+add_test("World *w; w->worldVar->")
+
+f = open("unittests/8.mm")
+data = f.read()
+f.close()
+add_test(data[:data.rfind(".")+1])
+add_test("""@implementation World3
+- (void) something
+{
+    """)
+
+add_test("""@implementation World4
+- (void) myworld
+{
+    """)
 
 if (testsAdded or update) and not dryrun:
     f = gzip.GzipFile(GOLDFILE, "wb")

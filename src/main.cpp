@@ -538,6 +538,7 @@ void add_completion_children(CXCursor cursor, CXCursorKind ck, bool &recurse, Co
             // fall through
         case CXCursor_Namespace:
         case CXCursor_ObjCInterfaceDecl:
+        case CXCursor_ObjCIvarDecl:
         case CXCursor_ObjCPropertyDecl:
         case CXCursor_ObjCClassMethodDecl:
         case CXCursor_ObjCInstanceMethodDecl:
@@ -577,7 +578,7 @@ CXChildVisitResult get_completion_children(CXCursor cursor, CXCursor parent, CXC
         CXCursor ref = clang_getCursorReferenced(cursor);
         if (!clang_Cursor_isNull(ref) && !clang_isInvalid(clang_getCursorKind(ref)))
         {
-            CompletionVisitorData d(data->entries, CX_CXXPrivate, true);
+            CompletionVisitorData d(data->entries, ck == CXCursor_CXXBaseSpecifier ? CX_CXXPrivate : CX_CXXProtected, true);
             if (clang_getCursorKind(ref) == CXCursor_StructDecl)
             {
                 d.access = CX_CXXPublic;
@@ -806,6 +807,7 @@ public:
             case CXCursor_ObjCPropertyDecl:
             case CXCursor_ObjCClassMethodDecl:
             case CXCursor_ObjCInstanceMethodDecl:
+            case CXCursor_ObjCIvarDecl:
             case CXCursor_FunctionTemplate:
                 return true;
         }
