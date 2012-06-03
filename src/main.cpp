@@ -572,7 +572,7 @@ CXChildVisitResult get_completion_children(CXCursor cursor, CXCursor parent, CXC
     CompletionVisitorData* data = (CompletionVisitorData*) client_data;
 
     add_completion_children(cursor, ck, recurse, data);
-    if (ck == CXCursor_CXXBaseSpecifier)
+    if (ck == CXCursor_CXXBaseSpecifier || ck == CXCursor_ObjCSuperClassRef)
     {
         CXCursor ref = clang_getCursorReferenced(cursor);
         if (!clang_Cursor_isNull(ref) && !clang_isInvalid(clang_getCursorKind(ref)))

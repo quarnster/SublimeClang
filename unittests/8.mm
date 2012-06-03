@@ -22,3 +22,6 @@
 - (World*) world2;
 - (void) setWorld2:(World*) world2;
 @end
+
+@interface World3 : World2
+@end

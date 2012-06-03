@@ -366,6 +366,9 @@ add_test("""@implementation World2
 {
     self.""")
 
+add_test("World3 *w; w.")
+add_test("World3 *w; [w ")
+
 if (testsAdded or update) and not dryrun:
     f = gzip.GzipFile(GOLDFILE, "wb")
     pickle.dump(golden, f, -1)
