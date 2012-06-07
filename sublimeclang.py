@@ -44,6 +44,8 @@ from errormarkers import clear_error_marks, add_error_mark, show_error_marks, \
                          update_statusbar, erase_error_marks, set_clang_view
 from common import expand_path, get_setting, get_settings, get_path_setting, Worker
 
+scriptpath = os.path.dirname(os.path.abspath(__file__))
+
 language_regex = re.compile("(?<=source\.)[\w+#]+")
 
 
@@ -242,6 +244,8 @@ class TranslationUnitCache(Worker):
 
     def get_opts(self, view):
         opts = get_path_setting("options", [], view)
+        if not get_setting("dont_prepend_clang_includes", False, view):
+            opts.insert(0, "-I%s/clang/include" % scriptpath)
         if get_setting("add_language_option", True, view):
             language = get_language(view)
             if language == "objc":
