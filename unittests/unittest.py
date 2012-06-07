@@ -159,9 +159,7 @@ add_test("std::vector<Test::Class1> t; t.", True)
 add_test("using namespace Class1; std::vector<Class1> t; t.", True)
 add_test("using namespace std; vector<Test::Class1> t; t.", True)
 add_test("vector<Test::Class1> t; t.")
-if platform.system() != "Windows":
-    # For some reason this crashes in libclang on Windows..
-    add_test("std::vector<Test::Class1> t; t[0].")
+add_test("std::vector<Test::Class1> t; t[0].")
 add_test("std::string s; s.")
 
 # ---------------------------------------------------------
@@ -386,12 +384,12 @@ add_test(data[:data.rfind(".")+1])
 add_test("""@implementation World3
 - (void) something
 {
-    """)
+    """, True)
 
 add_test("""@implementation World4
 - (void) myworld
 {
-    """)
+    """, True)
 add_test("World4 *w; w.")
 add_test("World4 *w; w->")
 add_test("World4 *w; [w ")
@@ -401,8 +399,9 @@ add_test("World5 *w; [w ")
 # ---------------------------------------------------------
 
 tu = get_tu("unittests/9.mm")
-add_test("[NSString ")
-add_test("NSString *s; [s ")
+if platform.system() == "Darwin":
+    add_test("[NSString ", True)
+    add_test("NSString *s; [s ", True)
 
 if (testsAdded or update) and not dryrun:
     f = gzip.GzipFile(GOLDFILE, "wb")
