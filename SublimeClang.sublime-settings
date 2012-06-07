@@ -229,8 +229,6 @@
     "options":
     [
         "-Wall",
-        "-I/usr/lib/clang/3.0/include/",
-        "-I/usr/lib/clang/2.1/include/",
         "-I/usr/lib/gcc/i686-apple-darwin10/4.2.1/include/",
         "-I/usr/lib/gcc/i686-apple-darwin11/4.2.1/include/",
         // If you code for iOS, you want to have something like the following here:
@@ -255,6 +253,10 @@
     // "/path/to/scriptName.sh someArgument1 someArgument2 currentViewFileName"
     // before each time a file needs to be parsed by clang.
     "options_script": "",
+
+    // If set to true, it'll not prepend the compiler options with the path to the
+    // included headers
+    "dont_prepend_clang_includes": false,
 
     // When set to true will output the final options used to the python console
     "debug_options": false,

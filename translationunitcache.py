@@ -28,6 +28,9 @@ import subprocess
 from ctypes import cdll, Structure, POINTER, c_char_p, c_void_p, c_uint, c_bool
 from parsehelp.parsehelp import *
 import re
+import os
+
+scriptpath = os.path.dirname(os.path.abspath(__file__))
 
 
 def get_cache_library():
@@ -42,9 +45,8 @@ def get_cache_library():
     else:
         try:
             # Try loading with absolute path first
-            import os
-            path = os.path.dirname(os.path.abspath(__file__))
-            return cdll.LoadLibrary('%s/libcache.so' % path)
+
+            return cdll.LoadLibrary('%s/libcache.so' % scriptpath)
         except:
             try:
                 # See if there's one in the system path
@@ -725,6 +727,8 @@ class TranslationUnitCache(Worker):
 
     def get_opts(self, view):
         opts = get_path_setting("options", [], view)
+        if not get_setting("dont_prepend_clang_includes", False, view):
+            opts.insert(0, "-I%s/clang/include" % scriptpath)
         if get_setting("add_language_option", True, view):
             language = get_language(view)
             if language == "objc":
@@ -773,6 +777,8 @@ class TranslationUnitCache(Worker):
                 tus = self.translationUnits.lock()
                 tus[filename] = tu
                 self.translationUnits.unlock()
+            else:
+                print "tu is None..."
         else:
             tu = tus[filename]
             recompile = tu.opts != opts
