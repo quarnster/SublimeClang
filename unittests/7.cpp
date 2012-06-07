@@ -21,4 +21,13 @@ typedef struct TestStruct
 
 } TS[10];
 
+struct TestStruct2
+{
+    enum { test3, test4};
+    typedef long long MyType;
+    class MyClass
+    {};
+    struct MyStruct {};
+    int someMember;
+};
 Test *t;

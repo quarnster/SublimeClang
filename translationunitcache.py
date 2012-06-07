@@ -276,6 +276,9 @@ class Cache:
                             if (selfcompletion and not c.baseclass) or \
                                 (inherits and not c.access == cindex.CXXAccessSpecifier.PRIVATE) or \
                                     (c.access == cindex.CXXAccessSpecifier.PUBLIC and c.static) or \
+                                    c.cursor.kind == cindex.CursorKind.TYPEDEF_DECL or \
+                                    c.cursor.kind == cindex.CursorKind.CLASS_DECL or \
+                                    c.cursor.kind == cindex.CursorKind.STRUCT_DECL or \
                                     c.cursor.kind == cindex.CursorKind.ENUM_CONSTANT_DECL:
                                 ret.append((c.display, c.insert))
                         cache_disposeCompletionResults(comp)
