@@ -31,3 +31,6 @@ struct TestStruct2
     int someMember;
 };
 Test *t;
+
+#include <cstring>
+size_t a;

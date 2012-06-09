@@ -497,7 +497,7 @@ class Cache:
                 ret = [(x.display, x.insert) for x in cached_results[0]]
                 cache_disposeCompletionResults(cached_results)
             variables = extract_variables(data)
-            var = [("%s\t%s" % (v[1], v[0]), v[1]) for v in variables]
+            var = [("%s\t%s" % (v[1], re.sub(r"(^|\b)\s*static\s+", "", v[0])), v[1]) for v in variables]
             if len(var) and ret == None:
                 ret = []
             for v in var:

@@ -26,6 +26,8 @@ public:
     mystruct2 ms;
 };
 
+
+static int variable;
 class MyStaticClass
 {
 public:

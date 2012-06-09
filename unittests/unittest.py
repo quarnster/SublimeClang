@@ -309,6 +309,14 @@ add_test("Child::")
 add_test("void Child::something() { MyStaticClass::")
 add_test("void Child::something() { Child::")
 
+f = open("unittests/6.cpp")
+data = f.read()
+f.close()
+add_test(data + " ")
+add_test(data + " myenum::")
+add_test(data + " m.")
+add_test(data + " A::")
+
 # ---------------------------------------------------------
 
 tu = get_tu("unittests/7.cpp")
@@ -336,17 +344,25 @@ add_test("Test t[10]; t[0].")
 add_test("Test t[10][20]; t.")
 add_test("Test t[10][20]; t[0].")
 add_test("Test t[10][20]; t[0][0].")
+add_test("Test *t[20]; t[0][0].")
+add_test("Test *t[20]; t[0].")
+add_test("Test *t[20]; t.")
+add_test("size_t t; t.")
+
 
 f = open("unittests/7.cpp")
 data = f.read()
 f.close()
-add_test(data + "t.")
-add_test(data + "t->")
+subdata = data[:data.rfind("*t;")+4]
+add_test(subdata + "t.")
+add_test(subdata + "t->")
+
+add_test(data + "a.")
+add_test(data + "a->")
 
 # ---------------------------------------------------------
 
 opts = [
-            "-I/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/llvm-gcc-4.2/lib/gcc/i686-apple-darwin11/4.2.1/include/",
             "-isysroot",
             "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.7.sdk/",
             "-F/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.7.sdk/System/Library/Frameworks",

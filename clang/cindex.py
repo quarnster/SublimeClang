@@ -1142,7 +1142,7 @@ class Cursor(Structure):
                 if child.kind != CursorKind.INTEGER_LITERAL:
                     simple = False
                     break
-            if simple:
+            if simple and len(children) > 0:
                 return children[0].get_resolved_cursor()
             return self
         elif self.result_type.kind == TypeKind.RECORD:
