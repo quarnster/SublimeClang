@@ -352,6 +352,8 @@ add_test("TestStruct2::MyClass::")
 add_test("TestStruct2::MyClass m; m.")
 add_test("TestStruct2::MyStruct::")
 add_test("TestStruct2::MyStruct m; m.")
+add_test("TestStruct2::MyEnum::")
+add_test("TestStruct2::MyEnum e; e.")
 
 f = open("unittests/7.cpp")
 data = f.read()

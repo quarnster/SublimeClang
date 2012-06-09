@@ -365,6 +365,8 @@ class Cache:
                             r.kind == cindex.CursorKind.STRUCT_DECL or \
                             r.kind == cindex.CursorKind.OBJC_INTERFACE_DECL or \
                             r.kind == cindex.CursorKind.CLASS_TEMPLATE):
+                        if not r is None and r.kind == cindex.CursorKind.ENUM_DECL:
+                            ret = []
                         r = None
                         break
                     count += 1

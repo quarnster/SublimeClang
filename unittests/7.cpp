@@ -23,7 +23,7 @@ typedef struct TestStruct
 
 struct TestStruct2
 {
-    enum { test3, test4};
+    enum MyEnum { test3, test4};
     typedef long long MyType;
     class MyClass
     {
