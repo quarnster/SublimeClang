@@ -26,7 +26,10 @@ struct TestStruct2
     enum { test3, test4};
     typedef long long MyType;
     class MyClass
-    {};
+    {
+        public:
+            int member;
+    };
     struct MyStruct {};
     int someMember;
 };

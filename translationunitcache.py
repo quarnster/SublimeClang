@@ -156,7 +156,17 @@ class Cache:
                 if cursor.kind.is_reference():
                     cursor = cursor.get_referenced()
                 break
-        return cursor
+
+        if (not cursor is None and not cursor.kind.is_invalid()) or idx == -1:
+            return cursor
+
+        # Maybe it's a subtype?
+        parent = self.find_type(data, extra)
+        if not parent is None and not parent.kind.is_invalid():
+            for child in parent.get_children():
+                if child.kind.is_declaration() and child.spelling == typename:
+                    return child
+        return None
 
     def get_template_type_count(self, temp):
         ret = []
@@ -248,7 +258,7 @@ class Cache:
 
             if len(ret) == 0:
                 ret = None
-                typename = namespace.pop()
+                typename = "::".join(namespace)
                 c = self.find_type(data, typename)
                 if not c is None and c.kind == cindex.CursorKind.ENUM_DECL:
                     # It's not valid to complete enum::

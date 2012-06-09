@@ -348,7 +348,8 @@ add_test("Test *t[20]; t[0][0].")
 add_test("Test *t[20]; t[0].")
 add_test("Test *t[20]; t.")
 add_test("size_t t; t.")
-
+add_test("TestStruct2::MyClass::")
+add_test("TestStruct2::MyClass m; m.")
 
 f = open("unittests/7.cpp")
 data = f.read()
