@@ -243,7 +243,7 @@ class Cache:
             if match == None:
                 ret = None
                 cached_results = cache_complete_startswith(self.cache, prefix)
-                if cached_results and len(cached_results[0]):
+                if cached_results:
                     ret = []
                     for x in cached_results[0]:
                         if x.cursor.kind != cindex.CursorKind.MACRO_DEFINITION and \
@@ -270,7 +270,8 @@ class Cache:
                     c = c.get_returned_cursor()
                 if not c is None and not c.kind.is_invalid():
                     comp = cache_completeCursor(self.cache, c)
-                    if comp and len(comp[0]):
+
+                    if comp:
                         inherits = False
                         ret = []
                         clazz = extract_class_from_function(data)
@@ -451,7 +452,7 @@ class Cache:
                             if isinstance(s, cindex.Cursor):
                                 s = s.spelling
                             replaces.append((r"(^|,|\(|\d:|\s+)(%s)($|,|\s+|\))" % tempnames[i], r"\1%s\3" % s))
-                    if comp and len(comp[0]):
+                    if comp:
                         ret = []
                         if r.kind == cindex.CursorKind.OBJC_INTERFACE_DECL:
                             isStatic = var == None

@@ -350,6 +350,8 @@ add_test("Test *t[20]; t.")
 add_test("size_t t; t.")
 add_test("TestStruct2::MyClass::")
 add_test("TestStruct2::MyClass m; m.")
+add_test("TestStruct2::MyStruct::")
+add_test("TestStruct2::MyStruct m; m.")
 
 f = open("unittests/7.cpp")
 data = f.read()
