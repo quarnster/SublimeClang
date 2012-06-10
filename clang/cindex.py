@@ -1213,6 +1213,8 @@ class Cursor(Structure):
         for i in range(len(children)):
             child = children[i]
             print "%s    %d: %s, %s, %s, %s, %s, %s" % (indent, i, child.kind, child.spelling, child.displayname, child.type.kind, child.result_type.kind, child.get_usr())
+            if child.kind == CursorKind.CXX_ACCESS_SPEC_DECL:
+                print "    %s access: %s" % (indent, child.get_cxx_access_specifier())
             if child.result_type.kind == TypeKind.POINTER:
                 pointee = child.result_type.get_pointee()
                 c3 = pointee.get_declaration()

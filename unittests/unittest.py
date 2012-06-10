@@ -7,7 +7,6 @@ import sys
 import gzip
 import re
 import platform
-from clang import cindex
 
 opts = []
 
@@ -170,6 +169,21 @@ add_test("using namespace std; vector<Test::Class1> t; t.", True)
 add_test("vector<Test::Class1> t; t.")
 add_test("std::vector<Test::Class1> t; t[0].")
 add_test("std::string s; s.")
+add_test("blah::")
+add_test("std::rel_ops::")
+add_test("a::")
+add_test("b::")
+add_test("c::")
+add_test("d::")
+add_test("e::")
+add_test("a::Test2::Test3::T3Class::")
+add_test("b::Test3::T3Class::")
+add_test("c::T3Class::")
+add_test("d::Test3::T3Class::")
+add_test("d::T3Class::")
+add_test("a::T3Class::")
+add_test("e::T3Class::")
+add_test("Test::Test2::Test3::T3Class::")
 
 # ---------------------------------------------------------
 

@@ -293,6 +293,7 @@ void get_return_type(std::string& returnType, CXCursorKind ck)
         case CXCursor_EnumDecl: returnType = "enum"; break;
         case CXCursor_StructDecl: returnType = "struct"; break;
         case CXCursor_MacroDefinition: returnType = "macro"; break;
+        case CXCursor_NamespaceAlias: // fall through
         case CXCursor_Namespace: returnType = "namespace"; break;
         case CXCursor_TypedefDecl: returnType = "typedef"; break;
     }
@@ -607,6 +608,7 @@ void add_completion_children(CXCursor cursor, CXCursorKind ck, bool &recurse, Co
         case CXCursor_StructDecl:
         case CXCursor_FieldDecl:
         case CXCursor_VarDecl:
+        case CXCursor_NamespaceAlias:
         case CXCursor_MacroDefinition:
         {
             std::string ins;

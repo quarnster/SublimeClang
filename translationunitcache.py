@@ -130,6 +130,13 @@ class Cache:
             cache_disposeCompletionResults(comp)
         return ret
 
+    def get_namespace_from_cursor(self, cursor):
+        namespace = []
+        while not cursor is None and cursor.kind == cindex.CursorKind.NAMESPACE:
+            namespace.insert(0, cursor.displayname)
+            cursor = cursor.get_lexical_parent()
+        return namespace
+
     def find_type(self, data, typename):
         extra = None
         idx = typename.rfind("::")
@@ -165,6 +172,12 @@ class Cache:
         # Maybe it's a subtype?
         parent = self.find_type(data, extra)
         if not parent is None and not parent.kind.is_invalid():
+            if parent.kind == cindex.CursorKind.NAMESPACE_ALIAS:
+                children = parent.get_children()
+                curr = children[len(children)-1].get_reference()
+                namespace = self.get_namespace_from_cursor(curr)
+                namespace.append(typename)
+                return self.find_type(data, "::".join(namespace))
             for child in parent.get_children():
                 if child.kind.is_declaration() and child.spelling == typename:
                     return child
@@ -261,9 +274,17 @@ class Cache:
             if len(ret) == 0:
                 typename = "::".join(namespace)
                 c = self.find_type(data, typename)
-                if not c is None and c.kind == cindex.CursorKind.ENUM_DECL:
-                    # It's not valid to complete enum::
-                    c = None
+                if not c is None:
+                    if c.kind == cindex.CursorKind.ENUM_DECL:
+                        # It's not valid to complete enum::
+                        c = None
+                    elif c.kind == cindex.CursorKind.NAMESPACE_ALIAS:
+                        children = c.get_children()
+
+                        curr = children[len(children)-1].get_reference()
+                        namespace = self.get_namespace_from_cursor(curr)
+                        ret = self.complete_namespace(namespace)
+                        c = None
                 if not c is None and not c.kind.is_invalid():
                     # It's going to be a declaration of some kind, so
                     # get the returned cursor
