@@ -62,7 +62,7 @@ def fail(message, forcewarn=False):
         raise Exception(message)
 
 
-def add_test(currtest, platformspecific=False):
+def add_test(currtest, platformspecific=False, noneok=False):
     global off
     global testsAdded
 
@@ -97,7 +97,7 @@ def add_test(currtest, platformspecific=False):
         gold = golden[key]
         if update:
             golden[key] = output
-        if (gold == None and output != None) or (output == None and gold != None):
+        if not (platformspecific and noneok) and ((gold == None and output != None) or (output == None and gold != None)):
             fail("Test failed: %s - %s" % (key, "gold was None, output wasn't %s" % str(output) if gold == None else "output was None, but gold wasn't %s" % str(gold)))
         if platformspecific and disableplatformspecific:
             return
@@ -150,14 +150,14 @@ tu = get_tu("unittests/3.cpp")
 add_test("std::", True)
 add_test("std2::")
 add_test("Test::")
-add_test("std::string::")
-add_test("std::vector<int>::")
+add_test("std::string::", True, True)
+add_test("std::vector<int>::", True)
 add_test("Test::Class1::")
-add_test("Test::intvector::")
-add_test("Test::intvector s; s.")
+add_test("Test::intvector::", True)
+add_test("Test::intvector s; s.", True)
 add_test("Test::stringvector::")
 add_test("Test::stringvector s; s.")
-add_test("std::vector<std::string> s; s.")
+add_test("std::vector<std::string> s; s.", True)
 add_test("std::vector<std::string> s; s.back().")
 add_test("namespace Test { ", True)
 add_test(" ", True)
@@ -168,9 +168,9 @@ add_test("using namespace Class1; std::vector<Class1> t; t.", True)
 add_test("using namespace std; vector<Test::Class1> t; t.", True)
 add_test("vector<Test::Class1> t; t.")
 add_test("std::vector<Test::Class1> t; t[0].")
-add_test("std::string s; s.")
-add_test("blah::")
-add_test("std::rel_ops::")
+add_test("std::string s; s.", True, True)
+add_test("blah::", True)
+add_test("std::rel_ops::", True)
 add_test("a::")
 add_test("b::")
 add_test("c::")
