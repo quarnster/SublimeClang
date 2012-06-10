@@ -37,3 +37,7 @@ Test *t;
 
 #include <cstring>
 size_t a;
+
+char c;
+bool b;
+int i;

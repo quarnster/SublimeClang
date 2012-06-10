@@ -794,6 +794,7 @@ public:
             case CXCursor_ClassTemplate:
             case CXCursor_StructDecl:
             case CXCursor_ClassDecl:
+            case CXCursor_TypedefDecl:
             {
                 CXString s = clang_getCursorSpelling(cursor);
                 const char *str = clang_getCString(s);

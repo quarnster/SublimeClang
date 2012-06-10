@@ -1130,20 +1130,30 @@ class Cursor(Structure):
 
     def get_resolved_cursor(self):
         #print "get_type"
+        if self.kind == CursorKind.OBJC_INTERFACE_DECL:
+            return self
         if self.kind == CursorKind.STRUCT_DECL or \
                 self.kind == CursorKind.CLASS_DECL or \
-                self.kind == CursorKind.CLASS_TEMPLATE or \
-                self.kind == CursorKind.OBJC_INTERFACE_DECL:
-            return self
+                self.kind == CursorKind.CLASS_TEMPLATE:
+            ret = self.get_definition()
+            if ret is None:
+                ret = self
+            return ret
         if self.kind == CursorKind.TYPEDEF_DECL:
             children = self.get_children()
             simple = True
-            for child in children[1:]:
+            first = 0
+            for child in children:
+                if child.kind != CursorKind.NAMESPACE_REF:
+                    break
+                first += 1
+
+            for child in children[first+1:]:
                 if child.kind != CursorKind.INTEGER_LITERAL:
                     simple = False
                     break
             if simple and len(children) > 0:
-                return children[0].get_resolved_cursor()
+                return children[first].get_resolved_cursor()
             return self
         elif self.result_type.kind == TypeKind.RECORD:
             return self.get_children()[0].get_resolved_cursor()

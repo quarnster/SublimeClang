@@ -136,6 +136,8 @@ class Cache:
         if idx != -1:
             extra = typename[:idx]
             typename = typename[idx+2:]
+        if "<" in typename:
+            typename = typename[:typename.find("<")]
         namespaces = extract_used_namespaces(data)
         namespaces.insert(0, None)
         namespaces.insert(1, extract_namespace(data))
@@ -239,12 +241,12 @@ class Cache:
 
         ret = None
         if re.search(r"::$", before):
+            ret = []
             match = re.search(r"([^\(\s,]+::)+$", before)
             if match == None:
                 ret = None
                 cached_results = cache_complete_startswith(self.cache, prefix)
                 if cached_results:
-                    ret = []
                     for x in cached_results[0]:
                         if x.cursor.kind != cindex.CursorKind.MACRO_DEFINITION and \
                                 x.cursor.kind != cindex.CursorKind.CXX_METHOD:
@@ -257,23 +259,24 @@ class Cache:
             ret = self.complete_namespace(namespace)
 
             if len(ret) == 0:
-                ret = None
                 typename = "::".join(namespace)
                 c = self.find_type(data, typename)
                 if not c is None and c.kind == cindex.CursorKind.ENUM_DECL:
                     # It's not valid to complete enum::
                     c = None
-                    ret = []
                 if not c is None and not c.kind.is_invalid():
                     # It's going to be a declaration of some kind, so
                     # get the returned cursor
                     c = c.get_returned_cursor()
+                    if not c is None and c.kind == cindex.CursorKind.TYPEDEF_DECL:
+                        # Too complex typedef to be able to complete, fall back to slow completions
+                        c = None
+                        ret = None
                 if not c is None and not c.kind.is_invalid():
                     comp = cache_completeCursor(self.cache, c)
 
                     if comp:
                         inherits = False
-                        ret = []
                         clazz = extract_class_from_function(data)
                         if clazz == None:
                             clazz = extract_class(data)
@@ -329,6 +332,8 @@ class Cache:
                     # get the returned cursor
                     pointer += cursor.get_returned_pointer_level()
                     cursor = cursor.get_returned_cursor()
+                    if cursor is None:
+                        ret = []
             else:
                 # Probably a member of the current class
                 clazz = extract_class_from_function(data)
@@ -343,6 +348,8 @@ class Cache:
                             typename = typename[:-2]
                         member = cursor.get_member(typename, func)
                         cursor, template, pointer = self.solve_member(data, cursor, member, template)
+                        if cursor is None or cursor.kind.is_invalid():
+                            ret = []
                 if cursor is None or cursor.kind.is_invalid():
                     # Is it by any chance a struct variable or an ObjC class?
                     cursor = self.find_type(data, template[0])
@@ -355,6 +362,8 @@ class Cache:
                         # It's going to be a declaration of some kind, so
                         # get the returned cursor
                         cursor = cursor.get_returned_cursor()
+                        if cursor is None:
+                            ret = []
             if not cursor is None and not cursor.kind.is_invalid():
                 r = cursor
                 m2 = None

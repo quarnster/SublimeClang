@@ -151,6 +151,15 @@ tu = get_tu("unittests/3.cpp")
 add_test("std::", True)
 add_test("std2::")
 add_test("Test::")
+add_test("std::string::")
+add_test("std::vector<int>::")
+add_test("Test::Class1::")
+add_test("Test::intvector::")
+add_test("Test::intvector s; s.")
+add_test("Test::stringvector::")
+add_test("Test::stringvector s; s.")
+add_test("std::vector<std::string> s; s.")
+add_test("std::vector<std::string> s; s.back().")
 add_test("namespace Test { ", True)
 add_test(" ", True)
 add_test("using namespace Test; ", True)
@@ -354,6 +363,7 @@ add_test("TestStruct2::MyStruct::")
 add_test("TestStruct2::MyStruct m; m.")
 add_test("TestStruct2::MyEnum::")
 add_test("TestStruct2::MyEnum e; e.")
+add_test("void TestStruct2::blah() { someMember.")
 
 f = open("unittests/7.cpp")
 data = f.read()
@@ -362,8 +372,12 @@ subdata = data[:data.rfind("*t;")+4]
 add_test(subdata + "t.")
 add_test(subdata + "t->")
 
-add_test(data + "a.")
-add_test(data + "a->")
+subdata = data[:data.rfind(" a;")+4]
+add_test(subdata + "a.")
+add_test(subdata + "a->")
+add_test(data + "c.")
+add_test(data + "b.")
+add_test(data + "i.")
 
 # ---------------------------------------------------------
 
