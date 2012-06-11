@@ -1,0 +1,52 @@
+{
+	"folders":
+	[
+		{
+			"path": "."
+		}
+	],
+    "build_systems":
+    [
+        {
+            "name": "SublimeClang",
+            "cmd": ["make", "-j3"],
+            "file_regex": "^(..[^:]*):([0-9]+):?([0-9]+)?:? (.*)$",
+            "working_dir": "${project_path}/src/build/"
+        },
+        {
+            "name": "SublimeClang - unittests",
+            "cmd": ["python", "unittests/unittest.py"],
+            "file_regex": "^(..[^:]*):([0-9]+):?([0-9]+)?:? (.*)$",
+            "working_dir": "${project_path}"
+        },
+        {
+            "name": "SublimeClang - unittests -warn -dryrun",
+            "cmd": ["python", "unittests/unittest.py", "-warn", "-dryrun"],
+            "file_regex": "^(..[^:]*):([0-9]+):?([0-9]+)?:? (.*)$",
+            "working_dir": "${project_path}"
+        },
+        {
+            "name": "SublimeClang - unittests - debug",
+            "cmd": ["python", "unittests/unittest.py", "-warn", "-debug", "-dryrun"],
+            "file_regex": "^(..[^:]*):([0-9]+):?([0-9]+)?:? (.*)$",
+            "working_dir": "${project_path}"
+        },
+        {
+            "name": "SublimeClang - unittests - debugnew",
+            "cmd": ["python", "unittests/unittest.py", "-debugnew"],
+            "file_regex": "^(..[^:]*):([0-9]+):?([0-9]+)?:? (.*)$",
+            "working_dir": "${project_path}"
+        }
+    ],
+    "settings":
+    {
+        "sublimeclang_options":
+        [
+            "-I/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/llvm-gcc-4.2/lib/gcc/i686-apple-darwin11/4.2.1/include/",
+            "-isysroot",
+            "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.7.sdk/",
+            "-F/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.7.sdk/System/Library/Frameworks",
+            "-ICocoa"
+        ]
+    }
+}

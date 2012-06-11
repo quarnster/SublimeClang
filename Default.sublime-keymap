@@ -56,6 +56,33 @@
   {
     "command": "clang_analyze_project",
     "keys": ["alt+d","alt+o"]
+  },
+  {
+    "command": "clang_toggle_fast_completions",
+    "keys": ["alt+d","alt+f"]
+  },
+  {
+    "command": "clang_complete",
+    "args": {"characters": "."},
+    "keys": ["."],
+    "context": [ {"key": "clang_supported_language"}, {"key": "clang_is_code"}, {"key": "clang_complete_enabled"}]
+  },
+  {
+    "command": "clang_complete",
+    "args": {"characters": " "},
+    "keys": [" "],
+    "context": [ {"key": "clang_supported_language"}, {"key": "clang_is_code"}, {"key": "clang_complete_enabled"}]
+  },
+  {
+    "command": "clang_complete",
+    "args": {"characters": ":"},
+    "keys": [":"],
+    "context": [ {"key": "clang_supported_language"}, {"key": "clang_is_code"}, {"key": "clang_complete_enabled"}]
+  },
+  {
+    "command": "clang_complete",
+    "args": {"characters": ">"},
+    "keys": [">"],
+    "context": [ {"key": "clang_supported_language"}, {"key": "clang_is_code"}, {"key": "clang_complete_enabled"}]
   }
-
 ]
