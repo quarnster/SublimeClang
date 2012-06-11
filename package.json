@@ -11,7 +11,7 @@
                 "*": [
                     {
                         "version": "1.0.0",
-                        "url": "http://github.com/downloads/quarnster/SublimeClang/SublimeClang.sublime-package"
+                        "url": "http://cloud.github.com/downloads/quarnster/SublimeClang/SublimeClang.sublime-package"
                     }
                 ]
             }
