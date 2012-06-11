@@ -1,0 +1,20 @@
+{
+    "schema_version": "1.1",
+    "packages": [
+        {
+            "name": "SublimeClang",
+            "description": "C/C++/ObjC/ObjC++ autocompletions and code navigation",
+            "author": "Fredrik Ehnbom (quarnster)",
+            "homepage": "http://github.com/quarnster/SublimeClang",
+            "last_modified": "2012-06-11 18:00:00",
+            "platforms": {
+                "*": [
+                    {
+                        "version": "1.0.0",
+                        "url": "http://github.com/downloads/quarnster/SublimeClang/SublimeClang.sublime-package"
+                    }
+                ]
+            }
+        }
+    ]
+}
