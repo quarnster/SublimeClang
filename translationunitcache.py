@@ -369,7 +369,7 @@ class Cache:
                             typename = typename[:-2]
                         member = cursor.get_member(typename, func)
                         cursor, template, pointer = self.solve_member(data, cursor, member, template)
-                        if cursor is None or cursor.kind.is_invalid():
+                        if not member is None and (cursor is None or cursor.kind.is_invalid()):
                             ret = []
                 if cursor is None or cursor.kind.is_invalid():
                     # Is it by any chance a struct variable or an ObjC class?
@@ -382,9 +382,30 @@ class Cache:
                     if not cursor is None and not cursor.kind.is_invalid():
                         # It's going to be a declaration of some kind, so
                         # get the returned cursor
+                        pointer = cursor.get_returned_pointer_level()
                         cursor = cursor.get_returned_cursor()
                         if cursor is None:
                             ret = []
+                if not tocomplete.startswith("::") and (cursor is None or cursor.kind.is_invalid()):
+                    # Is it a non-member function?
+                    func = False
+                    if typename.endswith("()"):
+                        func = True
+                        typename = typename[:-2]
+                    cached_results = cache_complete_startswith(self.cache, prefix)
+                    if cached_results:
+                        for x in cached_results[0]:
+                            if x.cursor.spelling == typename and (\
+                                        x.cursor.kind == cindex.CursorKind.VAR_DECL or \
+                                        x.cursor.kind == cindex.CursorKind.FUNCTION_DECL):
+                                cursor = x.cursor
+                                pointer = cursor.get_returned_pointer_level()
+                                cursor = cursor.get_returned_cursor()
+                                if cursor is None:
+                                    ret = []
+                                break
+                        cache_disposeCompletionResults(cached_results)
+
             if not cursor is None and not cursor.kind.is_invalid():
                 r = cursor
                 m2 = None
