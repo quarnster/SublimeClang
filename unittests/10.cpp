@@ -41,4 +41,10 @@ namespace nms
     float* ffunction2();
 }
 
+class B
+{
+public:
+    static B* getInstance();
 
+    int bvariable;
+};

@@ -496,6 +496,7 @@ add_test("using namespace nms; z1->")
 add_test("using namespace nms; z2.")
 add_test("using namespace nms; z2->")
 add_test("void A::something() { function().")
+add_test("B::getInstance()->")
 
 # ---------------------------------------------------------
 

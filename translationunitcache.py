@@ -376,8 +376,14 @@ class Cache:
                     cursor = self.find_type(data, template[0])
                     if cursor is None or cursor.kind.is_invalid() or \
                             cursor.spelling != typename or \
-                            (cursor.kind != cindex.CursorKind.VAR_DECL and \
-                             cursor.kind != cindex.CursorKind.OBJC_INTERFACE_DECL):
+                            (not tocomplete.startswith("::") and \
+                                cursor.kind != cindex.CursorKind.VAR_DECL and \
+                                cursor.kind != cindex.CursorKind.OBJC_INTERFACE_DECL) or \
+                            (tocomplete.startswith("::") and \
+                                not (cursor.kind == cindex.CursorKind.CLASS_DECL or \
+                                     cursor.kind == cindex.CursorKind.STRUCT_DECL or \
+                                     cursor.kind == cindex.CursorKind.OBJC_INTERFACE_DECL or \
+                                     cursor.kind == cindex.CursorKind.CLASS_TEMPLATE)):
                         cursor = None
                     if not cursor is None and not cursor.kind.is_invalid():
                         # It's going to be a declaration of some kind, so
@@ -386,24 +392,24 @@ class Cache:
                         cursor = cursor.get_returned_cursor()
                         if cursor is None:
                             ret = []
-                if not tocomplete.startswith("::") and (cursor is None or cursor.kind.is_invalid()):
+                if cursor is None or cursor.kind.is_invalid():
                     # Is it a non-member function?
                     func = False
                     if typename.endswith("()"):
                         func = True
                         typename = typename[:-2]
-                    cached_results = cache_complete_startswith(self.cache, prefix)
+                    cached_results = cache_complete_startswith(self.cache, typename)
                     if cached_results:
                         for x in cached_results[0]:
-                            if x.cursor.spelling == typename and (\
-                                        x.cursor.kind == cindex.CursorKind.VAR_DECL or \
-                                        x.cursor.kind == cindex.CursorKind.FUNCTION_DECL):
-                                cursor = x.cursor
-                                pointer = cursor.get_returned_pointer_level()
-                                cursor = cursor.get_returned_cursor()
-                                if cursor is None:
-                                    ret = []
-                                break
+                            if x.cursor.spelling == typename:
+                                if x.cursor.kind == cindex.CursorKind.VAR_DECL or \
+                                        x.cursor.kind == cindex.CursorKind.FUNCTION_DECL:
+                                    cursor = x.cursor
+                                    pointer = cursor.get_returned_pointer_level()
+                                    cursor = cursor.get_returned_cursor()
+                                    if cursor is None:
+                                        ret = []
+                                    break
                         cache_disposeCompletionResults(cached_results)
 
             if not cursor is None and not cursor.kind.is_invalid():
