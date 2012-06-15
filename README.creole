@@ -33,7 +33,9 @@ Please go [[https://github.com/quarnster/SublimeClang/issues?sort=created&direct
     ### Select SublimeClang from the list. Package Control will keep it automatically updated for you
     ## If you don't want to use package control, you can manually install it
     ### Go to your packages directory and type:
-    ####        git clone https://github.com/quarnster/SublimeClang SublimeClang
+    ####        git clone --recursive https://github.com/quarnster/SublimeClang SublimeClang
+    ### To update run the following command:
+    ####        git pull && git submodule foreach --recursive git pull origin master
     # Back in the editor, open up the command palette by pressing cmd+shift+P or ctrl+shift+P
     # Type SublimeClang and open up the settings file you want to modify with any include directories or other options you want to provide to clang.
 
