@@ -56,3 +56,17 @@ elseif(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
 
 endif()
 
+
+add_custom_command(OUTPUT release
+                    COMMAND mkdir release
+                    WORKING_DIRECTORY ${PROJECT_BINARY_DIR})
+
+add_custom_target(sublime-package
+                    COMMAND find ../../.. -type f -d 1 -iregex \".*/[^.].*\" -exec cp {} . "\;"
+                    COMMAND cp -r ../../../parsehelp parsehelp
+                    COMMAND find . -name \".git*\" -exec rm -rf {} +
+                    COMMAND find . -name \"*.pyc\" -exec rm -rf {} +
+                    COMMAND find . -name \"unittest*\" -exec rm -rf {} +
+                    COMMAND zip -r SublimeClang.sublime-package *
+                    DEPENDS ${TARGETLIB} ${PROJECT_BINARY_DIR}/release
+                    WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/release)
