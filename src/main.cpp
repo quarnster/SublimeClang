@@ -63,7 +63,16 @@ void dump(CXCursor cursor)
     const char *str = clang_getCString(s);
     if (str)
     {
-        printf("%s - %d\n", str, clang_getCursorKind(cursor));
+        CXSourceLocation loc = clang_getCursorLocation(cursor);
+        CXFile file;
+        unsigned int line, column;
+        clang_getExpansionLocation(loc, &file, &line, &column, NULL);
+        CXString filename = clang_getFileName(file);
+        const char *str2 = clang_getCString(filename);
+        if (!str2)
+            str2 = "Null";
+        printf("%s - %d\n%s:%d:%d\n", str, clang_getCursorKind(cursor), str2, line, column);
+        clang_disposeString(filename);
     }
     clang_disposeString(s);
 
@@ -128,157 +137,6 @@ CXChildVisitResult getchildren_visitor(CXCursor cursor, CXCursor parent, CXClien
     CursorList* children = (CursorList *) client_data;
     children->push_back(cursor);
     return CXChildVisit_Continue;
-}
-
-CXCursor get_resolved_cursor(CXCursor self)
-{
-    CXCursorKind kind = clang_getCursorKind(self);
-    if (kind == CXCursor_TypedefDecl)
-    {
-        return self;
-    }
-    CXType result_type = clang_getCursorResultType(self);
-    if (result_type.kind == CXType_Record)
-    {
-        CursorList children;
-        clang_visitChildren(self, getchildren_visitor, &children);
-        return get_resolved_cursor(children[0]);
-    }
-    if (kind == CXCursor_ClassDecl ||
-        kind == CXCursor_EnumDecl ||
-        kind == CXCursor_TemplateRef ||
-        kind == CXCursor_TemplateTypeParameter)
-    {
-        return self;
-    }
-    if (clang_isReference(kind))
-    {
-        CXCursor ref = clang_getCursorReferenced(self);
-        if (clang_equalCursors(ref, self))
-            return clang_getNullCursor();
-        return get_resolved_cursor(ref);
-    }
-    if (clang_isDeclaration(kind))
-    {
-        CursorList children;
-        clang_visitChildren(self, getchildren_visitor, &children);
-        for (CursorList::iterator i = children.begin(); i != children.end(); ++i)
-        {
-            CXCursor &child = *i;
-            CXCursorKind ck = clang_getCursorKind(child);
-            switch (ck)
-            {
-                default: break;
-                case CXCursor_TypeRef:
-                {
-                    CXCursor ref = clang_getCursorReferenced(child);
-                    if (clang_equalCursors(ref, child))
-                        return clang_getNullCursor();
-                    return get_resolved_cursor(ref);
-                }
-                case CXCursor_EnumDecl:
-                    return child;
-                case CXCursor_TemplateRef:
-                    return self;
-            }
-        }
-    }
-    switch (result_type.kind)
-    {
-        default: break;
-        case CXType_Pointer:
-        case CXType_LValueReference:
-        case CXType_RValueReference:
-        {
-            return clang_getTypeDeclaration(clang_getPointeeType(result_type));
-        }
-    }
-
-    return self;
-}
-CXCursor get_returned_cursor(CXCursor self)
-{
-    CXCursorKind kind = clang_getCursorKind(self);
-    switch (kind)
-    {
-        default: break;
-        case CXCursor_FunctionDecl:
-        case CXCursor_FieldDecl:
-        case CXCursor_CXXMethod:
-        case CXCursor_VarDecl:
-        {
-            CursorList children;
-            clang_visitChildren(self, getchildren_visitor, &children);
-            if (children.size() > 0)
-            {
-                CXCursor c = children[0];
-                unsigned int i = 0;
-                while (i+1 < children.size())
-                {
-                    CXCursorKind ck = clang_getCursorKind(c);
-                    if (ck == CXCursor_NamespaceRef)
-                    {
-                        i++;
-                        c = children[i];
-                    }
-                    else
-                        break;
-                }
-                CXCursorKind ck = clang_getCursorKind(c);
-                if (ck == CXCursor_TemplateRef)
-                {
-                    return self;
-                }
-                else if (clang_isReference(ck))
-                {
-                    for (CursorList::iterator i = children.begin(); i != children.end(); ++i)
-                    {
-                        CXCursor &c = *i;
-                        ck = clang_getCursorKind(c);
-                        if (ck != CXCursor_NamespaceRef)
-                            return get_resolved_cursor(clang_getCursorReferenced(c));
-                    }
-                }
-                return clang_getNullCursor();
-            }
-            else
-            {
-                return clang_getNullCursor();
-            }
-        }
-    }
-    CXCursor ret = clang_getNullCursor();
-    if (clang_isDeclaration(kind))
-    {
-        ret = self;
-    }
-    CXType result_type = clang_getCursorResultType(self);
-
-    switch (result_type.kind)
-    {
-        default: break;
-        case CXType_Record:
-        {
-            CursorList children;
-            clang_visitChildren(self, getchildren_visitor, &children);
-            return children[0];
-        }
-        case CXType_Pointer:
-        case CXType_LValueReference:
-        case CXType_RValueReference:
-        {
-            ret = clang_getTypeDeclaration(clang_getPointeeType(result_type));
-            if (clang_Cursor_isNull(ret) || clang_isInvalid(clang_getCursorKind(ret)))
-            {
-                ret = clang_getTypeDeclaration(clang_getResultType(result_type));
-            }
-        }
-    }
-    if (!clang_Cursor_isNull(ret) && !clang_isInvalid(clang_getCursorKind(ret)))
-    {
-        return get_resolved_cursor(ret);
-    }
-    return clang_getNullCursor();
 }
 
 void get_return_type(std::string& returnType, CXCursorKind ck)
@@ -637,7 +495,8 @@ CXChildVisitResult get_completion_children(CXCursor cursor, CXCursor parent, CXC
         case CXCursor_ObjCProtocolRef:
         {
             CXCursor ref = clang_getCursorReferenced(cursor);
-            if (!clang_Cursor_isNull(ref) && !clang_isInvalid(clang_getCursorKind(ref)))
+
+            if (!clang_Cursor_isNull(ref) && !clang_isInvalid(clang_getCursorKind(ref)) && !clang_equalCursors(ref, parent))
             {
                 data->mParents.push_back(ref);
                 CompletionVisitorData d(data->entries, ck == CXCursor_CXXBaseSpecifier ? CX_CXXPrivate : CX_CXXProtected, true);
