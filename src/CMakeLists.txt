@@ -64,6 +64,7 @@ add_custom_command(OUTPUT release
 add_custom_target(sublime-package
                     COMMAND find ../../.. -type f -d 1 -iregex \".*/[^.].*\" -exec cp {} . "\;"
                     COMMAND cp -r ../../../parsehelp parsehelp
+                    COMMAND cp -r ../../../clang clang
                     COMMAND find . -name \".git*\" -exec rm -rf {} +
                     COMMAND find . -name \"*.pyc\" -exec rm -rf {} +
                     COMMAND find . -name \"unittest*\" -exec rm -rf {} +
