@@ -73,6 +73,7 @@ add_custom_command(OUTPUT release
                     WORKING_DIRECTORY ${PROJECT_BINARY_DIR})
 
 add_custom_target(sublime-package
+                    COMMAND rm -rf *
                     COMMAND find ../../.. -type f -d 1 -iregex \".*/[^.].*\" -exec cp {} . "\;"
                     COMMAND cp -r ../../../parsehelp parsehelp
                     COMMAND cp -r ../../../clang clang
