@@ -77,6 +77,9 @@ add_custom_target(sublime-package
                     COMMAND find ../../.. -type f -d 1 -iregex \".*/[^.].*\" -exec cp {} . "\;"
                     COMMAND cp -r ../../../parsehelp parsehelp
                     COMMAND cp -r ../../../clang clang
+                    COMMAND mkdir src
+                    COMMAND find ../../../src -type f -d 1 -exec cp {} src "\;"
+                    COMMAND find ../../../src -d 1 -not -regex ".*/build.*" -exec cp -r {} src "\;"
                     COMMAND find . -name \".git*\" -exec rm -rf {} +
                     COMMAND find . -name \"*.pyc\" -exec rm -rf {} +
                     COMMAND find . -name \"unittest*\" -exec rm -rf {} +
