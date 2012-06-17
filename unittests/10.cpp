@@ -1,4 +1,6 @@
 
+#define TEST(a, b) a+b
+
 class A
 {
 public:
@@ -48,3 +50,4 @@ public:
 
     int bvariable;
 };
+

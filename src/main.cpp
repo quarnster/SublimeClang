@@ -210,22 +210,89 @@ void parse_res(std::string& insertion, std::string& representation, CXCursor cur
     CXCursorKind ck = clang_getCursorKind(cursor);
     std::string returnType;
     get_return_type(returnType, ck);
-    if (ck != CXCursor_MacroDefinition && ck != CXCursor_Namespace)
+    switch (ck)
     {
-        CXCompletionString comp = clang_getCursorCompletionString(cursor);
-        parse_res(returnType, insertion, representation, comp);
-    }
-    else
-    {
-        CXString s = clang_getCursorSpelling(cursor);
-        const char *str = clang_getCString(s);
-        if (str)
+        default:
         {
-            representation += str;
-            insertion += str;
+            CXCompletionString comp = clang_getCursorCompletionString(cursor);
+            parse_res(returnType, insertion, representation, comp);
+            break;
         }
-        clang_disposeString(s);
-        representation += "\t" + returnType;
+        case CXCursor_MacroDefinition:
+        {
+            unsigned int count = 0;
+            CXToken * tokens = NULL;
+            CXTranslationUnit tu = clang_Cursor_getTranslationUnit(cursor);
+
+            clang_tokenize(tu, clang_getCursorExtent(cursor), &tokens, &count);
+            if (tokens)
+            {
+                int parCount = 0;
+                int argCount = 1;
+                unsigned int i = 0;
+                bool br = false;
+                for (i = 0; i < count && !br; i++)
+                {
+                    CXString s = clang_getTokenSpelling(tu, tokens[i]);
+                    const char *str = clang_getCString(s);
+                    if (str)
+                    {
+                        if (str[0] == '(')
+                            parCount++;
+                        if (i > 0 && parCount == 0)
+                        {
+                            br = true;
+                        }
+                        else
+                        {
+                            representation += str;
+                            if (i > 0 && clang_getTokenKind(tokens[i]) == CXToken_Identifier)
+                            {
+                                char buf[512];
+                                snprintf(buf, 512, "${%d:%s}", argCount, str);
+                                insertion += buf;
+                                argCount++;
+                            }
+                            else
+                            {
+                                insertion += str;
+                            }
+                        }
+                        if (str[0] == ')')
+                            parCount--;
+                        else if (str[0] == ',')
+                        {
+                            representation += ' ';
+                            insertion += ' ';
+                        }
+                    }
+                    clang_disposeString(s);
+                }
+                if (i == count && count > 2)
+                {
+                    CXString s = clang_getTokenSpelling(tu, tokens[0]);
+                    const char *str = clang_getCString(s);
+                    insertion = representation = str;
+                    clang_disposeString(s);
+                }
+                representation += "\t" + returnType;
+                clang_disposeTokens(tu, tokens, count);
+            }
+            break;
+        }
+        case CXCursor_Namespace:
+        {
+            CXString s = clang_getCursorSpelling(cursor);
+            const char *str = clang_getCString(s);
+            if (str)
+            {
+                representation += str;
+                insertion += str;
+            }
+            clang_disposeString(s);
+            representation += "\t" + returnType;
+            break;
+        }
     }
 }
 
