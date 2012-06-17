@@ -8,7 +8,13 @@ else()
     if(CMAKE_CL_64)
         set(LIBSUFFIX _x64)
     endif()
-
+    foreach(flag_var
+            CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE
+            CMAKE_CXX_FLAGS_MINSIZEREL CMAKE_CXX_FLAGS_RELWITHDEBINFO)
+       if(${flag_var} MATCHES "/MD")
+          string(REGEX REPLACE "/MD" "/MT" ${flag_var} "${${flag_var}}")
+       endif(${flag_var} MATCHES "/MD")
+    endforeach(flag_var)
 endif()
 
 if(NOT CMAKE_OSX_ARCHITECTURES)
@@ -16,7 +22,7 @@ if(NOT CMAKE_OSX_ARCHITECTURES)
 endif()
 IF(NOT CMAKE_BUILD_TYPE)
     SET(CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING
-        "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel."
+            "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel."
         FORCE)
 ENDIF(NOT CMAKE_BUILD_TYPE)
 include_directories(
@@ -53,6 +59,11 @@ elseif(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
         COMMENT "Creating libclang.lib")
     add_custom_target(linklib ALL DEPENDS libclang${LIBSUFFIX}.lib)
     add_dependencies(${TARGETLIB} linklib)
+
+    add_custom_target(copy ALL
+                    COMMAND copy ${TARGETLIB}.dll ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}
+                    DEPENDS ${TARGETLIB}
+    )
 
 endif()
 
