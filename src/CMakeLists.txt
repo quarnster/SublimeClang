@@ -1,6 +1,5 @@
 cmake_minimum_required(VERSION 2.8)
 
-
 if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Windows")
 set(CMAKE_CXX_FLAGS "-g -Wall")
 else()
@@ -64,6 +63,50 @@ elseif(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
                     COMMAND copy ${TARGETLIB}.dll ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}
                     DEPENDS ${TARGETLIB}
     )
+elseif(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
+    include(CheckFunctionExists)
+    set(CMAKE_REQUIRED_FLAGS -L${CMAKE_LIBRARY_OUTPUT_DIRECTORY} -L/usr/local/lib -L/usr/lib)
+    set(CMAKE_REQUIRED_LIBRARIES clang)
+    check_function_exists(clang_getExpansionLocation HAS_RIGHT_CLANG)
+    if(NOT HAS_RIGHT_CLANG)
+        message("Either libclang wasn't found, or it's not useable as it doesn't have clang_getExpansionLocation.")
+        message("libclang will be downloaded and compiled as part of the buildprocess.")
+        if(NOT EXISTS ./llvm.tar.gz)
+            message("Downloading llvm...")
+            file(DOWNLOAD http://www.llvm.org/releases/3.1/llvm-3.1.src.tar.gz ./llvm.tar.gz)
+        endif()
+        if(NOT EXISTS ./clang.tar.gz)
+            message("Downloading clang...")
+            file(DOWNLOAD http://www.llvm.org/releases/3.1/clang-3.1.src.tar.gz ./clang.tar.gz)
+        endif()
+
+
+        add_custom_command(OUTPUT llvm
+                        COMMAND tar xfz llvm.tar.gz
+                        COMMAND tar xfz clang.tar.gz
+                        COMMAND mv llvm-3.1.src llvm
+                        COMMAND mv clang-3.1.src llvm/tools/clang
+                        COMMAND mkdir llvm/build
+        )
+        add_custom_command(OUTPUT llvm/build/CMakeCache.txt
+                        DEPENDS llvm
+                        COMMAND cmake -DLLVM_TARGETS_TO_BUILD="X86" ..
+                        WORKING_DIRECTORY llvm/build
+        )
+
+        add_custom_command(OUTPUT llvm/build/lib/liblibclang.so.3.1
+                        COMMAND make -j 4 libclang
+                        DEPENDS llvm/build/CMakeCache.txt
+                        WORKING_DIRECTORY llvm/build
+        )
+        add_custom_command(OUTPUT ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libclang.so
+                        COMMAND cp llvm/build/lib/liblibclang.so.3.1 ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libclang.so
+                        DEPENDS llvm/build/lib/liblibclang.so.3.1
+                        WORKING_DIRECTORY ${PROJECT_BINARY_DIR}
+        )
+        add_custom_target(libclang ALL DEPENDS ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libclang.so)
+        add_dependencies(${TARGETLIB} libclang)
+    endif()
 
 endif()
 
@@ -74,16 +117,17 @@ add_custom_command(OUTPUT release
 
 add_custom_target(sublime-package
                     COMMAND rm -rf *
-                    COMMAND find ../../.. -type f -d 1 -iregex \".*/[^.].*\" -exec cp {} . "\;"
+                    COMMAND find ../../.. -maxdepth 1 -type f -iregex \".*/[^.].*\" -exec cp {} . "\;"
                     COMMAND cp -r ../../../parsehelp parsehelp
                     COMMAND cp -r ../../../clang clang
                     COMMAND mkdir src
-                    COMMAND find ../../../src -type f -d 1 -exec cp {} src "\;"
-                    COMMAND find ../../../src -d 1 -not -regex ".*/build.*" -exec cp -r {} src "\;"
+                    COMMAND find ../../../src -maxdepth 1 -type f  -exec cp {} src "\;"
+                    COMMAND find ../../../src -maxdepth 1 -type d -not -regex \".*/build\" -not -regex \".*/src\" -exec cp -r {} src "\;"
                     COMMAND find . -name \".git*\" -exec rm -rf {} +
                     COMMAND find . -name \"*.pyc\" -exec rm -rf {} +
                     COMMAND find . -name \"unittest*\" -exec rm -rf {} +
                     COMMAND find . -name \"*.sublime-workspace\" -exec rm -rf {} +
+                    COMMAND find . -name \"lib*.so\" -exec rm -rf {} +
                     COMMAND zip -r SublimeClang.sublime-package *
                     DEPENDS ${TARGETLIB} ${PROJECT_BINARY_DIR}/release
                     WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/release)

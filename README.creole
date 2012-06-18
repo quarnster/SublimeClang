@@ -8,22 +8,18 @@ Please go [[https://github.com/quarnster/SublimeClang/issues?sort=created&direct
   # To use the clang static analyzer you need to have clang installed and in your path. The other functionality should work without having the clang binaries installed.
 
 === Additional Prerequisites (Linux Only)===
-  # [[http://sublimetext.userecho.com/topic/85126-ctypes-cant-be-imported-in-linux/|ctypes can't be imported]] in the Linux version of Sublime Text 2 right now. This can however be worked around (solution provided by [[http://www.sublimetext.com/forum/viewtopic.php?f=5&t=3958&start=10#p18782|mnus]]):
-  ## Install python2.6 via apt-get or synpactic.
-  ## Backup python26.zip in sublime2's lib directory (just for safe measure). I did mv "python26.zip backup.python26.zip"
-  ## Symlink /usr/lib/python2.6/ to sublime2's lib/python2.6 directory.
-  ## If you run into issues with this step, issue [[https://github.com/quarnster/SublimeClang/issues/35#issuecomment-3976794|#35]] contains additional notes.
-  # The Linux libclang.so is not part of the plugin by default:
-  ## [[http://www.llvm.org/releases/download.html#3.0|Download]] and compile clang.
-    *** You can probably get away with installing clang from the ubuntu repos (note that this plugin relies on features from clang 3.0) or
-    *** Downloading a binary that matches your distribution
-  ## Make sure libclang.so is in your path. Putting it in ~~/.config/sublime-text-2/Packages/SublimeClang/ should work but if that fails, /usr/lib is probably a good choice to try as an alternative. It's also been reported that "libLLVM-3.0.so" could be a dependency of libclang.so, so you might have to copy that file as well.
+  # [[http://sublimetext.userecho.com/topic/85126-ctypes-cant-be-imported-in-linux/|ctypes can't be imported]] in the Linux version of Sublime Text 2 right now. This can however be worked around easily with the help of pythonbrew:
+  ## curl -kL http://xrl.us/pythonbrewinstall | bash
+  ## source "$HOME/.pythonbrew/etc/bashrc"
+  ## pythonbrew install --configure="--enable-unicode=ucs4" 2.6
+  ## ln -s ~/.pythonbrew/pythons/Python-2.6/lib/python2.6/ <your Sublime Text 2 folder>/lib/python2.6
   # Once SublimeClang has been installed, libcache will have to be compiled:
   ## cd src
   ## mkdir build
   ## cd build
   ## cmake ..
   ## make
+  * Note that if a usable libclang library isn't found, it will be downloaded and built as part of the build process.
 
 === Installation ===
     # The easiest way to install SublimeClang is via the excellent Package Control Plugin
