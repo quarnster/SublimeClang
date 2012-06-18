@@ -12,7 +12,7 @@ Please go [[https://github.com/quarnster/SublimeClang/issues?sort=created&direct
   ## curl -kL http://xrl.us/pythonbrewinstall | bash
   ## source "$HOME/.pythonbrew/etc/bashrc"
   ## pythonbrew install --configure="--enable-unicode=ucs4" 2.6
-  ## ln -s ~/.pythonbrew/pythons/Python-2.6/lib/python2.6/ <your Sublime Text 2 folder>/lib/python2.6
+  ## ln -s $HOME/.pythonbrew/pythons/Python-2.6/lib/python2.6/ <your Sublime Text 2 folder>/lib/python2.6
   # Once SublimeClang has been installed, libcache will have to be compiled:
   ## cd src
   ## mkdir build
