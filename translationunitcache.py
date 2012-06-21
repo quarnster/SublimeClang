@@ -29,6 +29,7 @@ from ctypes import cdll, Structure, POINTER, c_char_p, c_void_p, c_uint, c_bool
 from parsehelp.parsehelp import *
 import re
 import os
+import bisect
 
 scriptpath = os.path.dirname(os.path.abspath(__file__))
 
@@ -527,21 +528,24 @@ class Cache:
                                             break
                                     if add:
                                         add = (c.display, c.insert)
-                                        if add not in ret:
-                                            ret.append(add)
+                                        i = bisect.bisect(ret, add)
+                                        if i == len(ret) or ret[i] != add:
+                                            ret.insert(i, add)
                             elif m2 == "->":
                                 for c in comp[0]:
                                     if c.cursor.kind != cindex.CursorKind.OBJC_IVAR_DECL:
                                         continue
                                     add = (c.display, c.insert)
-                                    if add not in ret:
-                                        ret.append(add)
+                                    i = bisect.bisect(ret, add)
+                                    if i == len(ret) or ret[i] != add:
+                                        ret.insert(i, add)
                             else:
                                 for c in comp[0]:
                                     if c.static == isStatic and c.cursor.kind != cindex.CursorKind.OBJC_IVAR_DECL:
                                         add = (c.display, c.insert)
-                                        if add not in ret:
-                                            ret.append(add)
+                                        i = bisect.bisect(ret, add)
+                                        if i == len(ret) or ret[i] != add:
+                                            ret.insert(i, add)
                         else:
                             for c in comp[0]:
                                 if not c.static and c.cursor.kind != cindex.CursorKind.ENUM_CONSTANT_DECL and \
@@ -558,8 +562,9 @@ class Cache:
                                         disp = re.sub(r[0], r[1], disp)
                                         ins = re.sub(r[0], r[1], ins)
                                     add = (disp, ins)
-                                    if add not in ret:
-                                        ret.append(add)
+                                    i = bisect.bisect(ret, add)
+                                    if i == len(ret) or ret[i] != add:
+                                        ret.insert(i, add)
                         cache_disposeCompletionResults(comp)
             return ret
         else:
@@ -572,8 +577,10 @@ class Cache:
             if len(var) and ret == None:
                 ret = []
             for v in var:
-                if v[1].startswith(prefix) and not v in ret:
-                    ret.append(v)
+                if v[1].startswith(prefix):
+                    i = bisect.bisect(ret, v)
+                    if i == len(ret) or ret[i] != v:
+                        ret.insert(i, v)
             clazz = extract_class_from_function(data)
             if clazz == None:
                 clazz = extract_class(data)
@@ -593,11 +600,11 @@ class Cache:
                     if comp:
                         for c in comp[0]:
                             if not c.static and \
-                                    not c.cursor.kind == cindex.CursorKind.ENUM_CONSTANT_DECL and \
                                     not (c.baseclass and c.access == cindex.CXXAccessSpecifier.PRIVATE):
                                 add = (c.display, c.insert)
-                                if add not in ret:
-                                    ret.append(add)
+                                i = bisect.bisect(ret, add)
+                                if i == len(ret) or ret[i] != add:
+                                    ret.insert(i, add)
                         cache_disposeCompletionResults(comp)
             namespaces = extract_used_namespaces(data)
             ns = extract_namespace(data)
@@ -627,6 +634,7 @@ class Cache:
             ret = [(c.display, c.insert) for c in comp[0]]
             cache_disposeCompletionResults(comp)
         return ret
+
 
 class TranslationUnitCache(Worker):
     STATUS_PARSING      = 1

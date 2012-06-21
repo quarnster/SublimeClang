@@ -334,6 +334,7 @@ add_test("void MyStaticClass::something() { MyStaticClass::")
 add_test("Child::")
 add_test("void Child::something() { MyStaticClass::")
 add_test("void Child::something() { Child::")
+add_test("void A::something() {")
 
 f = open("unittests/6.cpp")
 data = f.read()
