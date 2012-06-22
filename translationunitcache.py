@@ -29,7 +29,6 @@ from ctypes import cdll, Structure, POINTER, c_char_p, c_void_p, c_uint, c_bool
 from parsehelp.parsehelp import *
 import re
 import os
-import bisect
 
 scriptpath = os.path.dirname(os.path.abspath(__file__))
 
@@ -102,6 +101,19 @@ cache_completeCursor.restype = POINTER(CacheCompletionResults)
 cache_clangComplete = cachelib.cache_clangComplete
 cache_clangComplete.argtypes = [c_void_p, c_char_p, c_uint, c_uint, POINTER(cindex._CXUnsavedFile), c_uint, c_bool]
 cache_clangComplete.restype = POINTER(CacheCompletionResults)
+
+
+def remove_duplicates(data):
+    if data == None:
+        return None
+    seen = {}
+    ret = []
+    for d in data:
+        if d in seen:
+            continue
+        seen[d] = 1
+        ret.append(d)
+    return ret
 
 
 class Cache:
@@ -246,6 +258,7 @@ class Cache:
                         c2 = c2.get_reference()
                         return self.inherits(parent, c2)
         return False
+
 
     def complete(self, data, prefix):
         line = extract_line_at_offset(data, len(data)-1)
@@ -527,25 +540,16 @@ class Cache:
                                             add = False
                                             break
                                     if add:
-                                        add = (c.display, c.insert)
-                                        i = bisect.bisect(ret, add)
-                                        if i == len(ret) or ret[i] != add:
-                                            ret.insert(i, add)
+                                        ret.append((c.display, c.insert))
                             elif m2 == "->":
                                 for c in comp[0]:
                                     if c.cursor.kind != cindex.CursorKind.OBJC_IVAR_DECL:
                                         continue
-                                    add = (c.display, c.insert)
-                                    i = bisect.bisect(ret, add)
-                                    if i == len(ret) or ret[i] != add:
-                                        ret.insert(i, add)
+                                    ret.append((c.display, c.insert))
                             else:
                                 for c in comp[0]:
                                     if c.static == isStatic and c.cursor.kind != cindex.CursorKind.OBJC_IVAR_DECL:
-                                        add = (c.display, c.insert)
-                                        i = bisect.bisect(ret, add)
-                                        if i == len(ret) or ret[i] != add:
-                                            ret.insert(i, add)
+                                        ret.append((c.display, c.insert))
                         else:
                             for c in comp[0]:
                                 if not c.static and c.cursor.kind != cindex.CursorKind.ENUM_CONSTANT_DECL and \
@@ -562,11 +566,9 @@ class Cache:
                                         disp = re.sub(r[0], r[1], disp)
                                         ins = re.sub(r[0], r[1], ins)
                                     add = (disp, ins)
-                                    i = bisect.bisect(ret, add)
-                                    if i == len(ret) or ret[i] != add:
-                                        ret.insert(i, add)
+                                    ret.append(add)
                         cache_disposeCompletionResults(comp)
-            return ret
+            return remove_duplicates(ret)
         else:
             cached_results = cache_complete_startswith(self.cache, prefix)
             if cached_results:
@@ -578,9 +580,7 @@ class Cache:
                 ret = []
             for v in var:
                 if v[1].startswith(prefix):
-                    i = bisect.bisect(ret, v)
-                    if i == len(ret) or ret[i] != v:
-                        ret.insert(i, v)
+                    ret.append(v)
             clazz = extract_class_from_function(data)
             if clazz == None:
                 clazz = extract_class(data)
@@ -602,9 +602,7 @@ class Cache:
                             if not c.static and \
                                     not (c.baseclass and c.access == cindex.CXXAccessSpecifier.PRIVATE):
                                 add = (c.display, c.insert)
-                                i = bisect.bisect(ret, add)
-                                if i == len(ret) or ret[i] != add:
-                                    ret.insert(i, add)
+                                ret.append(add)
                         cache_disposeCompletionResults(comp)
             namespaces = extract_used_namespaces(data)
             ns = extract_namespace(data)
@@ -615,7 +613,7 @@ class Cache:
                 add = self.complete_namespace(ns)
                 if add:
                     ret.extend(add)
-        return ret
+        return remove_duplicates(ret)
 
     def clangcomplete(self, filename, row, col, unsaved_files, membercomp):
         ret = None

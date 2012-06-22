@@ -461,6 +461,10 @@ if platform.system() == "Darwin":
     add_test("[NSString ", True)
     add_test("NSString *s; [s ", True)
 
+    add_test("[NSMutableData ", True)
+    add_test("NSMutableData *s; [s ", True)
+
+
 # ---------------------------------------------------------
 
 tu = get_tu("unittests/10.cpp")
