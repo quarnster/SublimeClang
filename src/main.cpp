@@ -405,7 +405,7 @@ void trim(std::vector<Entry*>& mEntries)
     // Trim duplicates
     if (mEntries.begin() == mEntries.end())
         return;
-    for (std::vector<Entry*>::iterator i = mEntries.begin()+1; i != mEntries.end(); i++)
+    for (std::vector<Entry*>::iterator i = mEntries.begin()+1; i < mEntries.end(); i++)
     {
         while (i != mEntries.end() && (*(*i)) == (*(*(i-1))))
         {
