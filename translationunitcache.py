@@ -809,7 +809,7 @@ class TranslationUnitCache(Worker):
         return ret
 
     def get_opts_script(self, view):
-        return expand_path(get_setting("options_script", None, view), view.window())
+        return expand_path(get_setting("options_script", "", view), view.window())
 
     def get_opts(self, view):
         opts = get_path_setting("options", [], view)
