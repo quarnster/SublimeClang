@@ -259,7 +259,6 @@ class Cache:
                         return self.inherits(parent, c2)
         return False
 
-
     def complete(self, data, prefix):
         line = extract_line_at_offset(data, len(data)-1)
         before = line
@@ -299,7 +298,7 @@ class Cache:
                         namespace = self.get_namespace_from_cursor(curr)
                         ret = self.complete_namespace(namespace)
                         c = None
-                if not c is None and not c.kind.is_invalid():
+                if not c is None and not c.kind.is_invalid() and c.kind != cindex.CursorKind.NAMESPACE:
                     # It's going to be a declaration of some kind, so
                     # get the returned cursor
                     c = c.get_returned_cursor()
@@ -308,6 +307,9 @@ class Cache:
                         c = None
                         ret = None
                 if not c is None and not c.kind.is_invalid():
+                    if c.kind == cindex.CursorKind.NAMESPACE:
+                        namespace = self.get_namespace_from_cursor(c)
+                        return self.complete_namespace(namespace)
                     comp = cache_completeCursor(self.cache, c)
 
                     if comp:
