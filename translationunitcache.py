@@ -768,38 +768,44 @@ class TranslationUnitCache(Worker):
     def reparse(self, view, filename, unsaved_files=[], on_done=None):
         ret = False
         pl = self.parsingList.lock()
-        if filename not in pl:
-            ret = True
-            pl.append(filename)
-            self.tasks.put((
-                self.task_reparse,
-                (filename, self.get_opts(view), self.get_opts_script(view), unsaved_files, on_done)))
-        self.parsingList.unlock()
+        try:
+            if filename not in pl:
+                ret = True
+                pl.append(filename)
+                self.tasks.put((
+                    self.task_reparse,
+                    (filename, self.get_opts(view), self.get_opts_script(view), unsaved_files, on_done)))
+        finally:
+            self.parsingList.unlock()
         return ret
 
     def add_ex(self, filename, opts, opts_script, on_done=None):
         tu = self.translationUnits.lock()
         pl = self.parsingList.lock()
-        if filename not in tu and filename not in pl:
-            pl.append(filename)
-            self.tasks.put((
-                self.task_parse,
-                (filename, opts, opts_script, on_done)))
-        self.translationUnits.unlock()
-        self.parsingList.unlock()
+        try:
+            if filename not in tu and filename not in pl:
+                pl.append(filename)
+                self.tasks.put((
+                    self.task_parse,
+                    (filename, opts, opts_script, on_done)))
+        finally:
+            self.translationUnits.unlock()
+            self.parsingList.unlock()
 
     def add(self, view, filename, on_done=None):
         ret = False
         tu = self.translationUnits.lock()
         pl = self.parsingList.lock()
-        if filename not in tu and filename not in pl:
-            ret = True
-            pl.append(filename)
-            self.tasks.put((
-                self.task_parse,
-                (filename, self.get_opts(view), self.get_opts_script(view), on_done)))
-        self.translationUnits.unlock()
-        self.parsingList.unlock()
+        try:
+            if filename not in tu and filename not in pl:
+                ret = True
+                pl.append(filename)
+                self.tasks.put((
+                    self.task_parse,
+                    (filename, self.get_opts(view), self.get_opts_script(view), on_done)))
+        finally:
+            self.translationUnits.unlock()
+            self.parsingList.unlock()
         return ret
 
     def get_opts_script(self, view):
