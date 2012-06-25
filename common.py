@@ -145,7 +145,7 @@ class LockedVariable:
 
 class Worker(object):
     def __init__(self, threadcount=-1):
-        if threadcount == -1:
+        if threadcount < 1:
             threadcount = get_cpu_count()
         self.tasks = Queue.Queue()
         for i in range(threadcount):

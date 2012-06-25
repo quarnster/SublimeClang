@@ -648,8 +648,9 @@ class TranslationUnitCache(Worker):
             self.cache = Cache(var, fn)
 
     def __init__(self):
+        workerthreadcount = get_setting("worker_threadcount", -1)
         self.as_super = super(TranslationUnitCache, self)
-        self.as_super.__init__()
+        self.as_super.__init__(workerthreadcount)
         self.translationUnits = LockedVariable({})
         self.parsingList = LockedVariable([])
         self.busyList = LockedVariable([])
