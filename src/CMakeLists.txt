@@ -98,7 +98,7 @@ elseif(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
         )
         add_custom_command(OUTPUT llvm/build/CMakeCache.txt
                         DEPENDS llvm
-                        COMMAND cmake -DLLVM_TARGETS_TO_BUILD="X86" ..
+                        COMMAND cmake -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} -DLLVM_TARGETS_TO_BUILD="X86" ..
                         WORKING_DIRECTORY llvm/build
         )
 

@@ -79,7 +79,6 @@ try:
         return get_settings().get(key, default)
 
     def expand_path(value, window):
-        value = value % ({'home': os.getenv('HOME')})
         if window == None:
             # Views can apparently be window less, in most instances getting
             # the active_window will be the right choice (for example when
@@ -102,6 +101,8 @@ try:
                 if os.path.exists(path) \
             ]
         value = re.sub(r'\${project_path:(?P<file>[^}]+)}', lambda m: len(get_existing_files(m)) > 0 and get_existing_files(m)[0] or m.group('file'), value)
+        value = re.sub(r'\${env:(?P<variable>.*)}', lambda m: os.getenv(m.group('variable')), value)
+        value = re.sub(r'\${home}', os.getenv('HOME'), value)
         value = re.sub(r'\${folder:(?P<file>.*)}', lambda m: os.path.dirname(m.group('file')), value)
         value = value.replace('\\', '/')
 

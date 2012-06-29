@@ -157,9 +157,11 @@
     // so to make them take effect you'll have to clear the cache first. The
     // default keybinding for clearing the cache is alt+d,alt+c.
     //
-    // ${home}, ${project_path:} and ${folder:} tokens can be used in these options.
+    // ${home}, ${env:<variable>}, ${project_path:} and ${folder:} tokens can be used in these options.
     //
     // ${home} is replaced with the value of the HOME environment variable.
+    //
+    // ${env:<variable>} is replaced with the "variable" environment variable.
     //
     // ${project_path:} tries to find a file with the given name in all the registered project folders and
     // returns the first file found, or the original file name if none is found.
@@ -169,8 +171,8 @@
     // ${folder:} is replaced with the dirname of the given path.
     // Example: ${folder:/path/to/file} is replaced with "/path/to".
     //
-    // Replacement is done sequentially, first all ${home} tokens, then all ${project_path:} are resolved, and then the
-    // ${folder:} are replaced.
+    // Replacement is done sequentially, first all ${project_path:} are resolved, then ${home} and
+    // ${env:<variable>} tokens,  and then the ${folder:} are replaced,
     //
     // So for example, you might specify:
     //       "-I${folder:${project_path:main.cpp}}",
