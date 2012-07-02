@@ -589,3 +589,5 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
             return self.not_code_regex.search(view.scope_name(view.sel()[0].begin())) == None
         elif key == "clang_complete_enabled":
             return clang_complete_enabled
+        elif key == "clang_automatic_completion_popup":
+            return get_setting("automatic_completion_popup", True, view)

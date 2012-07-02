@@ -16,6 +16,10 @@
     // the plugin completely for a specific project.
     "enabled": true,
 
+    // Whether or not to automatically trigger the auto complete
+    // window when typing object., object-> or similar.
+    "automatic_completion_popup": true,
+
     // Number of worker threads to create. If set to -1 it'll create
     // one thread per cpu
     "worker_threadcount": -1,
