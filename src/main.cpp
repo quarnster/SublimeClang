@@ -909,15 +909,6 @@ public:
     }
 
 private:
-
-    static CXChildVisitResult usingvisitor(CXCursor cursor, CXCursor parent, CXClientData client_data)
-    {
-        FindData *data = (FindData*) client_data;
-        bool recurse = false;
-        if (data->visitor(cursor, parent, recurse, clang_getCursorKind(cursor)))
-            return CXChildVisit_Break;
-        return CXChildVisit_Continue;
-    }
     CXCursor mCursor;
     bool mFound;
     const char *mSpelling;
