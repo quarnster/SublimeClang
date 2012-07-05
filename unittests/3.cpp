@@ -35,3 +35,13 @@ namespace b = a::Test2;
 namespace c = b::Test3;
 namespace d = Test::Test2;
 namespace e = Test::Test2::Test3;
+
+
+namespace ZZZ
+{
+    using Test::Class1;
+    using namespace Test::Test2::Test3;
+    using namespace Test::Test2;
+
+    namespace z = d;
+};

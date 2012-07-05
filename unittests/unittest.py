@@ -192,8 +192,15 @@ add_test("d::T3Class::")
 add_test("a::T3Class::")
 add_test("e::T3Class::")
 add_test("Test::Test2::Test3::T3Class::")
+add_test("ZZZ::")
+add_test("ZZZ::Class1::")
+add_test("ZZZ::Test3::")
+add_test("ZZZ::T3Class::")
+add_test("ZZZ::Test2::")
+add_test("ZZZ::Test3::T3Class::")
+add_test("ZZZ::z::")
 
-# ---------------------------------------------------------
+#---------------------------------------------------------
 
 tu = get_tu("unittests/4.cpp")
 add_test("C c; c.")

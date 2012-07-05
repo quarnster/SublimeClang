@@ -136,11 +136,12 @@ class Cache:
 
     def complete_namespace(self, namespace):
         ret = None
-        nsarg = self.get_native_namespace(namespace)
-        comp = cache_completeNamespace(self.cache, nsarg, len(nsarg))
-        if comp:
-            ret = [(x.display, x.insert) for x in comp[0]]
-            cache_disposeCompletionResults(comp)
+        if len(namespace):
+            nsarg = self.get_native_namespace(namespace)
+            comp = cache_completeNamespace(self.cache, nsarg, len(nsarg))
+            if comp:
+                ret = [(x.display, x.insert) for x in comp[0]]
+                cache_disposeCompletionResults(comp)
         return ret
 
     def get_namespace_from_cursor(self, cursor):
