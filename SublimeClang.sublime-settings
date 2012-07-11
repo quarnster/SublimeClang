@@ -49,9 +49,12 @@
     // Whether or not to show the clang parser status in the status bar
     "show_status": true,
 
-    // When set to true, will display visual error markers. recompile_delay
-    // must be set to > 0
+    // When set to true, will display visual error markers.
     "show_visual_error_marks": true,
+
+    // When set to true, error marks will only be displayed when the error
+    // panel is showing
+    "error_marks_on_panel_only": false,
 
     // This is the bitmask sent to index.parse.
     // For example, to be able to go to the definition of

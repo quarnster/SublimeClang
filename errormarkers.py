@@ -63,6 +63,10 @@ def set_clang_view(view):
     clang_view = view
 
 
+def get_clang_view():
+    return clang_view
+
+
 def highlight_panel_row():
     if clang_view is None:
         return
@@ -176,10 +180,12 @@ class SublimeClangStatusbarUpdater(sublime_plugin.EventListener):
         fn = view.file_name()
         return fn in ERRORS or fn in WARNINGS
 
-    def on_activated(self, view):
-        if self.has_errors(view):
+    def show_errors(self, view):
+        if self.has_errors(view) and not get_setting("error_marks_on_panel_only", False, view):
             show_error_marks(view)
 
+    def on_activated(self, view):
+        self.show_errors(view)
+
     def on_load(self, view):
-        if self.has_errors(view):
-            show_error_marks(view)
+        self.show_errors(view)

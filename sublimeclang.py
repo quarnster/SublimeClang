@@ -39,7 +39,7 @@ import re
 import threading
 import time
 from errormarkers import clear_error_marks, add_error_mark, show_error_marks, \
-                         update_statusbar, erase_error_marks, set_clang_view
+                         update_statusbar, erase_error_marks, set_clang_view, get_clang_view
 from common import get_setting, get_settings, is_supported_language, get_language
 import translationunitcache
 
@@ -68,6 +68,26 @@ def get_translation_unit(view, filename=None, blocking=False):
 navigation_stack = []
 clang_complete_enabled = True
 clang_fast_completions = True
+
+
+class ClangTogglePanel(sublime_plugin.WindowCommand):
+    def run(self, **args):
+        view = get_clang_view()
+        show = args["show"] if "show" in args else None
+        aview = sublime.active_window().active_view()
+        error_marks = get_setting("error_marks_on_panel_only", False, view)
+
+        if show or (show == None and (view == None or view.window() == None)):
+            if view == None:
+                view = sublime.active_window().get_output_panel("clang")
+                set_clang_view(view)
+            sublime.active_window().run_command("show_panel", {"panel": "output.clang"})
+            if error_marks:
+                show_error_marks(aview)
+        else:
+            sublime.active_window().run_command("hide_panel", {"panel": "output.clang"})
+            if error_marks:
+                erase_error_marks(aview)
 
 
 class ClangToggleCompleteEnabled(sublime_plugin.TextCommand):
@@ -386,14 +406,15 @@ def display_compilation_results(view):
         v.end_edit(e)
         v.set_read_only(True)
         output_view = v
-    show_error_marks(view)
     update_statusbar(view)
+    if not get_setting("error_marks_on_panel_only", False, view):
+        show_error_marks(view)
     if not window is None:
         if show:
-            window.run_command("show_panel", {"panel": "output.clang"})
+            window.run_command("clang_toggle_panel", {"show": True})
         elif get_setting("hide_output_when_empty", False, view):
             if not output_view is None and output_view.window() != None:
-                window.run_command("hide_panel", {"panel": "output.clang"})
+                window.run_command("clang_toggle_panel", {"show": False})
 
 member_regex = re.compile("(([a-zA-Z_]+[0-9_]*)|([\)\]])+)((\.)|(->))$")
 
@@ -591,3 +612,6 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
             return clang_complete_enabled
         elif key == "clang_automatic_completion_popup":
             return get_setting("automatic_completion_popup", True, view)
+        elif key == "clang_panel_visible":
+            view = get_clang_view()
+            return view != None and view.window() != None
