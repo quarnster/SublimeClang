@@ -71,7 +71,7 @@
     "command": "clang_complete",
     "args": {"characters": " "},
     "keys": [" "],
-    "context": [ {"key": "clang_supported_language"}, {"key": "clang_is_code"}, {"key": "clang_complete_enabled"}, {"key": "clang_automatic_completion_popup"}]
+    "context": [ {"key": "clang_supported_language"}, {"key": "clang_is_code"}, {"key": "clang_complete_enabled"}, {"key": "clang_automatic_completion_popup"}, { "key": "auto_complete_visible", "operator": "equal", "operand": false }]
   },
   {
     "command": "clang_complete",

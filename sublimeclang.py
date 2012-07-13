@@ -435,6 +435,7 @@ class ClangComplete(sublime_plugin.TextCommand):
         caret = self.view.sel()[0].begin()
         line = self.view.substr(sublime.Region(self.view.word(caret-1).a, caret))
         if is_member_completion(self.view, caret) or line.endswith("::"):
+            self.view.run_command("hide_auto_complete")
             sublime.set_timeout(self.delayed_complete, 1)
 
     def delayed_complete(self):
