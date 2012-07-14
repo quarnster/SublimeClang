@@ -3,10 +3,13 @@ cmake_minimum_required(VERSION 2.8)
 if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Windows")
 set(CMAKE_CXX_FLAGS "-g -Wall")
 else()
-    set(LIBPREFIX lib)
+    if(MSVC)
+        set(LIBPREFIX lib)
+    endif()
     if(CMAKE_CL_64)
         set(LIBSUFFIX _x64)
     endif()
+
     foreach(flag_var
             CMAKE_CXX_FLAGS CMAKE_CXX_FLAGS_DEBUG CMAKE_CXX_FLAGS_RELEASE
             CMAKE_CXX_FLAGS_MINSIZEREL CMAKE_CXX_FLAGS_RELWITHDEBINFO)
@@ -46,23 +49,27 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     )
 elseif(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
 
-    set(MYPATTERN "[ \t\r\n]+([0-9]+)[ \t]+([0-9A-F]+)[ \t]+([0-9A-F]+)[ \t]+([a-zA-Z0-9_]+)")
-    execute_process(COMMAND dumpbin /exports ${PROJECT_SOURCE_DIR}/../libclang${LIBSUFFIX}.dll OUTPUT_VARIABLE libclangdump)
-    string(REGEX MATCHALL ${MYPATTERN} libclangdump ${libclangdump})
-    string(REGEX REPLACE ${MYPATTERN} "\t\\4\t@\\1\n" libclangdump ${libclangdump})
-    set(libclangdump "LIBRARY\tLIBCLANG${LIBSUFFIX}\nEXPORTS\n${libclangdump}")
-    file(WRITE "${PROJECT_BINARY_DIR}/libclang${LIBSUFFIX}.def" ${libclangdump})
-    add_custom_command(OUTPUT libclang${LIBSUFFIX}.lib
-        COMMAND lib /def:libclang${LIBSUFFIX}.def /out:libclang${LIBSUFFIX}.lib
-        WORKING_DIRECTORY ${PROJECT_BINARY_DIR}
-        COMMENT "Creating libclang.lib")
-    add_custom_target(linklib ALL DEPENDS libclang${LIBSUFFIX}.lib)
-    add_dependencies(${TARGETLIB} linklib)
-
+    if(MSVC)
+        set(MYPATTERN "[ \t\r\n]+([0-9]+)[ \t]+([0-9A-F]+)[ \t]+([0-9A-F]+)[ \t]+([a-zA-Z0-9_]+)")
+        execute_process(COMMAND dumpbin /exports ${PROJECT_SOURCE_DIR}/../libclang${LIBSUFFIX}.dll OUTPUT_VARIABLE libclangdump)
+        string(REGEX MATCHALL ${MYPATTERN} libclangdump ${libclangdump})
+        string(REGEX REPLACE ${MYPATTERN} "\t\\4\t@\\1\n" libclangdump ${libclangdump})
+        set(libclangdump "LIBRARY\tLIBCLANG${LIBSUFFIX}\nEXPORTS\n${libclangdump}")
+        file(WRITE "${PROJECT_BINARY_DIR}/libclang${LIBSUFFIX}.def" ${libclangdump})
+        add_custom_command(OUTPUT libclang${LIBSUFFIX}.lib
+            COMMAND lib /def:libclang${LIBSUFFIX}.def /out:libclang${LIBSUFFIX}.lib
+            WORKING_DIRECTORY ${PROJECT_BINARY_DIR}
+            COMMENT "Creating libclang.lib")
+        add_custom_target(linklib ALL DEPENDS libclang${LIBSUFFIX}.lib)
+        add_dependencies(${TARGETLIB} linklib)
+    endif()
+    get_target_property(cache_LOCATION ${TARGETLIB} LOCATION)
     add_custom_target(copy ALL
-                    COMMAND copy ${TARGETLIB}.dll ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}
+                    COMMAND ${CMAKE_COMMAND} -E copy ${cache_LOCATION} ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}
+                    WORKING_DIRECTORY  ${PROJECT_BINARY_DIR}
                     DEPENDS ${TARGETLIB}
     )
+
 elseif(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
     include(CheckFunctionExists)
     set(CMAKE_REQUIRED_FLAGS -L${CMAKE_LIBRARY_OUTPUT_DIRECTORY} -L/usr/local/lib -L/usr/lib)

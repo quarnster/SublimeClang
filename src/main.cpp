@@ -28,12 +28,18 @@ freely, subject to the following restrictions:
 #include <map>
 #include <algorithm>
 
-
 #if _WIN32
-   #define snprintf _snprintf_s
-   #define EXPORT __declspec(dllexport)
+    #if _MSC_VER
+       #define snprintf _snprintf_s
+    #endif
+    #define EXPORT __declspec(dllexport)
 #else
    #define EXPORT
+#endif
+#if __MINGW32__
+    #define MINGWSUPPORT __attribute__ ((callee_pop_aggregate_return(0)))
+#else
+    #define MINGWSUPPORT
 #endif
 
 bool operator<(const CXCursor &c1, const CXCursor &c2)
@@ -644,7 +650,7 @@ private:
                     {
                         d.access = CX_CXXPublic;
                     }
-                    clang_visitChildren(ref, get_completion_children, &d);
+                    d.visit_children(ref);
                     for (CursorList::iterator i = d.mParents.begin(); i != d.mParents.end(); i++)
                     {
                         data->mParents.push_back(*i);
@@ -1153,7 +1159,7 @@ EXPORT CacheCompletionResults* cache_completeCursor(Cache* cache, CXCursor cur)
     return cache->completeCursor(cur);
 }
 
-EXPORT CXCursor cache_findType(Cache* cache, const char **namespaces, unsigned int nsLength, const char *type)
+EXPORT MINGWSUPPORT CXCursor cache_findType(Cache* cache, const char **namespaces, unsigned int nsLength, const char *type)
 {
     return cache->findType(namespaces, nsLength, type);
 }
