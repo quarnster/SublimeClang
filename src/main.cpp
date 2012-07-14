@@ -677,7 +677,7 @@ class Cache;
 class NamespaceFinder
 {
 public:
-    NamespaceFinder(Cache *cache, CXCursor base, const char ** ns, unsigned int nsLength)
+    NamespaceFinder(Cache *cache, CXCursor base, const char ** ns, size_t nsLength)
     : mCache(cache), mBase(base), namespaces(ns), namespaceCount(nsLength)
     {
 
@@ -703,7 +703,7 @@ protected:
     CXCursor     mBase;
     CursorList   mParents;
     const char **namespaces;
-    unsigned int namespaceCount;
+    size_t       namespaceCount;
 
     static CXChildVisitResult visitor(CXCursor cursor, CXCursor parent, CXClientData client_data);
 };
@@ -712,7 +712,7 @@ protected:
 class NamespaceVisitorData : public NamespaceFinder
 {
 public:
-    NamespaceVisitorData(Cache * cache, const char* firstName, const char **ns, unsigned int nsLength)
+    NamespaceVisitorData(Cache * cache, const char* firstName, const char **ns, size_t nsLength)
     : NamespaceFinder(cache, clang_getNullCursor(), ns, nsLength), mFirstName(firstName)
     {
     }
@@ -729,14 +729,15 @@ public:
         {
             CursorList children;
             clang_visitChildren(cursor, getchildren_visitor, &children);
-            unsigned int nsLength = children.size();
+            size_t nsLength = children.size();
             char **ns = new char*[nsLength];
-            for (unsigned int i = 0; i < nsLength; i++)
+            for (size_t i = 0; i < nsLength; i++)
             {
                 CXString s = clang_getCursorSpelling(children[i]);
                 const char *str = clang_getCString(s);
-                ns[i] = new char[strlen(str)];
-                strcpy(ns[i], str);
+                size_t len = strlen(str)+1;
+                ns[i] = new char[len];
+                memcpy(ns[i], str, len);
                 clang_disposeString(s);
             }
             NamespaceVisitorData d(mCache, ns[0], (const char**) (nsLength > 1 ? &ns[1] : NULL), nsLength-1);
@@ -746,7 +747,7 @@ public:
             {
                 mEntries.push_back(*i);
             }
-            for (unsigned int i = 0; i < nsLength; i++)
+            for (size_t i = 0; i < nsLength; i++)
             {
                 delete[] ns[i];
             }
@@ -775,7 +776,7 @@ protected:
 class UsingNamespaceFinder : public NamespaceVisitorData
 {
 public:
-    UsingNamespaceFinder(const char *firstName, const char **ns, unsigned int nsLength, NamespaceFinder *realFinder)
+    UsingNamespaceFinder(const char *firstName, const char **ns, size_t nsLength, NamespaceFinder *realFinder)
     : NamespaceVisitorData(realFinder->getCache(), firstName, ns, nsLength), mRealFinder(realFinder)
     {
 
@@ -821,19 +822,20 @@ CXChildVisitResult NamespaceFinder::visitor(CXCursor cursor, CXCursor parent, CX
             {
                 CursorList children;
                 clang_visitChildren(cursor, getchildren_visitor, &children);
-                unsigned int nsLength = children.size();
+                size_t nsLength = children.size();
                 char **ns = new char*[nsLength];
-                for (unsigned int i = 0; i < nsLength; i++)
+                for (size_t i = 0; i < nsLength; i++)
                 {
                     CXString s = clang_getCursorSpelling(children[i]);
                     const char *str = clang_getCString(s);
-                    ns[i] = new char[strlen(str)];
-                    strcpy(ns[i], str);
+                    size_t len = strlen(str)+1;
+                    ns[i] = new char[len];
+                    memcpy(ns[i], str, len);
                     clang_disposeString(s);
                 }
                 UsingNamespaceFinder unf(ns[0], (const char**) (nsLength > 1 ? &ns[1] : NULL), nsLength-1, nvd);
                 unf.execute();
-                for (unsigned int i = 0; i < nsLength; i++)
+                for (size_t i = 0; i < nsLength; i++)
                 {
                     delete[] ns[i];
                 }
@@ -877,7 +879,7 @@ CXChildVisitResult NamespaceFinder::visitor(CXCursor cursor, CXCursor parent, CX
 class FindData : public NamespaceFinder
 {
 public:
-    FindData(Cache *cache, CXCursor base, const char **namespaces, unsigned int nsLength, const char* s)
+    FindData(Cache *cache, CXCursor base, const char **namespaces, size_t nsLength, const char* s)
     : NamespaceFinder(cache, base, namespaces, nsLength), mFound(false), mSpelling(s)
     {
 
@@ -892,14 +894,15 @@ public:
             {
                 CursorList children;
                 clang_visitChildren(cursor, getchildren_visitor, &children);
-                unsigned int nsLength = children.size();
+                size_t nsLength = children.size();
                 char **ns = new char*[nsLength];
-                for (unsigned int i = 0; i < nsLength; i++)
+                for (size_t i = 0; i < nsLength; i++)
                 {
                     CXString s = clang_getCursorSpelling(children[i]);
                     const char *str = clang_getCString(s);
-                    ns[i] = new char[strlen(str)];
-                    strcpy(ns[i], str);
+                    size_t len = strlen(str)+1;
+                    ns[i] = new char[len];
+                    memcpy(ns[i], str, len);
                     clang_disposeString(s);
                 }
                 FindData d(mCache, mBase, (const char **) ns, nsLength, mSpelling);
@@ -909,7 +912,7 @@ public:
                     mFound = true;
                     mCursor = d.getCursor();
                 }
-                for (unsigned int i = 0; i < nsLength; i++)
+                for (size_t i = 0; i < nsLength; i++)
                 {
                     delete[] ns[i];
                 }
