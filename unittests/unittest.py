@@ -292,6 +292,10 @@ add_test("void C::something() { adoublemix2[0].")
 add_test("void C::something() { adoublemix2[0]->")
 add_test("void C::something() { adoublemix2[0][0].")
 add_test("void C::something() { adoublemix2[0][0]->")
+add_test("quat q; q.")
+add_test("quat q; q.test.")
+add_test("quat::")
+add_test("quat::test2 t; t.")
 
 # ---------------------------------------------------------
 

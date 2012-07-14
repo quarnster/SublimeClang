@@ -42,3 +42,22 @@ private:
     A **adoublemix2[1];
 
 };
+
+struct quat
+{
+  struct { float x1, y2, z3, w4; };
+  union
+  {
+     struct { float x, y, z, w; };
+     struct { float a, b, c, d; } test;
+     float f[4];
+  };
+  struct test2 {float e, f, g, h; };
+};
+
+int main(int argc, char const *argv[])
+{
+    quat q;
+    quat::test2 t;
+    return 0;
+}

@@ -1308,6 +1308,10 @@ class Cursor(Structure):
                 return child
             elif not function and (child.kind == CursorKind.FIELD_DECL or child.kind == CursorKind.VAR_DECL or child.kind == CursorKind.OBJC_IVAR_DECL) and child.spelling == membername:
                 return child
+            elif child.kind == CursorKind.UNION_DECL:
+                ret = child.get_member(membername, function)
+                if not ret is None:
+                    return ret
             # elif child.spelling == membername:
             #     print "unhandled kind: %s" % child.kind
         if self.kind == CursorKind.OBJC_INTERFACE_DECL:
