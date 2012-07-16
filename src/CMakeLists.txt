@@ -34,19 +34,18 @@ include_directories(
 set(TARGETLIB ${LIBPREFIX}cache${LIBSUFFIX})
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/..)
 
-
-link_directories(${PROJECT_SOURCE_DIR}/..)
+link_directories(${PROJECT_SOURCE_DIR}/.. /usr/local/lib /usr/lib /usr/lib64/llvm)
 add_library(${TARGETLIB} SHARED main.cpp )
 target_link_libraries(
     ${TARGETLIB}
     ${LIBPREFIX}clang${LIBSUFFIX}
 )
+
 if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
      add_custom_command(TARGET ${TARGETLIB}
         POST_BUILD
         COMMAND install_name_tool -change /tmp/llvm-3.1.src/build/lib/liblibclang.3.1.dylib libclang.dylib $<TARGET_FILE:cache>
-        WORKING_DIRECTORY ${PROJECT_BINARY_DIR}
-    )
+        WORKING_DIRECTORY ${PROJECT_BINARY_DIR})
 elseif(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
 
     if(MSVC)
@@ -72,8 +71,8 @@ elseif(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
 
 elseif(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
     include(CheckFunctionExists)
-    set(CMAKE_REQUIRED_FLAGS -L${CMAKE_LIBRARY_OUTPUT_DIRECTORY} -L/usr/local/lib -L/usr/lib)
-    set(CMAKE_REQUIRED_LIBRARIES clang)
+    set(CMAKE_REQUIRED_FLAGS "-L${CMAKE_LIBRARY_OUTPUT_DIRECTORY} -L/usr/local/lib -L/usr/lib -L/usr/lib64/llvm")
+    set(CMAKE_REQUIRED_LIBRARIES clang LLVM-3.1)
     check_function_exists(clang_getExpansionLocation HAS_RIGHT_CLANG)
     if(NOT HAS_RIGHT_CLANG)
         message("Either libclang wasn't found, or it's not useable as it doesn't have clang_getExpansionLocation.")
