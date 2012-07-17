@@ -184,9 +184,12 @@
     //
     // ${folder:} is replaced with the dirname of the given path.
     // Example: ${folder:/path/to/file} is replaced with "/path/to".
+    // 
+    // ${this_file_path} is replaced by the path to currently edited file.
+    // Example: ${this_file_path} is replaced with "/path/to" when edited file is "/path/to/file".
     //
     // Replacement is done sequentially, first all ${project_path:} are resolved, then ${home} and
-    // ${env:<variable>} tokens,  and then the ${folder:} are replaced,
+    // ${env:<variable>} tokens,  and the ${folder:} are replaced, and then the ${this_file_path}.
     //
     // So for example, you might specify:
     //       "-I${folder:${project_path:main.cpp}}",
