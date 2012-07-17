@@ -39,7 +39,7 @@ import re
 import threading
 import time
 from errormarkers import clear_error_marks, add_error_mark, show_error_marks, \
-                         update_statusbar, erase_error_marks, set_clang_view, get_clang_view
+                         update_statusbar, erase_error_marks, clang_error_panel
 from common import get_setting, get_settings, is_supported_language, get_language
 import translationunitcache
 
@@ -72,20 +72,16 @@ clang_fast_completions = True
 
 class ClangTogglePanel(sublime_plugin.WindowCommand):
     def run(self, **args):
-        view = get_clang_view()
         show = args["show"] if "show" in args else None
         aview = sublime.active_window().active_view()
-        error_marks = get_setting("error_marks_on_panel_only", False, view)
+        error_marks = get_setting("error_marks_on_panel_only", False, aview)
 
-        if show or (show == None and (view == None or view.window() == None)):
-            if view == None:
-                view = sublime.active_window().get_output_panel("clang")
-                set_clang_view(view)
-            sublime.active_window().run_command("show_panel", {"panel": "output.clang"})
+        if show or (show == None and not clang_error_panel.is_visible(self.window)):
+            clang_error_panel.open(self.window)
             if error_marks:
                 show_error_marks(aview)
         else:
-            sublime.active_window().run_command("hide_panel", {"panel": "output.clang"})
+            clang_error_panel.close()
             if error_marks:
                 erase_error_marks(aview)
 
@@ -392,20 +388,7 @@ def display_compilation_results(view):
     else:
         view.erase_status("SublimeClang")
     window = view.window()
-    output_view = None
-    if not window is None:
-        v = view.window().get_output_panel("clang")
-        v.settings().set("result_file_regex", "^(.+):([0-9]+),([0-9]+)")
-        view.window().get_output_panel("clang")
-        set_clang_view(v)
-        v.set_read_only(False)
-        v.set_scratch(True)
-        v.set_name("sublimeclang.%s" % view.file_name())
-        e = v.begin_edit()
-        v.insert(e, 0, errString)
-        v.end_edit(e)
-        v.set_read_only(True)
-        output_view = v
+    clang_error_panel.set_data(errString)
     update_statusbar(view)
     if not get_setting("error_marks_on_panel_only", False, view):
         show_error_marks(view)
@@ -413,7 +396,7 @@ def display_compilation_results(view):
         if show:
             window.run_command("clang_toggle_panel", {"show": True})
         elif get_setting("hide_output_when_empty", False, view):
-            if not output_view is None and output_view.window() != None:
+            if clang_error_panel.is_visible():
                 window.run_command("clang_toggle_panel", {"show": False})
 
 member_regex = re.compile("(([a-zA-Z_]+[0-9_]*)|([\)\]])+)((\.)|(->))$")
