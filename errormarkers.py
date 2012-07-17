@@ -62,6 +62,8 @@ class ClangErrorPanel(object):
 
     def set_data(self, data):
         self.data = data
+        if get_setting("update_output_panel", True) and self.is_visible():
+            self.flush()
 
     def get_view(self):
         return self.view
@@ -75,12 +77,7 @@ class ClangErrorPanel(object):
     def set_view(self, view):
         self.view = view
 
-    def open(self, window=None):
-        if window == None:
-            window = sublime.active_window()
-        if not self.is_visible(window):
-            self.view = window.get_output_panel("clang")
-            self.view.settings().set("result_file_regex", "^(.+):([0-9]+),([0-9]+)")
+    def flush(self):
         self.view.set_read_only(False)
         self.view.set_scratch(True)
         e = self.view.begin_edit()
@@ -88,6 +85,14 @@ class ClangErrorPanel(object):
         self.view.insert(e, 0, self.data)
         self.view.end_edit(e)
         self.view.set_read_only(True)
+
+    def open(self, window=None):
+        if window == None:
+            window = sublime.active_window()
+        if not self.is_visible(window):
+            self.view = window.get_output_panel("clang")
+            self.view.settings().set("result_file_regex", "^(.+):([0-9]+),([0-9]+)")
+        self.flush()
 
         window.run_command("show_panel", {"panel": "output.clang"})
 

@@ -46,6 +46,13 @@
     // will show it
     "show_output_panel": true,
 
+    // When set to true, the output panel will be updated with the active
+    // view's errors/warnings as it is switched to. If set to false you will
+    // have to switch to the view you want to get the errors/warnings for
+    // and press alt+d,alt+f to hide and then display the panel for it
+    // to refresh its contents
+    "update_output_panel": true,
+
     // Whether or not to show the clang parser status in the status bar
     "show_status": true,
 
