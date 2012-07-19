@@ -143,6 +143,17 @@ add_test("void Class2::something() { Class3::")
 add_test("void Class2::something() { Class3 c3; c3.")
 add_test("void Class2::something() { this->")
 add_test("void Class1::something() { this->")
+add_test("Test t[1]; t.")
+add_test("Test t[1]; t[0].")
+
+f = open("unittests/2.cpp")
+data = f.read()
+f.close()
+add_test(data + "Test t[1]; t.")
+add_test(data + "Test t[1]; t[0].")
+add_test(data + "t2.")
+add_test(data + "t2[0].")
+
 
 # ---------------------------------------------------------
 

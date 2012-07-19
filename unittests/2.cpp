@@ -25,3 +25,10 @@ private:
 };
 
 typedef Class2 Class3;
+
+typedef struct
+{
+    int something;
+} Test;
+
+Test t2[1];
