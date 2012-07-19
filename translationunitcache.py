@@ -331,7 +331,8 @@ class Cache:
                                     c.cursor.kind == cindex.CursorKind.TYPEDEF_DECL or \
                                     c.cursor.kind == cindex.CursorKind.CLASS_DECL or \
                                     c.cursor.kind == cindex.CursorKind.STRUCT_DECL or \
-                                    c.cursor.kind == cindex.CursorKind.ENUM_CONSTANT_DECL:
+                                    c.cursor.kind == cindex.CursorKind.ENUM_CONSTANT_DECL or \
+                                    c.cursor.kind == cindex.CursorKind.ENUM_DECL:
                                 ret.append((c.display, c.insert))
                         cache_disposeCompletionResults(comp)
             return ret

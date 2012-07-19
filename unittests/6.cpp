@@ -18,6 +18,11 @@ public:
         E3
     };
 
+    enum NamedEnum
+    {
+        E4
+    };
+
     union
     {
         float f;
