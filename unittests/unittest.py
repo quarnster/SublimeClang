@@ -199,6 +199,8 @@ add_test("ZZZ::T3Class::")
 add_test("ZZZ::Test2::")
 add_test("ZZZ::Test3::T3Class::")
 add_test("ZZZ::z::")
+add_test("void Test::Class1::function(int something) {", True)
+add_test("void Test::Class1::function(Class1 &other) { other.")
 
 #---------------------------------------------------------
 

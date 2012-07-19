@@ -37,7 +37,6 @@ try:
     def error_message(msg):
         sublime.error_message(msg)
 
-
     language_regex = re.compile("(?<=source\.)[\w+#]+")
 
 

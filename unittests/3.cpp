@@ -14,6 +14,8 @@ namespace Test
             E2,
             E3
         };
+        private:
+            int privatec1Member;
     };
     void Function1();
     int Field1;

@@ -588,16 +588,7 @@ class Cache:
             if clazz == None:
                 clazz = extract_class(data)
             if clazz != None:
-                ns = extract_namespace(data)
-                c = None
-                if ns == None:
-                    c = cache_findType(self.cache, None, 0, clazz)
-                else:
-                    ns = ns.split("::")
-                    nsarg = (c_char_p * len(ns))()
-                    for i in range(len(ns)):
-                        nsarg[i] = ns[i]
-                    c = cache_findType(self.cache, nsarg, len(ns), clazz)
+                c = self.find_type(data, clazz)
                 if not c is None and not c.kind.is_invalid():
                     comp = cache_completeCursor(self.cache, c)
                     if comp:
