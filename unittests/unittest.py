@@ -309,6 +309,12 @@ add_test("quat q; q.")
 add_test("quat q; q.test.")
 add_test("quat::")
 add_test("quat::test2 t; t.")
+add_test("quat q; q.myEnum.")
+f = open("unittests/3.cpp")
+data = f.read()
+f.close()
+
+add_test(data + "quat q; q.myEnum.")
 
 # ---------------------------------------------------------
 

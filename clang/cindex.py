@@ -1241,30 +1241,22 @@ class Cursor(Structure):
                     self.kind == CursorKind.PARM_DECL:
             children = self.get_children()
             if len(children) > 0:
-                c = children[0]
-                i = 0
-                while c.kind == CursorKind.NAMESPACE_REF and i+1 < len(children):
-                    c = children[i]
-                    i += 1
+                c = children.pop(0)
+                while len(children):
+                    next = children.pop(0)
+                    if c.kind == CursorKind.STRUCT_DECL or c.kind == CursorKind.TEMPLATE_REF or (c.kind == CursorKind.TYPE_REF and next.kind != CursorKind.TYPE_REF):
+                        break
+                    c = next
 
-                #if c.kind == CursorKind.TEMPLATE_REF:
-                #    return self
-                #el
                 if c.kind.is_reference():
-                    i = 0
-                    while i < len(children):
-                        c = children[i]
-                        if c.kind != CursorKind.NAMESPACE_REF:
-                            reference = c.get_reference()
-                            definition = reference.get_definition()
-                            if definition is None or reference.kind == CursorKind.OBJC_INTERFACE_DECL:
-                                definition = reference
+                    reference = c.get_reference()
+                    definition = reference.get_definition()
+                    if definition is None or reference.kind == CursorKind.OBJC_INTERFACE_DECL:
+                        definition = reference
 
-                            if definition is None or definition == c:
-                                return None
-                            return definition.get_resolved_cursor()
-                        i += 1
-                    return None
+                    if definition is None or definition == c:
+                        return None
+                    return definition.get_resolved_cursor()
                 elif c.kind == CursorKind.STRUCT_DECL:
                     return c
                 else:

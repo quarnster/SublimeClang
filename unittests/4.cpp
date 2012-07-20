@@ -43,21 +43,28 @@ private:
 
 };
 
-struct quat
+class Test
 {
-  struct { float x1, y2, z3, w4; };
-  union
-  {
-     struct { float x, y, z, w; };
-     struct { float a, b, c, d; } test;
-     float f[4];
-  };
-  struct test2 {float e, f, g, h; };
+public:
+    enum Enum
+    {
+        One,
+        Two,
+        Three
+    };
+    int testMember;
 };
 
-int main(int argc, char const *argv[])
+struct quat
 {
-    quat q;
-    quat::test2 t;
-    return 0;
-}
+    struct { float x1, y2, z3, w4; };
+    union
+    {
+        struct { float x, y, z, w; };
+        struct { float a, b, c, d; } test;
+        float f[4];
+    };
+    struct test2 {float e, f, g, h; };
+    Test::Enum myEnum;
+};
+
