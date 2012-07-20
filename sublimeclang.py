@@ -597,5 +597,4 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
         elif key == "clang_automatic_completion_popup":
             return get_setting("automatic_completion_popup", True, view)
         elif key == "clang_panel_visible":
-            view = get_clang_view()
-            return view != None and view.window() != None
+            return clang_error_panel.is_visible()
