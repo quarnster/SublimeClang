@@ -6,11 +6,11 @@
             "description": "C/C++/ObjC/ObjC++ autocompletions and code navigation",
             "author": "Fredrik Ehnbom (quarnster)",
             "homepage": "http://github.com/quarnster/SublimeClang",
-            "last_modified": "2012-07-20 17:05:00",
+            "last_modified": "2012-07-23 05:25:00",
             "platforms": {
                 "*": [
                     {
-                        "version": "1.0.21",
+                        "version": "1.0.22",
                         "url": "http://cloud.github.com/downloads/quarnster/SublimeClang/SublimeClang.sublime-package"
                     }
                 ]

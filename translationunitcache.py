@@ -795,10 +795,12 @@ class TranslationUnitCache(Worker):
         try:
             if filename not in tu and filename not in pl:
                 ret = True
+                opts = self.get_opts(view)
+                opts_script = self.get_opts_script(view)
                 pl.append(filename)
                 self.tasks.put((
                     self.task_parse,
-                    (filename, self.get_opts(view), self.get_opts_script(view), on_done)))
+                    (filename, opts, opts_script, on_done)))
         finally:
             self.translationUnits.unlock()
             self.parsingList.unlock()

@@ -104,7 +104,8 @@ try:
         value = re.sub(r'\${env:(?P<variable>[^}]+)}', lambda m: os.getenv(m.group('variable')) if os.getenv(m.group('variable')) else "%s_NOT_SET" % m.group('variable'), value)
         value = re.sub(r'\${home}', os.getenv('HOME') if os.getenv('HOME') else "HOME_NOT_SET", value)
         value = re.sub(r'\${folder:(?P<file>[^}]+)}', lambda m: os.path.dirname(m.group('file')), value)
-        value = re.sub(r'\${this_file_path}', os.path.dirname(view.file_name()) if view.file_name() else "FILE_NOT_ON_DISK", value)
+        if view:
+            value = re.sub(r'\${this_file_path}', os.path.dirname(view.file_name()) if view.file_name() else "FILE_NOT_ON_DISK", value)
         value = value.replace('\\', '/')
 
         return value
