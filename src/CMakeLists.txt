@@ -31,6 +31,14 @@ include_directories(
     .
 )
 
+if(NOT DEFINED BUILD_LIBCLANG)
+    set(BUILD_LIBCLANG False)
+endif()
+
+if(NOT DEFINED PARALLEL_COMPILES)
+    set(PARALLEL_COMPILES 4)
+endif()
+
 set(TARGETLIB ${LIBPREFIX}cache${LIBSUFFIX})
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/..)
 
@@ -91,42 +99,54 @@ elseif(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
         message("    5. Run cmake .. again.")
         message("")
         message("This time if the libclang.so is useable, it'll skip the downloading and compilation of libclang.")
-        if(NOT EXISTS ./llvm.tar.gz)
-            message("Downloading llvm...")
-            file(DOWNLOAD http://www.llvm.org/releases/3.1/llvm-3.1.src.tar.gz ./llvm.tar.gz)
-        endif()
-        if(NOT EXISTS ./clang.tar.gz)
-            message("Downloading clang...")
-            file(DOWNLOAD http://www.llvm.org/releases/3.1/clang-3.1.src.tar.gz ./clang.tar.gz)
-        endif()
-
-        add_custom_command(OUTPUT llvm
-                        COMMAND tar xfz llvm.tar.gz
-                        COMMAND tar xfz clang.tar.gz
-                        COMMAND mv llvm-3.1.src llvm
-                        COMMAND mv clang-3.1.src llvm/tools/clang
-                        COMMAND mkdir llvm/build
-        )
-        add_custom_command(OUTPUT llvm/build/CMakeCache.txt
-                        DEPENDS llvm
-                        COMMAND cmake -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} -DLLVM_TARGETS_TO_BUILD="X86" ..
-                        WORKING_DIRECTORY llvm/build
-        )
-
-        add_custom_command(OUTPUT llvm/build/lib/liblibclang.so.3.1
-                        COMMAND make -j 4 libclang
-                        DEPENDS llvm/build/CMakeCache.txt
-                        WORKING_DIRECTORY llvm/build
-        )
-        add_custom_command(OUTPUT ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libclang.so
-                        COMMAND cp llvm/build/lib/liblibclang.so.3.1 ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libclang.so
-                        DEPENDS llvm/build/lib/liblibclang.so.3.1
-                        WORKING_DIRECTORY ${PROJECT_BINARY_DIR}
-        )
-        add_custom_target(libclang ALL DEPENDS ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libclang.so)
-        add_dependencies(${TARGETLIB} libclang)
+        set(BUILD_LIBCLANG True)
     endif()
 
+endif()
+
+if(BUILD_LIBCLANG)
+    if(NOT EXISTS ./llvm.tar.gz)
+        message("Downloading llvm...")
+        file(DOWNLOAD http://www.llvm.org/releases/3.1/llvm-3.1.src.tar.gz ./llvm.tar.gz)
+    endif()
+    if(NOT EXISTS ./clang.tar.gz)
+        message("Downloading clang...")
+        file(DOWNLOAD http://www.llvm.org/releases/3.1/clang-3.1.src.tar.gz ./clang.tar.gz)
+    endif()
+
+    add_custom_command(OUTPUT llvm
+                    COMMAND tar xfz llvm.tar.gz
+                    COMMAND tar xfz clang.tar.gz
+                    COMMAND mv llvm-3.1.src llvm
+                    COMMAND mv clang-3.1.src llvm/tools/clang
+                    COMMAND mkdir llvm/build
+    )
+    add_custom_command(OUTPUT llvm/build/CMakeCache.txt
+                    DEPENDS llvm
+                    COMMAND cmake -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} -DLLVM_TARGETS_TO_BUILD="X86" ..
+                    WORKING_DIRECTORY llvm/build
+    )
+
+    if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
+        set(LIBCLANG_NAME "liblibclang.so.3.1")
+    elseif(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+        set(LIBCLANG_NAME "liblibclang.dylib")
+    else()
+        message(FATAL ERROR "Platform doesn't support building libclang at the moment. You'll have to manuall tweak the CMakeLists.txt")
+    endif()
+
+    add_custom_command(OUTPUT llvm/build/lib/${LIBCLANG_NAME}
+                    COMMAND make -j ${PARALLEL_COMPILES} libclang
+                    DEPENDS llvm/build/CMakeCache.txt
+                    WORKING_DIRECTORY llvm/build
+    )
+    add_custom_command(OUTPUT ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libclang${CMAKE_SHARED_LIBRARY_SUFFIX}
+                    COMMAND ${CMAKE_COMMAND} -E copy llvm/build/lib/${LIBCLANG_NAME} ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libclang${CMAKE_SHARED_LIBRARY_SUFFIX}
+                    DEPENDS llvm/build/lib/${LIBCLANG_NAME}
+                    WORKING_DIRECTORY ${PROJECT_BINARY_DIR}
+    )
+    add_custom_target(libclang ALL DEPENDS ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libclang${CMAKE_SHARED_LIBRARY_SUFFIX})
+    add_dependencies(${TARGETLIB} libclang)
 endif()
 
 
