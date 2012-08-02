@@ -199,12 +199,26 @@ class ClangGotoImplementation(sublime_plugin.TextCommand):
                         cursor.kind == cindex.CursorKind.MEMBER_REF_EXPR:
                     cursor = cursor.get_reference()
                 if cursor.kind == cindex.CursorKind.CXX_METHOD or \
-                        cursor.kind == cindex.CursorKind.FUNCTION_DECL:
+                        cursor.kind == cindex.CursorKind.FUNCTION_DECL or \
+                        cursor.kind == cindex.CursorKind.CONSTRUCTOR or \
+                        cursor.kind == cindex.CursorKind.DESTRUCTOR:
                     f = cursor.location.file.name
                     if f.endswith(".h"):
-                        endings = ["cpp", "c", "cc", "m", "mm"]
-                        for ending in endings:
-                            f = "%s.%s" % (f[:f.rfind(".")], ending)
+                        endings = [".cpp", ".c", ".cc", ".m", ".mm"]
+                        files = []
+                        window = self.view.window()
+                        dirs = window.folders()
+                        for dirpath in dirs:
+                            dirpath = os.path.abspath(dirpath)
+                            for dirpath, dirnames, filenames in os.walk(dirpath):
+                                for filepath in filenames:
+                                    pth = os.path.join(dirpath, filepath)
+                                    pth = os.path.realpath(os.path.abspath(pth))
+                                    if pth not in files:
+                                        for ending in endings:
+                                            if pth.endswith(ending):
+                                                files.append(pth)       
+                        for f in files:
                             if f != view.file_name() and os.access(f, os.R_OK):
                                 tu2 = get_translation_unit(view, f, True)
                                 if tu2 == None:
@@ -221,13 +235,14 @@ class ClangGotoImplementation(sublime_plugin.TextCommand):
                                             target = format_cursor(d)
                                             break
                                 finally:
-                                    tu2.unlock()
+                                    tu2.unlock()  
         finally:
             tu.unlock()
         if len(target) > 0:
             open(self.view, target)
         else:
             sublime.status_message("Don't know where the implementation is!")
+
 
     def is_enabled(self):
         return is_supported_language(sublime.active_window().active_view())
