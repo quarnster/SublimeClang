@@ -206,6 +206,9 @@ class ClangGotoImplementation(sublime_plugin.TextCommand):
                     if f.endswith(".h"):
                         endings = [".cpp", ".c", ".cc", ".m", ".mm"]
                         files = []
+                        for ending in endings:
+                            f = "%s.%s" % (f[:f.rfind(".")], ending)
+                            files.append(f)
                         window = self.view.window()
                         dirs = window.folders()
                         for dirpath in dirs:
