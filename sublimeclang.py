@@ -203,29 +203,10 @@ class ClangGotoImplementation(sublime_plugin.TextCommand):
                         cursor.kind == cindex.CursorKind.CONSTRUCTOR or \
                         cursor.kind == cindex.CursorKind.DESTRUCTOR:
                     f = cursor.location.file.name
-                    clsName = cursor.get_usr()
-                    clsName = "%s" % (clsName[:clsName.rfind("@F@")])
-                    clsName = "%s" % (clsName[clsName.rfind("@")+1:])
                     if f.endswith(".h"):
-                        endings = [".cpp", ".c", ".cc", ".m", ".mm"]
-                        files = []
+                        endings = ["cpp", "c", "cc", "m", "mm"]
                         for ending in endings:
                             f = "%s.%s" % (f[:f.rfind(".")], ending)
-                            files.append(f)
-                        window = self.view.window()
-                        dirs = window.folders()
-                        for dirpath in dirs:
-                            dirpath = os.path.abspath(dirpath)
-                            for dirpath, dirnames, filenames in os.walk(dirpath):
-                                for filepath in filenames:
-                                    if filepath.find(clsName) > -1:
-                                        pth = os.path.join(dirpath, filepath)
-                                        pth = os.path.realpath(os.path.abspath(pth))
-                                        if pth not in files:
-                                            for ending in endings:
-                                                if pth.endswith(ending):
-                                                    files.append(pth)       
-                        for f in files:
                             if f != view.file_name() and os.access(f, os.R_OK):
                                 tu2 = get_translation_unit(view, f, True)
                                 if tu2 == None:
@@ -242,15 +223,13 @@ class ClangGotoImplementation(sublime_plugin.TextCommand):
                                             target = format_cursor(d)
                                             break
                                 finally:
-                                    tu2.unlock()  
+                                    tu2.unlock()
         finally:
             tu.unlock()
         if len(target) > 0:
             open(self.view, target)
         else:
             sublime.status_message("Don't know where the implementation is!")
-
-
 
     def is_enabled(self):
         return is_supported_language(sublime.active_window().active_view())
