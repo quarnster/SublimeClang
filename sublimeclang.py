@@ -199,7 +199,9 @@ class ClangGotoImplementation(sublime_plugin.TextCommand):
                         cursor.kind == cindex.CursorKind.MEMBER_REF_EXPR:
                     cursor = cursor.get_reference()
                 if cursor.kind == cindex.CursorKind.CXX_METHOD or \
-                        cursor.kind == cindex.CursorKind.FUNCTION_DECL:
+                        cursor.kind == cindex.CursorKind.FUNCTION_DECL or \
+                        cursor.kind == cindex.CursorKind.CONSTRUCTOR or \
+                        cursor.kind == cindex.CursorKind.DESTRUCTOR:
                     f = cursor.location.file.name
                     if f.endswith(".h"):
                         endings = ["cpp", "c", "cc", "m", "mm"]
