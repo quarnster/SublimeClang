@@ -40,8 +40,9 @@ import threading
 import time
 from errormarkers import clear_error_marks, add_error_mark, show_error_marks, \
                          update_statusbar, erase_error_marks, clang_error_panel
-from common import get_setting, get_settings, is_supported_language, get_language
+from common import get_setting, get_settings, is_supported_language, get_language, get_cpu_count, run_in_main_thread, status_message
 import translationunitcache
+import Queue
 
 
 def warm_up_cache(view, filename=None):
@@ -163,6 +164,64 @@ def open(view, target):
 
 
 class ClangGotoImplementation(sublime_plugin.TextCommand):
+
+    class ExtensiveSearch:
+        def __init__(self, cursor, view, window, name):
+            self.view = view
+            self.target = ""
+            self.cursor = cursor
+            self.window = window
+            self.queue = Queue.PriorityQueue()
+            implementation_regex = re.compile(r"(\.cpp|\.c|\.cc|\.m|\.mm)$")
+            for cpu in range(get_cpu_count()):
+                t = threading.Thread(target=self.worker)
+                t.start()
+            for folder in window.folders():
+                for dirpath, dirnames, filenames in os.walk(folder):
+                    for filename in filenames:
+                        if implementation_regex.search(filename) != None:
+                            score = 1000
+                            for i in range(min(len(filename), len(name))):
+                                if filename[i] == name[i]:
+                                    score -= 1
+                                else:
+                                    break
+                            self.queue.put((score, os.path.join(dirpath, filename), translationunitcache.tuCache.get_opts(view), translationunitcache.tuCache.get_opts_script(view)))
+
+        def done(self):
+            if len(self.target) > 0:
+                open(self.view, self.target)
+
+        def worker(self):
+            try:
+                while len(self.target) == 0:
+                    prio, name, opts, opts_script = self.queue.get(timeout=10)
+                    run_in_main_thread(lambda: status_message("Searching %s" % name))
+                    remove = translationunitcache.tuCache.get_status(name) == translationunitcache.TranslationUnitCache.STATUS_NOT_IN_CACHE
+                    tu2 = translationunitcache.tuCache.get_translation_unit(name, opts, opts_script)
+                    if tu2 != None:
+                        tu2.lock()
+                        try:
+                            cursor2 = cindex.Cursor.get(
+                                    tu2.var, self.cursor.location.file.name,
+                                    self.cursor.location.line,
+                                    self.cursor.location.column)
+                            if not cursor2 is None:
+                                d = cursor2.get_definition()
+                                if not d is None and cursor2 != d:
+                                    self.target = format_cursor(d)
+                                    run_in_main_thread(self.done)
+                        finally:
+                            tu2.unlock()
+                        if remove:
+                            translationunitcache.tuCache.remove(name)
+                    self.queue.task_done()
+            except Queue.Empty as e:
+                pass
+            except:
+                import traceback
+                traceback.print_exc()
+
     def run(self, edit):
         view = self.view
         tu = get_translation_unit(view)
@@ -224,6 +283,9 @@ class ClangGotoImplementation(sublime_plugin.TextCommand):
                                             break
                                 finally:
                                     tu2.unlock()
+                        if len(target) == 0:
+                            ClangGotoImplementation.ExtensiveSearch(cursor, self.view, self.view.window(), cursor.location.file.name)
+                            return
         finally:
             tu.unlock()
         if len(target) > 0:
