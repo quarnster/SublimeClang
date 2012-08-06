@@ -168,7 +168,7 @@ class ClangGotoImplementation(sublime_plugin.TextCommand):
     class ExtensiveSearch:
         def __init__(self, cursor, view, window, name):
             self.name = name
-            self.re = re.compile(r"%s[^;{]+{" % cursor.spelling)
+            self.re = re.compile(r"(\s|::|\*|&)%s\s*\([^;\{]*\)\s*\{" % cursor.spelling)
             self.view = view
             self.target = ""
             self.cursor = cursor
