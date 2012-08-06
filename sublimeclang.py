@@ -167,26 +167,17 @@ class ClangGotoImplementation(sublime_plugin.TextCommand):
 
     class ExtensiveSearch:
         def __init__(self, cursor, view, window, name):
+            self.name = name
+            self.re = re.compile(r"%s[^;{]+{" % cursor.spelling)
             self.view = view
             self.target = ""
             self.cursor = cursor
             self.window = window
             self.queue = Queue.PriorityQueue()
-            implementation_regex = re.compile(r"(\.cpp|\.c|\.cc|\.m|\.mm)$")
             for cpu in range(get_cpu_count()):
                 t = threading.Thread(target=self.worker)
                 t.start()
-            for folder in window.folders():
-                for dirpath, dirnames, filenames in os.walk(folder):
-                    for filename in filenames:
-                        if implementation_regex.search(filename) != None:
-                            score = 1000
-                            for i in range(min(len(filename), len(name))):
-                                if filename[i] == name[i]:
-                                    score -= 1
-                                else:
-                                    break
-                            self.queue.put((score, os.path.join(dirpath, filename), translationunitcache.tuCache.get_opts(view), translationunitcache.tuCache.get_opts_script(view)))
+            self.queue.put((0, "*/+", window.folders(), (translationunitcache.tuCache.get_opts(view), translationunitcache.tuCache.get_opts_script(view))))
 
         def done(self):
             if len(self.target) > 0:
@@ -195,26 +186,63 @@ class ClangGotoImplementation(sublime_plugin.TextCommand):
         def worker(self):
             try:
                 while len(self.target) == 0:
-                    prio, name, opts, opts_script = self.queue.get(timeout=10)
+                    prio, name, opts, opts_script = self.queue.get(timeout=60)
+                    if name == "*/+":
+                        run_in_main_thread(lambda: status_message("Searching for implementation..."))
+                        implementation_regex = re.compile(r"(\.cpp|\.c|\.cc|\.m|\.mm)$")
+                        name = os.path.basename(self.name)
+                        folders = opts
+                        opts, opts_script = opts_script
+                        for folder in folders:
+                            for dirpath, dirnames, filenames in os.walk(folder):
+                                for filename in filenames:
+                                    if implementation_regex.search(filename) != None:
+                                        score = 1000
+                                        for i in range(min(len(filename), len(name))):
+                                            if filename[i] == name[i]:
+                                                score -= 1
+                                            else:
+                                                break
+                                        self.queue.put((score, os.path.join(dirpath, filename), opts, opts_script))
+                        self.queue.put((1001, "*/++", None, None))
+                        self.queue.task_done()
+                        continue
+                    elif name == "*/++":
+                        run_in_main_thread(lambda: status_message("All implementation files searched..."))
+                        break
+
+
                     run_in_main_thread(lambda: status_message("Searching %s" % name))
                     remove = translationunitcache.tuCache.get_status(name) == translationunitcache.TranslationUnitCache.STATUS_NOT_IN_CACHE
-                    tu2 = translationunitcache.tuCache.get_translation_unit(name, opts, opts_script)
-                    if tu2 != None:
-                        tu2.lock()
-                        try:
-                            cursor2 = cindex.Cursor.get(
-                                    tu2.var, self.cursor.location.file.name,
-                                    self.cursor.location.line,
-                                    self.cursor.location.column)
-                            if not cursor2 is None:
-                                d = cursor2.get_definition()
-                                if not d is None and cursor2 != d:
-                                    self.target = format_cursor(d)
-                                    run_in_main_thread(self.done)
-                        finally:
-                            tu2.unlock()
-                        if remove:
-                            translationunitcache.tuCache.remove(name)
+                    fine_search = not remove
+
+                    if remove:
+                        # try a regex search first
+                        f = file(name, "r")
+                        data = f.read()
+                        f.close()
+                        if self.re.search(data) != None:
+                            fine_search = True
+
+
+                    if fine_search:
+                        tu2 = translationunitcache.tuCache.get_translation_unit(name, opts, opts_script)
+                        if tu2 != None:
+                            tu2.lock()
+                            try:
+                                cursor2 = cindex.Cursor.get(
+                                        tu2.var, self.cursor.location.file.name,
+                                        self.cursor.location.line,
+                                        self.cursor.location.column)
+                                if not cursor2 is None:
+                                    d = cursor2.get_definition()
+                                    if not d is None and cursor2 != d:
+                                        self.target = format_cursor(d)
+                                        run_in_main_thread(self.done)
+                            finally:
+                                tu2.unlock()
+                            if remove:
+                                translationunitcache.tuCache.remove(name)
                     self.queue.task_done()
             except Queue.Empty as e:
                 pass
