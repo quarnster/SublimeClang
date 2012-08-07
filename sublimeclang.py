@@ -169,7 +169,7 @@ class ClangGotoImplementation(sublime_plugin.TextCommand):
     class ExtensiveSearch:
         def __init__(self, cursor, view, window, name):
             self.name = name
-            self.re = re.compile(r"(\s|::|\*|&)(%s\s*\([^;\{]*\))\s*\{" % cursor.spelling)
+            self.re = re.compile(r"(\w+\s+|\w+::|\*|&)(%s\s*\([^;\{]*\))\s*\{" % cursor.spelling)
             self.view = view
             self.target = ""
             self.cursor = cursor
@@ -241,16 +241,15 @@ class ClangGotoImplementation(sublime_plugin.TextCommand):
                     remove = translationunitcache.tuCache.get_status(name) == translationunitcache.TranslationUnitCache.STATUS_NOT_IN_CACHE
                     fine_search = not remove
 
-                    if remove:
-                        # try a regex search first
-                        f = file(name, "r")
-                        data = f.read()
-                        f.close()
-                        match = self.re.search(data)
-                        if match != None:
-                            fine_search = True
-                            line, column = parsehelp.get_line_and_column_from_offset(data, match.start())
-                            self.candidates.put((name, match.group(2), line, column))
+                    # try a regex search first
+                    f = file(name, "r")
+                    data = f.read()
+                    f.close()
+                    match = self.re.search(data)
+                    if match != None:
+                        fine_search = True
+                        line, column = parsehelp.get_line_and_column_from_offset(data, match.start())
+                        self.candidates.put((name, "".join(match.groups()), line, column))
 
                     if fine_search:
                         tu2 = translationunitcache.tuCache.get_translation_unit(name, opts, opts_script)
