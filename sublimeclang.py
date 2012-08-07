@@ -42,6 +42,7 @@ from errormarkers import clear_error_marks, add_error_mark, show_error_marks, \
                          update_statusbar, erase_error_marks, clang_error_panel
 from common import get_setting, get_settings, is_supported_language, get_language, get_cpu_count, run_in_main_thread, status_message
 import translationunitcache
+from parsehelp import parsehelp
 import Queue
 
 
@@ -168,20 +169,39 @@ class ClangGotoImplementation(sublime_plugin.TextCommand):
     class ExtensiveSearch:
         def __init__(self, cursor, view, window, name):
             self.name = name
-            self.re = re.compile(r"(\s|::|\*|&)%s\s*\([^;\{]*\)\s*\{" % cursor.spelling)
+            self.re = re.compile(r"(\s|::|\*|&)(%s\s*\([^;\{]*\))\s*\{" % cursor.spelling)
             self.view = view
             self.target = ""
             self.cursor = cursor
             self.window = window
             self.queue = Queue.PriorityQueue()
+            self.candidates = Queue.Queue()
             for cpu in range(get_cpu_count()):
                 t = threading.Thread(target=self.worker)
                 t.start()
             self.queue.put((0, "*/+", window.folders(), (translationunitcache.tuCache.get_opts(view), translationunitcache.tuCache.get_opts_script(view))))
 
+        def quickpanel_on_done(self, idx):
+            if idx == -1:
+                return
+            open(self.view, self.selection[idx])
+
         def done(self):
             if len(self.target) > 0:
                 open(self.view, self.target)
+            elif not self.candidates.empty():
+                display = []
+                self.selection = []
+                while not self.candidates.empty():
+                    name, function, line, column = self.candidates.get()
+                    pos = "%s:%d:%d" % (name, line, column)
+                    self.selection.append(pos)
+                    display.append([function, pos])
+                    self.candidates.task_done()
+                self.window.show_quick_panel(display, self.quickpanel_on_done)
+            else:
+                sublime.status_message("Don't know where the implementation is!")
+
 
         def worker(self):
             try:
@@ -204,13 +224,18 @@ class ClangGotoImplementation(sublime_plugin.TextCommand):
                                             else:
                                                 break
                                         self.queue.put((score, os.path.join(dirpath, filename), opts, opts_script))
-                        self.queue.put((1001, "*/++", None, None))
+                        for i in range(get_cpu_count()-1):
+                            self.queue.put((1001, "*/+++", None, None))
+
+                        self.queue.put((1010, "*/++", None, None))
                         self.queue.task_done()
                         continue
                     elif name == "*/++":
-                        run_in_main_thread(lambda: status_message("All implementation files searched..."))
+                        run_in_main_thread(self.done)
                         break
-
+                    elif name == "*/+++":
+                        self.queue.task_done()
+                        break
 
                     run_in_main_thread(lambda: status_message("Searching %s" % name))
                     remove = translationunitcache.tuCache.get_status(name) == translationunitcache.TranslationUnitCache.STATUS_NOT_IN_CACHE
@@ -221,9 +246,11 @@ class ClangGotoImplementation(sublime_plugin.TextCommand):
                         f = file(name, "r")
                         data = f.read()
                         f.close()
-                        if self.re.search(data) != None:
+                        match = self.re.search(data)
+                        if match != None:
                             fine_search = True
-
+                            line, column = parsehelp.get_line_and_column_from_offset(data, match.start())
+                            self.candidates.put((name, match.group(2), line, column))
 
                     if fine_search:
                         tu2 = translationunitcache.tuCache.get_translation_unit(name, opts, opts_script)
@@ -283,8 +310,10 @@ class ClangGotoImplementation(sublime_plugin.TextCommand):
                             target = format_cursor(d)
             elif d is None:
                 if cursor.kind == cindex.CursorKind.DECL_REF_EXPR or \
-                        cursor.kind == cindex.CursorKind.MEMBER_REF_EXPR:
+                        cursor.kind == cindex.CursorKind.MEMBER_REF_EXPR or \
+                        cursor.kind == cindex.CursorKind.CALL_EXPR:
                     cursor = cursor.get_reference()
+
                 if cursor.kind == cindex.CursorKind.CXX_METHOD or \
                         cursor.kind == cindex.CursorKind.FUNCTION_DECL or \
                         cursor.kind == cindex.CursorKind.CONSTRUCTOR or \
