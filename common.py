@@ -102,7 +102,7 @@ try:
         view = window.active_view()
         value = re.sub(r'\${project_path:(?P<file>[^}]+)}', lambda m: len(get_existing_files(m)) > 0 and get_existing_files(m)[0] or m.group('file'), value)
         value = re.sub(r'\${env:(?P<variable>[^}]+)}', lambda m: os.getenv(m.group('variable')) if os.getenv(m.group('variable')) else "%s_NOT_SET" % m.group('variable'), value)
-        value = re.sub(r'\${home}', os.getenv('HOME') if os.getenv('HOME') else "HOME_NOT_SET", value)
+        value = re.sub(r'\${home}', re.escape(os.getenv('HOME')) if os.getenv('HOME') else "HOME_NOT_SET", value)
         value = re.sub(r'\${folder:(?P<file>[^}]+)}', lambda m: os.path.dirname(m.group('file')), value)
         value = value.replace('${this_file_path}', os.path.dirname(view.file_name()) if view and view.file_name() else "FILE_NOT_ON_DISK")
         value = value.replace('\\', '/')
