@@ -165,7 +165,7 @@ def open(view, target):
 
 
 class ExtensiveSearch:
-    def __init__(self, cursor, spelling, view, window, name="", impl=True):
+    def __init__(self, cursor, spelling, view, window, name="", impl=True, search_re=None, file_re=None):
         self.name = name
         if impl:
             self.re = re.compile(r"(\w+\s+|\w+::|\*|&)(%s\s*\([^;\{]*\))\s*\{" % re.escape(spelling))
@@ -173,6 +173,10 @@ class ExtensiveSearch:
         else:
             self.re = re.compile(r"(\w+\s+|\w+::|\*|&)(%s\s*\([^;\{}]*\))\s*;" % re.escape(spelling))
             self.impre = re.compile(r"(\.h|\.hpp)$")
+        if search_re != None:
+            self.re = search_re
+        if file_re != None:
+            self.impre = file_re
         self.impl = impl
         self.view = view
         self.target = ""
@@ -419,8 +423,9 @@ class ClangGotoDef(sublime_plugin.TextCommand):
             if cursor is None or cursor.kind.is_invalid() or cursor.spelling != spelling:
                 # Try to determine what we're supposed to be looking for
                 data = view.substr(sublime.Region(0, view.line(view.sel()[0].a).end()))
-                for match in re.finditer(r"(^|\w+|,|\[|\(|\.)\s*(%s)\s*(;|,|\(|\n|\[|\.|\)|\]|$|==|\+|-|\/|\*)" % spelling, data):
-                    if match and (match.start(2), match.end(2)) == (word.begin(), word.end()):
+                chars = r"[\[\]\(\)&|.+-/*,<>;]"
+                for match in re.finditer(r"(^|\w+|=|%s|\s)\s*(%s)\s*($|==|%s)" % (chars, spelling, chars), data):
+                    if (match.start(2), match.end(2)) == (word.begin(), word.end()):
                         if match.group(3) == "(":
                             # Probably a function
                             ExtensiveSearch(None, spelling, self.view, self.view.window(), impl=False)
@@ -432,6 +437,10 @@ class ClangGotoDef(sublime_plugin.TextCommand):
                                 line, column, name, var, extra = typedef
                                 if line > 0 and column > 0:
                                     open(view, "%s:%d:%d" % (view.file_name(), line, column))
+                                elif name != None and name == parsehelp.get_base_type(name):
+                                    search_re = re.compile(r"(^|\s|\})\s*(class|struct)(\s+%s\s*)(;|\{)" % name)
+                                    ExtensiveSearch(None, name, self.view, self.view.window(), impl=False, search_re=search_re)
+                        break
                 return
             ref = cursor.get_reference()
             target = ""
