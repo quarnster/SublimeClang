@@ -414,9 +414,24 @@ class ClangGotoDef(sublime_plugin.TextCommand):
             cursor = cindex.Cursor.get(tu.var, view.file_name(),
                                        row + 1, col + 1)
 
-            spelling = view.substr(view.word(view.sel()[0].a))
+            word = view.word(view.sel()[0].a)
+            spelling = view.substr(word)
             if cursor is None or cursor.kind.is_invalid() or cursor.spelling != spelling:
-                ExtensiveSearch(None, spelling, self.view, self.view.window(), impl=False)
+                # Try to determine what we're supposed to be looking for
+                data = view.substr(sublime.Region(0, view.line(view.sel()[0].a).end()))
+                for match in re.finditer(r"(^|\w+|,|\[|\(|\.)\s*(%s)\s*(;|,|\(|\n|\[|\.|\)|\]|$|==|\+|-|\/|\*)" % spelling, data):
+                    if match and (match.start(2), match.end(2)) == (word.begin(), word.end()):
+                        if match.group(3) == "(":
+                            # Probably a function
+                            ExtensiveSearch(None, spelling, self.view, self.view.window(), impl=False)
+                        else:
+                            # A variable perhaps?
+                            data = data[:match.end(2)] + "."
+                            typedef = parsehelp.get_type_definition(data)
+                            if typedef:
+                                line, column, name, var, extra = typedef
+                                if line > 0 and column > 0:
+                                    open(view, "%s:%d:%d" % (view.file_name(), line, column))
                 return
             ref = cursor.get_reference()
             target = ""
