@@ -40,6 +40,8 @@
     ],
     "settings":
     {
+        "sublimegdb_commandline": "gdb -interpreter=mi --args python unittests/unittest.py",
+        "sublimegdb_workingdir": "${folder:${project_path:sublimeclang.sublime-project}}/",
         "sublimeclang_options":
         [
             "-I/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/llvm-gcc-4.2/lib/gcc/i686-apple-darwin11/4.2.1/include/",
