@@ -165,6 +165,14 @@ def open(view, target):
 
 
 class ExtensiveSearch:
+
+    def quickpanel_extensive_search(self, idx):
+        if idx == 0:
+            for cpu in range(get_cpu_count()):
+                t = threading.Thread(target=self.worker)
+                t.start()
+            self.queue.put((0, "*/+", self.window.folders(), (translationunitcache.tuCache.get_opts(self.view), translationunitcache.tuCache.get_opts_script(self.view))))
+
     def __init__(self, cursor, spelling, view, window, name="", impl=True, search_re=None, file_re=None):
         self.name = name
         if impl:
@@ -187,10 +195,10 @@ class ExtensiveSearch:
         self.lock = threading.RLock()
         self.timer = None
         self.status_count = 0
-        for cpu in range(get_cpu_count()):
-            t = threading.Thread(target=self.worker)
-            t.start()
-        self.queue.put((0, "*/+", window.folders(), (translationunitcache.tuCache.get_opts(view), translationunitcache.tuCache.get_opts_script(view))))
+
+        display = [["Yes", "Do extensive search"], ["No", "Don't do extensive search"]]
+        self.window.show_quick_panel(display, self.quickpanel_extensive_search)
+
 
     def quickpanel_on_done(self, idx):
         if idx == -1:
@@ -325,7 +333,7 @@ class ClangGotoImplementation(sublime_plugin.TextCommand):
             cursor = cindex.Cursor.get(tu.var, view.file_name(),
                                        row + 1, col + 1)
             spelling = view.substr(view.word(view.sel()[0].a))
-            if cursor is None or cursor.kind.is_invalid() or cursor.spelling != spelling:
+            if cursor is None or cursor.kind.is_invalid() or cursor.displayname != spelling:
                 ExtensiveSearch(None, spelling, self.view, self.view.window())
                 return
             d = cursor.get_definition()
@@ -420,7 +428,7 @@ class ClangGotoDef(sublime_plugin.TextCommand):
 
             word = view.word(view.sel()[0].a)
             spelling = view.substr(word)
-            if cursor is None or cursor.kind.is_invalid() or cursor.spelling != spelling:
+            if cursor is None or cursor.kind.is_invalid() or cursor.displayname != spelling:
                 # Try to determine what we're supposed to be looking for
                 data = view.substr(sublime.Region(0, view.line(view.sel()[0].a).end()))
                 chars = r"[\[\]\(\)&|.+-/*,<>;]"
