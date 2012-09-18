@@ -1,0 +1,21 @@
+{ 
+  "name": "SublimeClangErrorPanel",
+  "scopeName": "text.sublimeclang",
+  "fileTypes": [],
+  "patterns": 
+  [
+	  	{ 	
+        "match": "^.* - Warning -.*$",
+	  		"name": "string.quoted.double.c",
+	  		"comment": "Warnings"
+		  },
+
+      {   
+        "match": "^.* - Error -.*$",
+        "name": "keyword.control.c",
+        "comment": "Errors"
+      }
+  ],
+ 
+  "uuid": "6e3ddaba-4ad6-4d1b-a7a0-3908b0796e19"
+}
