@@ -53,6 +53,12 @@
     // to refresh its contents
     "update_output_panel": true,
 
+    // Whether to apply a tmLanguage syntax file to the output panel
+    "output_panel_use_syntax_file": true,
+
+    // Specify syntax file for output panel
+    "output_panel_syntax_file": "Packages/SublimeClang/ErrorPanel.tmLanguage",
+
     // Whether or not to show the clang parser status in the status bar
     "show_status": true,
 
