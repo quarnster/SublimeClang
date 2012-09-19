@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>fileTypes</key>
+	<array>
+	</array>
+	<key>name</key>
+	<string>SublimeClangErrorPanel</string>
+	<key>patterns</key>
+	<array>
+		<dict>
+			<key>comment</key>
+			<string>Warnings</string>
+			<key>match</key>
+			<string>^.* - Warning -.*$</string>
+			<key>name</key>
+			<string>string.quoted.double.c</string>
+		</dict>
+		<dict>
+			<key>comment</key>
+			<string>Errors</string>
+			<key>match</key>
+			<string>^.* - Error -.*$</string>
+			<key>name</key>
+			<string>keyword.control.c</string>
+		</dict>
+	</array>
+	<key>scopeName</key>
+	<string>text.sublimeclang</string>
+	<key>uuid</key>
+	<string>6e3ddaba-4ad6-4d1b-a7a0-3908b0796e19</string>
+</dict>
+</plist>
