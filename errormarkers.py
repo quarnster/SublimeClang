@@ -55,28 +55,70 @@ class ClangPrevious(sublime_plugin.TextCommand):
             sublime.status_message("No more errors or warnings!")
 
 
-# Apparently get_output_panel clears the output view so we'll have
-# to do this for now.
-# See http://www.sublimetext.com/forum/viewtopic.php?f=6&t=2044
-def set_clang_view(view):
-    global clang_view
-    clang_view = view
+class ClangErrorPanel(object):
+    def __init__(self):
+        self.view = None
+        self.data = ""
+
+    def set_data(self, data):
+        self.data = data
+        if get_setting("update_output_panel", True) and self.is_visible():
+            self.flush()
+
+    def get_view(self):
+        return self.view
+
+    def is_visible(self, window=None):
+        ret = self.view != None and self.view.window() != None
+        if ret and window:
+            ret = self.view.window().id() == window.id()
+        return ret
+
+    def set_view(self, view):
+        self.view = view
+
+    def flush(self):
+        self.view.set_read_only(False)
+        self.view.set_scratch(True)
+        e = self.view.begin_edit()
+        self.view.erase(e, sublime.Region(0, self.view.size()))
+        self.view.insert(e, 0, self.data)
+        self.view.end_edit(e)
+        self.view.set_read_only(True)
+
+    def open(self, window=None):
+        if window == None:
+            window = sublime.active_window()
+        if not self.is_visible(window):
+            self.view = window.get_output_panel("clang")
+            self.view.settings().set("result_file_regex", "^(.+):([0-9]+),([0-9]+)")
+            if get_setting("output_panel_use_syntax_file", False):
+                fileName = get_setting("output_panel_syntax_file", None)
+                if fileName is not None:
+                    self.view.set_syntax_file(fileName)            
+        self.flush()
+
+        window.run_command("show_panel", {"panel": "output.clang"})
+
+    def close(self):
+        sublime.active_window().run_command("hide_panel", {"panel": "output.clang"})
+
+    def highlight_panel_row(self):
+        if self.view is None:
+            return
+        view = sublime.active_window().active_view()
+        row, col = view.rowcol(view.sel()[0].a)
+        str = "%s:%d" % (view.file_name(), (row + 1))
+        r = self.view.find(str.replace('\\','\\\\'), 0)
+        panel_marker = get_setting("marker_output_panel_scope", "invalid")
+        if r == None:
+            self.view.erase_regions('highlightText')
+        else:
+            regions = [self.view.full_line(r)]
+            self.view.add_regions('highlightText', regions, panel_marker, 'dot', sublime.DRAW_OUTLINED)
 
 
-def highlight_panel_row():
-    if clang_view is None:
-        return
-    v = clang_view
-    view = sublime.active_window().active_view()
-    row, col = view.rowcol(view.sel()[0].a)
-    str = "%s:%d" % (view.file_name(), (row + 1))
-    r = v.find(str.replace('\\','\\\\'), 0)
-    panel_marker = get_setting("marker_output_panel_scope", "invalid")
-    if r == None:
-        v.erase_regions('highlightText')
-    else:
-        regions = [v.full_line(r)]
-        v.add_regions('highlightText', regions, panel_marker, 'dot', sublime.DRAW_OUTLINED)
+clang_error_panel = ClangErrorPanel()
 
 
 def clear_error_marks():
@@ -170,16 +212,18 @@ class SublimeClangStatusbarUpdater(sublime_plugin.EventListener):
         if lastSelectedLineNo != self.lastSelectedLineNo:
             self.lastSelectedLineNo = lastSelectedLineNo
             update_statusbar(view)
-            highlight_panel_row()
+            clang_error_panel.highlight_panel_row()
 
     def has_errors(self, view):
         fn = view.file_name()
         return fn in ERRORS or fn in WARNINGS
 
-    def on_activated(self, view):
-        if self.has_errors(view):
+    def show_errors(self, view):
+        if self.has_errors(view) and not get_setting("error_marks_on_panel_only", False, view):
             show_error_marks(view)
 
+    def on_activated(self, view):
+        self.show_errors(view)
+
     def on_load(self, view):
-        if self.has_errors(view):
-            show_error_marks(view)
+        self.show_errors(view)

@@ -63,7 +63,7 @@ call is efficient.
 # o implement additional SourceLocation, SourceRange, and File methods.
 
 from ctypes import *
-import sublime
+from common import error_message
 import platform
 
 isWin64 = False
@@ -97,7 +97,7 @@ def get_cindex_library():
             except:
                 import traceback
                 traceback.print_exc()
-                sublime.error_message("""\
+                error_message("""\
 It looks like libclang.so couldn't be loaded. On Linux you have to \
 compile it yourself, or install it via your package manager. \
 Please note that this plugin uses features from clang 3.0 so \
@@ -857,6 +857,34 @@ CursorKind.MACRO_DEFINITION = CursorKind(501)
 CursorKind.MACRO_INSTANTIATION = CursorKind(502)
 CursorKind.INCLUSION_DIRECTIVE = CursorKind(503)
 
+
+class CXXAccessSpecifier:
+    def __init__(self, name, kind):
+        self.name = name
+        self.kind = kind
+
+    def __str__(self):
+        return self.name
+
+    def is_public(self):
+        return self.kind == 1
+
+    def is_protected(self):
+        return self.kind == 2
+
+    def is_private(self):
+        return self.kind == 3
+
+_cxx_access_specifiers = {
+       0: CXXAccessSpecifier("CX_CXXInvalidAccessSpecifier", 0),
+       1: CXXAccessSpecifier("CX_CXXPublic", 1),
+       2: CXXAccessSpecifier("CX_CXXProtected", 2),
+       3: CXXAccessSpecifier("CX_CXXPrivate", 3)
+}
+
+CXXAccessSpecifier.PUBLIC = 1
+CXXAccessSpecifier.PROTECTED = 2
+CXXAccessSpecifier.PRIVATE = 3
 ### Cursors ###
 
 class Cursor(Structure):
@@ -887,6 +915,9 @@ class Cursor(Structure):
         f = File(obj)
         sl = _clang_getLocation(tu, f, row, col)
         return Cursor_get(tu, sl)
+
+    def get_completion_string(self):
+        return CompletionString(_clang_getCursorCompletionString(self))
 
     def get_included_file(self):
         obj = _clang_getIncludedFile(self)
@@ -940,6 +971,9 @@ class Cursor(Structure):
     def get_linkage(self):
         return Cursor_get_linkage(self)
 
+    def get_specialized_cursor_template(self):
+        return _clang_getSpecializedCursorTemplate(self)
+
     def get_usr(self):
         """Return the Unified Symbol Resultion (USR) for the entity referenced
         by the given cursor (or None).
@@ -951,10 +985,25 @@ class Cursor(Structure):
         another translation unit."""
         return Cursor_usr(self)
 
+    def get_cxx_access_specifier(self):
+        return _cxx_access_specifiers[_clang_getCXXAccessSpecifier(self)]
+
+    def get_cxxmethod_is_static(self):
+        return _clang_CXXMethod_isStatic(self)
+
+    def get_referenced_name_range(self):
+        return _clang_getCursorReferenceNameRange(self, 2, 0)
+
+    @property
+    def availability(self):
+        return _clang_getCursorAvailability(self)
+
     @property
     def kind(self):
         """Return the kind of this cursor."""
-        return CursorKind.from_id(self._kind_id)
+        if not hasattr(self, '_kind'):
+            self._kind = CursorKind.from_id(self._kind_id)
+        return self._kind
 
     @property
     def spelling(self):
@@ -1010,6 +1059,22 @@ class Cursor(Structure):
             self._type = Cursor_type(self)
         return self._type
 
+    @property
+    def result_type(self):
+        """
+        Retrieve the result type (if any) of the entity pointed at by the
+        cursor.
+        """
+        if not hasattr(self, '_resulttype'):
+            self._resulttype = _clang_getCursorResultType(self)
+        return self._resulttype
+
+    @property
+    def translation_unit(self):
+        if not hasattr(self, '_translation_unit'):
+            self._translation_unit = TranslationUnit(Cursor_getTranslationUnit(self), False)
+        return self._translation_unit
+
     def get_children(self):
         """Return an iterator for accessing the children of this cursor."""
 
@@ -1031,7 +1096,234 @@ class Cursor(Structure):
             return 1 # continue
         children = []
         Cursor_visit(self, Cursor_visit_callback(visitor), children)
-        return iter(children)
+        return children
+
+    def get_returned_pointer_level(self, curr=0):
+        ret = 0
+        type = None
+
+        if not self.result_type.kind.is_invalid():
+            type = self.result_type
+        else:
+            type = self.type
+        while not type is None:
+            if type.kind == TypeKind.POINTER:
+                type = type.get_pointee()
+            elif type.kind == TypeKind.CONSTANTARRAY:
+                type = type.get_array_element_type()
+            elif type.kind == TypeKind.TYPEDEF:
+                children = self.get_children()
+                if len(children) == 1 and children[0].kind == CursorKind.TYPE_REF:
+                    ref = children[0].get_reference()
+                    return ret + ref.get_returned_pointer_level()
+
+                if self.kind == CursorKind.TYPEDEF_DECL:
+                    for child in children:
+                        if child.kind == CursorKind.INTEGER_LITERAL:
+                            ret += 1
+                break
+            else:
+                break
+            ret += 1
+
+        return ret
+
+    def get_resolved_cursor(self):
+        #print "get_type"
+        if self.kind == CursorKind.OBJC_INTERFACE_DECL:
+            return self
+        if self.kind == CursorKind.STRUCT_DECL or \
+                self.kind == CursorKind.CLASS_DECL or \
+                self.kind == CursorKind.CLASS_TEMPLATE:
+            ret = self.get_definition()
+            if ret is None:
+                ret = self
+            return ret
+        if self.kind == CursorKind.TYPEDEF_DECL:
+            children = self.get_children()
+            simple = True
+            first = 0
+            for child in children:
+                if child.kind != CursorKind.NAMESPACE_REF:
+                    break
+                first += 1
+
+            for child in children[first+1:]:
+                if child.kind != CursorKind.INTEGER_LITERAL:
+                    simple = False
+                    break
+            if simple and len(children) > 0:
+                return children[first].get_resolved_cursor()
+            return self
+        elif self.result_type.kind == TypeKind.RECORD:
+            return self.get_children()[0].get_resolved_cursor()
+        elif self.kind == CursorKind.CLASS_DECL or self.kind == CursorKind.ENUM_DECL or self.kind == CursorKind.CLASS_TEMPLATE:
+            return self
+        elif self.kind == CursorKind.TEMPLATE_TYPE_PARAMETER:
+            return self
+        elif self.kind.is_reference():
+            ref = self.get_reference()
+            if ref == self:
+                #print "none1"
+                return None
+            return ref.get_resolved_cursor()
+        elif self.kind.is_declaration():
+            #print "decl: %s, %s" % (self.spelling, self.kind)
+            for child in self.get_children():
+                #print "%s, %s, %s, %s" % (child.kind, child.spelling, child.type.kind, child.result_type.kind)
+                if child.kind == CursorKind.TYPE_REF:
+                    c = child.get_reference()
+                    #print "will return this type: "
+                    #self.dump(c)
+                    if c == child:
+                        #print "none3"
+                        return None
+                    return c.get_resolved_cursor()
+                elif child.kind == CursorKind.ENUM_DECL:
+                    return child
+                elif child.kind == CursorKind.TEMPLATE_REF:
+                    return self
+        #if self.kind == CursorKind.TYPE_REF:
+        #    return self.get_reference()
+
+        #if self.kind == CursorKind.TYPEDEF_DECL:
+        #    print "here"
+        #    self.dump_cursor(self)
+        # return self.get_type_from_:cursor(self, self.get_reference())
+        if self.result_type.kind == TypeKind.POINTER or self.result_type.kind == TypeKind.LVALUEREFERENCE or self.result_type.kind == TypeKind.RVALUEREFERENCE:
+            return self.result_type.get_pointee().get_declaration()
+
+        # print "none2"
+        # self.dump_self()
+        # print "self dumped"
+        return self
+
+    def dump_self(self):
+        if self is None or self.kind.is_invalid():
+            print "cursor: None"
+            return
+        print "cursor: %s, %s, %s, %s, %s, %s" % (self.kind, self.type.kind, self.result_type.kind, self.spelling, self.displayname, self.get_usr())
+        source = "<unknown>" if self.location.file is None else self.location.file.name
+        print "defined at: %s, %d, %d" % (source, self.location.line, self.location.column)
+
+    def dump(self, once=True):
+        indent = "" if once else "    "
+        print "%s this: %s, %s, %s, %s, %s, %s, %s" % (indent, self.kind, self.spelling, self.displayname, self.type.kind, self.result_type.kind, self.get_usr(), self.location)
+        children = self.get_children()
+        for i in range(len(children)):
+            child = children[i]
+            print "%s    %d: %s, %s, %s, %s, %s, %s" % (indent, i, child.kind, child.spelling, child.displayname, child.type.kind, child.result_type.kind, child.get_usr())
+            if child.kind == CursorKind.CXX_ACCESS_SPEC_DECL:
+                print "    %s access: %s" % (indent, child.get_cxx_access_specifier())
+            if child.result_type.kind == TypeKind.POINTER:
+                pointee = child.result_type.get_pointee()
+                c3 = pointee.get_declaration()
+                if not c3 is None and not c3.kind.is_invalid():
+                    print "    %s dumping pointee" % indent
+                    c3.dump_self()
+                else:
+                    print "c3 == null"
+            if child.kind.is_reference() and child.kind != CursorKind.NAMESPACE_REF and once:
+                child.get_reference().dump(False)
+            elif child.kind == CursorKind.COMPOUND_STMT and once:
+                child.dump(False)
+
+    def get_returned_cursor(self):
+        ret = None
+        if self.kind == CursorKind.FUNCTION_DECL or \
+                    self.kind == CursorKind.FIELD_DECL or \
+                    self.kind == CursorKind.CXX_METHOD or \
+                    self.kind == CursorKind.OBJC_INSTANCE_METHOD_DECL or \
+                    self.kind == CursorKind.OBJC_CLASS_METHOD_DECL or \
+                    self.kind == CursorKind.OBJC_PROPERTY_DECL or \
+                    self.kind == CursorKind.OBJC_IVAR_DECL or \
+                    self.kind == CursorKind.VAR_DECL or \
+                    self.kind == CursorKind.PARM_DECL:
+            children = self.get_children()
+            if len(children) > 0:
+                c = children.pop(0)
+                while len(children):
+                    next = children.pop(0)
+                    if c.kind == CursorKind.STRUCT_DECL or c.kind == CursorKind.TEMPLATE_REF or (c.kind == CursorKind.TYPE_REF and next.kind != CursorKind.TYPE_REF):
+                        break
+                    c = next
+
+                if c.kind.is_reference():
+                    reference = c.get_reference()
+                    definition = reference.get_definition()
+                    if definition is None or reference.kind == CursorKind.OBJC_INTERFACE_DECL:
+                        definition = reference
+
+                    if definition is None or definition == c:
+                        return None
+                    return definition.get_resolved_cursor()
+                elif c.kind == CursorKind.STRUCT_DECL:
+                    return c
+                else:
+                    return None
+            else:
+                #print "none4"
+                return None
+        # if self.kind.is_reference():
+        #     ref = self.get_reference()
+        #     if self == ref:
+        #         return None
+        #     return ref.get_resolved_cursor()
+        # TODO: cleanup
+        #print "getting returned cursor of %s, %s, %s, %s" % (self.kind, self.spelling, self.type.kind, self.result_type.kind)
+        if self.kind.is_declaration():
+            ret = self #.get_resolved_cursor()
+        if self.result_type.kind == TypeKind.RECORD:
+            ret = self.get_children()[0]
+        if self.result_type.kind == TypeKind.POINTER or \
+                    self.result_type.kind == TypeKind.LVALUEREFERENCE or \
+                    self.result_type.kind == TypeKind.RVALUEREFERENCE:
+
+            pointee = self.result_type.get_pointee()
+            #print "pointee kind: %s" % (pointee.kind)
+            ret = pointee.get_declaration()
+            if ret is None or ret.kind.is_invalid():
+                #ret = pointee.get_canonical().get_declaration()
+                ret = self.result_type.get_result().get_declaration()
+
+        #ret.dump_self()
+        if not ret is None and not ret.kind.is_invalid():
+            #ret.dump()
+            return ret.get_resolved_cursor()
+        #print "none5"
+        return None
+
+    def get_member(self, membername, function):
+        #print "want to get the cursor for: %s->%s%s" % (self.spelling, membername, "()" if function else "")
+        for child in self.get_children():
+            if function and (child.kind == CursorKind.CXX_METHOD or child.kind == CursorKind.OBJC_INSTANCE_METHOD_DECL) and child.spelling == membername:
+                return child
+            elif not function and (child.kind == CursorKind.FIELD_DECL or child.kind == CursorKind.VAR_DECL or child.kind == CursorKind.OBJC_IVAR_DECL) and child.spelling == membername:
+                return child
+            elif child.kind == CursorKind.UNION_DECL:
+                ret = child.get_member(membername, function)
+                if not ret is None:
+                    return ret
+            # elif child.spelling == membername:
+            #     print "unhandled kind: %s" % child.kind
+        if self.kind == CursorKind.OBJC_INTERFACE_DECL:
+            for child in self.get_children():
+                if child.kind == CursorKind.OBJC_INSTANCE_METHOD_DECL and child.spelling == membername:
+                    ret = True
+                    for c2 in child.get_children():
+                        if c2.kind == CursorKind.PARM_DECL:
+                            ret = False
+                            break
+                    if ret:
+                        return child
+
+        # Not found in this class, try base class
+        for child in self.get_children():
+            if child.kind == CursorKind.CXX_BASE_SPECIFIER:
+                ret = child.get_reference().get_member(membername, function)
+                if ret:
+                    return ret
+        return None
 
     @staticmethod
     def from_result(res, fn, args):
@@ -1040,7 +1332,6 @@ class Cursor(Structure):
         if res == Cursor_null():
             return None
         return res
-
 
 ### Type Kinds ###
 
@@ -1083,6 +1374,9 @@ class TypeKind(object):
 
     def __repr__(self):
         return 'TypeKind.%s' % (self.name,)
+
+    def is_invalid(self):
+        return self.value == 0
 
 
 
@@ -1199,6 +1493,9 @@ class Type(Structure):
         Retrieve the result type associated with a function type.
         """
         return Type_get_result(self)
+
+    def get_array_element_type(self):
+        return _clang_getArrayElementType(self)
 
 ## CIndex Objects ##
 
@@ -1512,11 +1809,13 @@ class TranslationUnit(ClangObject):
     provides read-only access to its top-level declarations.
     """
 
-    def __init__(self, ptr):
+    def __init__(self, ptr, doDispose=True):
         ClangObject.__init__(self, ptr)
+        self.doDispose = doDispose
 
     def __del__(self):
-        TranslationUnit_dispose(self)
+        if self.doDispose:
+            TranslationUnit_dispose(self)
 
     @property
     def cursor(self):
@@ -1767,6 +2066,12 @@ Cursor_spelling.errcheck = _CXString.from_result
 if isWin64:
     Cursor_spelling.argtypes = [POINTER(Cursor)]
 
+_clang_getCursorCompletionString = lib.clang_getCursorCompletionString
+_clang_getCursorCompletionString.argtypes = [Cursor]
+_clang_getCursorCompletionString.restype = c_object_p
+if isWin64:
+    _clang_getCursorCompletionString.argtypes = [POINTER(Cursor)]
+
 Cursor_displayname = lib.clang_getCursorDisplayName
 Cursor_displayname.argtypes = [Cursor]
 Cursor_displayname.restype = _CXString
@@ -1785,6 +2090,12 @@ Cursor_extent.argtypes = [Cursor]
 Cursor_extent.restype = SourceRange
 if isWin64:
     Cursor_extent.argtypes = [POINTER(Cursor)]
+
+Cursor_getTranslationUnit = lib.clang_Cursor_getTranslationUnit
+Cursor_getTranslationUnit.argtypes = [Cursor]
+Cursor_getTranslationUnit.restype = c_object_p
+if isWin64:
+    Cursor_getTranslationUnit.argtypes = [POINTER(Cursor)]
 
 Cursor_ref = lib.clang_getCursorReferenced
 Cursor_ref.argtypes = [Cursor]
@@ -1812,6 +2123,19 @@ Cursor_get_canonical.errcheck = Cursor.from_result
 if isWin64:
     Cursor_get_canonical.argtypes = [POINTER(Cursor)]
 
+_clang_getSpecializedCursorTemplate = lib.clang_getSpecializedCursorTemplate
+_clang_getSpecializedCursorTemplate.argtypes = [Cursor]
+_clang_getSpecializedCursorTemplate.restype = Cursor
+_clang_getSpecializedCursorTemplate.errcheck = Cursor.from_result
+if isWin64:
+    _clang_getSpecializedCursorTemplate.argtypes = [POINTER(Cursor)]
+
+_clang_getCursorReferenceNameRange = lib.clang_getCursorReferenceNameRange
+_clang_getCursorReferenceNameRange.argtypes = [Cursor, c_int, c_int]
+_clang_getCursorReferenceNameRange.restype = SourceRange
+if isWin64:
+    _clang_getCursorReferenceNameRange.argtypes = [POINTER(Cursor), c_int, c_int]
+
 Cursor_get_linkage = lib.clang_getCursorLinkage
 Cursor_get_linkage.argtypes = [Cursor]
 Cursor_get_linkage.restype = c_uint
@@ -1824,6 +2148,32 @@ Cursor_type.restype = Type
 Cursor_type.errcheck = Type.from_result
 if isWin64:
     Cursor_type.argtypes = [POINTER(Cursor)]
+
+_clang_getCursorAvailability = lib.clang_getCursorAvailability
+_clang_getCursorAvailability.argtypes = [Cursor]
+_clang_getCursorAvailability.restype = c_int
+if isWin64:
+    _clang_getCursorAvailability.argtypes = [POINTER(Cursor)]
+
+_clang_getCXXAccessSpecifier = lib.clang_getCXXAccessSpecifier
+_clang_getCXXAccessSpecifier.argtypes = [Cursor]
+_clang_getCXXAccessSpecifier.restype = c_int
+if isWin64:
+    _clang_getCXXAccessSpecifier.argtypes = [POINTER(Cursor)]
+
+_clang_CXXMethod_isStatic = lib.clang_CXXMethod_isStatic
+_clang_CXXMethod_isStatic.argtypes = [Cursor]
+_clang_CXXMethod_isStatic.restype = c_int
+if isWin64:
+    _clang_CXXMethod_isStatic.argtypes = [POINTER(Cursor)]
+
+_clang_getCursorResultType = lib.clang_getCursorResultType
+_clang_getCursorResultType.argtypes = [Cursor]
+_clang_getCursorResultType.restype = Type
+_clang_getCursorResultType.errcheck = Type.from_result
+if isWin64:
+    _clang_getCursorResultType.argtypes = [POINTER(Cursor)]
+
 
 Cursor_visit_callback = CFUNCTYPE(c_int, Cursor, Cursor, py_object)
 Cursor_visit = lib.clang_visitChildren
@@ -1887,6 +2237,13 @@ Type_get_result.restype = Type
 Type_get_result.errcheck = Type.from_result
 if isWin64:
     Type_get_result.argtypes = [POINTER(Type)]
+
+_clang_getArrayElementType = lib.clang_getArrayElementType
+_clang_getArrayElementType.argtypes = [Type]
+_clang_getArrayElementType.restype = Type
+_clang_getArrayElementType.errcheck = Type.from_result
+if isWin64:
+    _clang_getArrayElementType.argtypes = [POINTER(Type)]
 
 # Index Functions
 Index_create = lib.clang_createIndex
@@ -1984,6 +2341,7 @@ _clang_getCompletionChunkCompletionString = lib.clang_getCompletionChunkCompleti
 _clang_getCompletionChunkCompletionString.argtypes = [c_void_p, c_int]
 _clang_getCompletionChunkCompletionString.restype = c_object_p
 
+
 _clang_getNumCompletionChunks = lib.clang_getNumCompletionChunks
 _clang_getNumCompletionChunks.argtypes = [c_void_p]
 _clang_getNumCompletionChunks.restype = c_int
@@ -1997,8 +2355,203 @@ _clang_getCompletionPriority.argtypes = [c_void_p]
 _clang_getCompletionPriority.restype = c_int
 
 
+### Tokens ###
+
+class TokenKind(object):
+    """
+    Describes the kind of token.
+    """
+
+    # The unique kind objects, indexed by id.
+    _kinds = []
+    _name_map = None
+
+    def __init__(self, value):
+        if value >= len(TokenKind._kinds):
+            TokenKind._kinds += [None] * (value - len(TokenKind._kinds) + 1)
+        self.value = value
+        TokenKind._kinds[value] = self
+        TokenKind._name_map = None
+
+    def from_param(self):
+        return self.value
+
+    @property
+    def name(self):
+        """Get the enumeration name of this token kind."""
+        if self._name_map is None:
+            self._name_map = {}
+            for key, value in TokenKind.__dict__.items():
+                if isinstance(value, TokenKind):
+                    self._name_map[value] = key
+        return self._name_map[self]
+
+    def __eq__(self, other):
+        return self.value == other.value
+
+    def __ne__(self, other):
+        return self.value != other.value
+
+    def __hash__(self):
+        return self.value
+
+    def __repr__(self):
+        return 'TokenKind.%s' % (self.name,)
+
+# A token that contains some kind of punctuation.
+TokenKind.PUNCTUATION = TokenKind(0)
+
+# A language keyword.
+TokenKind.KEYWORD = TokenKind(1)
+
+# An identifier (that is not a keyword).
+TokenKind.IDENTIFIER = TokenKind(2)
+
+# A numeric, string, or character literal.
+TokenKind.LITERAL = TokenKind(3)
+
+# A comment.
+TokenKind.COMMENT = TokenKind(4)
+
+
+class TokenImpl(Structure):
+    """
+    The TokenImpl class reprents an entry in a CXToken array (of type
+    CXToken *).
+    """
+    _fields_ = [("int_data", c_uint * 4), ("ptr_data", c_void_p)]
+
+    def kind(self):
+        """Return the TokenKind of the token."""
+        if not hasattr(self, '_kind'):
+            self._kind = Token_kind(self)
+        return self._kind
+
+    def spelling(self, translation_unit):
+        """Return the spelling of the token."""
+        #import pdb; pdb.set_trace()
+        if not hasattr(self, '_spelling'):
+            self._spelling = Token_spelling(translation_unit, self)
+        return self._spelling
+
+    def location(self, translation_unit):
+        """Return the location of the token."""
+        if not hasattr(self, '_location'):
+            self._location = Token_location(translation_unit, self)
+        return self._location
+
+    def extent(self, translation_unit):
+        """Return the extent of the token."""
+        if not hasattr(self, '_extent'):
+            self._extent = Token_extent(translation_unit, self)
+        return self._extent
+
+
+class Token(object):
+    """The front-end representation of a token.
+
+    We can only allocate tokens in arrays.  The role of this class is to be used
+    externally.  Objects of this type hold a reference to the TokenImpl class
+    through which the internal libclang methods are called.
+
+    It also holds a reference to its owning TokenCollection so the
+    TokenCollection object can only be freed after all referneces to all of its
+    Tokens have been released.
+    """
+
+    def __init__(self, translation_unit, token_impl, collection):
+        self.translation_unit = translation_unit
+        self.token_impl = token_impl
+        self.collection = collection
+
+    @property
+    def kind(self):
+        return self.token_impl.kind()
+
+    @property
+    def spelling(self):
+        return self.token_impl.spelling(self.translation_unit)
+
+    @property
+    def location(self):
+        return self.token_impl.location(self.translation_unit)
+
+    @property
+    def extent(self):
+        return self.token_impl.extent(self.translation_unit)
+
+
+class TokenCollection(object):
+    """Holds a C array of TokenImpl objects.
+
+    These are presented to the outside by Token objects.
+    """
+
+    def __init__(self, translation_unit, source_range, token_arr, num_tokens):
+        self.translation_unit = translation_unit
+        self.source_range = source_range
+        self._token_arr = token_arr
+        self._num_tokens = num_tokens
+        self.tokens = tuple(Token(self.translation_unit, self._token_arr[i], self) for i in range(self._num_tokens.value))
+        self.cursors = None
+
+    def annotate(self):
+        self._cursors = (Cursor * self._num_tokens.value)()
+        _clang_annotateTokens(self.translation_unit, self._token_arr, self._num_tokens, self._cursors)
+
+    def get_cursor(self, idx):
+        return self._cursors[idx]
+
+    def __iter__(self):
+        return iter(self.tokens)
+
+    def __getitem__(self, i):
+        return self.tokens[i]
+
+    def __len__(self):
+        return len(self.tokens)
+
+    def __del__(self):
+        _clang_disposeTokens(self.translation_unit, self._token_arr, self._num_tokens)
+
+
+def tokenize(translation_unit, source_range):
+    """Tokenize a source range in the given translation unit."""
+    tokens = POINTER(TokenImpl)()
+    num_tokens = c_uint()
+    _clang_tokenize(translation_unit, source_range, tokens, byref(num_tokens))
+    return TokenCollection(translation_unit, source_range, tokens, num_tokens)
+
+
+Token_kind = lib.clang_getTokenKind
+Token_kind.argtypes = [TokenImpl]
+Token_kind.restype = TokenKind
+
+Token_spelling = lib.clang_getTokenSpelling
+Token_spelling.argtypes = [TranslationUnit, TokenImpl]
+Token_spelling.restype = _CXString
+Token_spelling.errcheck = _CXString.from_result
+
+Token_location = lib.clang_getTokenLocation
+Token_location.argtypes = [TranslationUnit, TokenImpl]
+Token_location.restype = SourceLocation
+
+Token_extent = lib.clang_getTokenExtent
+Token_extent.argtypes = [TranslationUnit, TokenImpl]
+Token_extent.restype = SourceRange
+
+_clang_tokenize = lib.clang_tokenize
+_clang_tokenize.argtypes = [TranslationUnit, SourceRange, POINTER(POINTER(TokenImpl)), POINTER(c_uint)]
+
+_clang_annotateTokens = lib.clang_annotateTokens
+_clang_annotateTokens.argtypes = [TranslationUnit, POINTER(TokenImpl), c_uint, POINTER(Cursor)]
+
+_clang_disposeTokens = lib.clang_disposeTokens
+_clang_disposeTokens.argtypes = [TranslationUnit, POINTER(TokenImpl), c_uint]
+
+
 ###
 
 __all__ = ['Index', 'TranslationUnit', 'Cursor', 'CursorKind', 'Type', 'TypeKind',
            'Diagnostic', 'FixIt', 'CodeCompletionResults', 'SourceRange',
-           'SourceLocation', 'File']
+           'SourceLocation', 'File', 'Token', 'TokenKind']

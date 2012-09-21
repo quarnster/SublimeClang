@@ -16,9 +16,23 @@
     // the plugin completely for a specific project.
     "enabled": true,
 
-    // Delay in ms until autocompletion pops up after . or :: or ->
-    // Set to 0 to disable
-    "popup_delay": 100,
+    // Whether or not to automatically trigger the auto complete
+    // window when typing object., object-> or similar.
+    "automatic_completion_popup": true,
+
+    // Number of worker threads to create. If set to -1 it'll create
+    // one thread per cpu
+    "worker_threadcount": -1,
+
+    // Whether or not fast completions are enabled. Usually you'd put
+    // "sublimeclang_enable_fast_completions": false, in the project
+    // settings if it's problematic in that project. You can also
+    // runtime toggle fast completions alt+d,alt+f, however if it
+    // is disabled for the current project (or globally in your
+    // user settings) it will not be enabled. In other words
+    // this setting, when set to false, overrides whatever the
+    // keyboard toggle is set to.
+    "enable_fast_completions": true,
 
     // Delay in ms until recompiling the file after the buffer is modified
     // Set to 0 to disable
@@ -28,16 +42,32 @@
     "hide_output_when_empty": false,
 
     // Whether or not to automatically show the output panel.
-    // If set to false, the default key-binding ctrl+d,ctrl+p
+    // If set to false, the default key-binding alt+d,alt+p
     // will show it
     "show_output_panel": true,
+
+    // When set to true, the output panel will be updated with the active
+    // view's errors/warnings as it is switched to. If set to false you will
+    // have to switch to the view you want to get the errors/warnings for
+    // and press alt+d,alt+f to hide and then display the panel for it
+    // to refresh its contents
+    "update_output_panel": true,
+
+    // Whether to apply a tmLanguage syntax file to the output panel
+    "output_panel_use_syntax_file": true,
+
+    // Specify syntax file for output panel
+    "output_panel_syntax_file": "Packages/SublimeClang/ErrorPanel.tmLanguage",
 
     // Whether or not to show the clang parser status in the status bar
     "show_status": true,
 
-    // When set to true, will display visual error markers. recompile_delay
-    // must be set to > 0
+    // When set to true, will display visual error markers.
     "show_visual_error_marks": true,
+
+    // When set to true, error marks will only be displayed when the error
+    // panel is showing
+    "error_marks_on_panel_only": false,
 
     // This is the bitmask sent to index.parse.
     // For example, to be able to go to the definition of
@@ -65,7 +95,7 @@
     "remove_on_close": true,
 
     // If set to true will pop the file from the navigation stack
-    // (automatic ctrl+d,ctrl+b) when the file is closed
+    // (automatic alt+d,alt+b) when the file is closed
     "pop_on_close": true,
 
     // When set to true a reparse command will be triggered
@@ -107,7 +137,7 @@
     // If set to true it'll add for example "-x c++" to the options for c++ files
     "add_language_option": true,
 
-    // Addtional language specific options for clang.
+    // Additional language specific options for clang.
     // This option only works when "add_language_option" is set to true.
     "additional_language_options":
     {
@@ -142,14 +172,16 @@
     //
     // If "sublimeclang_options" exists in your project settings, it'll override
     // rather than add to the "options" defined in SublimeClang.sublime-settings.
-    // 
+    //
     // Note that the project settings aren't applied for already cached files,
     // so to make them take effect you'll have to clear the cache first. The
     // default keybinding for clearing the cache is alt+d,alt+c.
     //
-    // ${home}, ${project_path:} and ${folder:} tokens can be used in these options.
+    // ${home}, ${env:<variable>}, ${project_path:} and ${folder:} tokens can be used in these options.
     //
     // ${home} is replaced with the value of the HOME environment variable.
+    //
+    // ${env:<variable>} is replaced with the "variable" environment variable.
     //
     // ${project_path:} tries to find a file with the given name in all the registered project folders and
     // returns the first file found, or the original file name if none is found.
@@ -158,9 +190,12 @@
     //
     // ${folder:} is replaced with the dirname of the given path.
     // Example: ${folder:/path/to/file} is replaced with "/path/to".
+    // 
+    // ${this_file_path} is replaced by the path to currently edited file.
+    // Example: ${this_file_path} is replaced with "/path/to" when edited file is "/path/to/file".
     //
-    // Replacement is done sequencially, first all ${home} tokens, then all ${project_path:} are resolved, and then the
-    // ${folder:} are replaced.
+    // Replacement is done sequentially, first all ${project_path:} are resolved, then ${home} and
+    // ${env:<variable>} tokens,  and the ${folder:} are replaced, and then the ${this_file_path}.
     //
     // So for example, you might specify:
     //       "-I${folder:${project_path:main.cpp}}",
@@ -218,11 +253,11 @@
     //    "-I/path/to/myproject/includes/evenmorethings",
     //
     //  Notice that the both the myproject/includes directory and any directories more than one level deep are skipped
+    //
+    // Set "debug_options" (defined below) to true to print the final options used for compilation to the python console
     "options":
     [
         "-Wall",
-        "-I/usr/lib/clang/3.0/include/",
-        "-I/usr/lib/clang/2.1/include/",
         "-I/usr/lib/gcc/i686-apple-darwin10/4.2.1/include/",
         "-I/usr/lib/gcc/i686-apple-darwin11/4.2.1/include/",
         // If you code for iOS, you want to have something like the following here:
@@ -234,13 +269,34 @@
         "-I/path/to/sources/2"
     ],
 
+    // A command that can be run to fetch actual options for a source file in a build system.
+    // The script should print on stdout a list of space or newline separated options
+    // that will be appended to the static list in "options".
+    //
+    // This setting will also have its ${home}, ${project_path:} and ${folder:} tokens expanded
+    // and can be configured in project files.
+    //
+    // Example:
+    // "${project_path:scriptName.sh} someArgument1 someArgument2"
+    // if scriptName.sh is present under the project's folders, will be executed as:
+    // "/path/to/scriptName.sh someArgument1 someArgument2 currentViewFileName"
+    // before each time a file needs to be parsed by clang.
+    "options_script": "",
+
+    // If set to true, it'll not prepend the compiler options with the path to the
+    // included headers
+    "dont_prepend_clang_includes": false,
+
+    // When set to true will output the final options used to the python console
+    "debug_options": false,
+
     // Scope used for markers in the clang output panel
     "marker_analyzer_output_panel_scope": "invalid",
 
     // Scope used for markers by the analyzer in the file views
     "marker_analyzer_scope": "invalid",
 
-    // Commandline used to invoke the static analyzer.
+    // Command line used to invoke the static analyzer.
     // "options" will be appended to this
     "analyzer_commandline":
     [
