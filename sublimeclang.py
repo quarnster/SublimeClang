@@ -428,7 +428,7 @@ class ClangGotoDef(sublime_plugin.TextCommand):
 
             word = view.word(view.sel()[0].a)
             spelling = view.substr(word)
-            if cursor is None or cursor.kind.is_invalid() or cursor.displayname != spelling:
+            if cursor is None or cursor.kind.is_invalid() or (cursor.displayname != spelling and cursor.kind != cindex.CursorKind.INCLUSION_DIRECTIVE):
                 # Try to determine what we're supposed to be looking for
                 data = view.substr(sublime.Region(0, view.line(view.sel()[0].a).end()))
                 chars = r"[\[\]\(\)&|.+-/*,<>;]"
