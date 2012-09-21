@@ -542,7 +542,6 @@ def display_compilation_results(view):
     ignoreDirs = [os.path.abspath(os.path.normpath(os.path.normcase(d))) for d in get_setting("diagnostic_ignore_dirs", [], view)]
     try:
         if len(tu.var.diagnostics):
-            print len(tu.var.diagnostics)
             errString = ""
             for diag in tu.var.diagnostics:
                 f = diag.location
