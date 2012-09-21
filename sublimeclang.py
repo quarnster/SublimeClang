@@ -519,6 +519,13 @@ class ClangReparse(sublime_plugin.TextCommand):
         translationunitcache.tuCache.reparse(view, view.file_name(), unsaved_files)
 
 
+def ignore_diagnostic(path, ignoreDirs):
+    normalized_path = os.path.abspath(os.path.normpath(os.path.normcase(path)))
+    for d in ignoreDirs:
+        if normalized_path.startswith(d):
+            return True
+    return False
+
 def display_compilation_results(view):
     tu = get_translation_unit(view)
     errString = ""
@@ -532,6 +539,7 @@ def display_compilation_results(view):
         return
     errorCount = 0
     warningCount = 0
+    ignoreDirs = [os.path.abspath(os.path.normpath(os.path.normcase(d))) for d in get_setting("diagnostic_ignore_dirs", [], view)]
     try:
         if len(tu.var.diagnostics):
             errString = ""
@@ -540,6 +548,9 @@ def display_compilation_results(view):
                 filename = ""
                 if f.file != None:
                     filename = f.file.name
+
+                if ignore_diagnostic(filename, ignoreDirs):
+                    continue
 
                 err = "%s:%d,%d - %s - %s" % (filename, f.line, f.column,
                                               diag.severityName,
