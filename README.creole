@@ -13,6 +13,7 @@ Please go [[https://github.com/quarnster/SublimeClang/issues?sort=created&direct
   ## source "$HOME/.pythonbrew/etc/bashrc"
   ## pythonbrew install --configure="--enable-unicode=ucs4" 2.6
   ## ln -s $HOME/.pythonbrew/pythons/Python-2.6/lib/python2.6/ <your Sublime Text 2 folder>/lib/python2.6
+  # If you install SublimeClang via Package Control, it seems [[http://github.com/quarnster/SublimeClang/issues/97|libcache and libclang will be deleted]] when the package is updated, so it's recommended that you manually install the plugin by using the git commands listed in the Installation section.
   # Once SublimeClang has been installed, libcache will have to be compiled:
   ## cd src
   ## mkdir build
@@ -20,6 +21,8 @@ Please go [[https://github.com/quarnster/SublimeClang/issues?sort=created&direct
   ## cmake ..
   ## make
   * Note that if a usable libclang library isn't found, it will be downloaded and built as part of the build process.
+
+If you run into any issues, please have a look at issue [[https://github.com/quarnster/SublimeClang/issues/35|#35]] for additional notes or to ask for help.
 
 === Installation ===
     # The easiest way to install SublimeClang is via the excellent Package Control Plugin

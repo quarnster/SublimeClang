@@ -190,7 +190,7 @@
     //
     // ${folder:} is replaced with the dirname of the given path.
     // Example: ${folder:/path/to/file} is replaced with "/path/to".
-    // 
+    //
     // ${this_file_path} is replaced by the path to currently edited file.
     // Example: ${this_file_path} is replaced with "/path/to" when edited file is "/path/to/file".
     //
@@ -315,6 +315,10 @@
         "cc",
         "m",
         "mm"
-    ]
+    ],
 
+    // All diagnostic errors from files in these directories or below will be ignored
+    "diagnostic_ignore_dirs":
+    [
+    ]
 }
