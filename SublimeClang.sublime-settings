@@ -255,18 +255,19 @@
     //  Notice that the both the myproject/includes directory and any directories more than one level deep are skipped
     //
     // Set "debug_options" (defined below) to true to print the final options used for compilation to the python console
+    //
+    // For help getting up and running with MinGW see https://github.com/quarnster/SublimeClang/issues/122
+    // For help getting up and running with the AVR toolchain see https://github.com/quarnster/SublimeClang/issues/134
+    // For help getting up and running with iOS development see https://github.com/quarnster/SublimeClang/issues/52
     "options":
     [
-        "-Wall",
-        "-I/usr/lib/gcc/i686-apple-darwin10/4.2.1/include/",
-        "-I/usr/lib/gcc/i686-apple-darwin11/4.2.1/include/",
-        // If you code for iOS, you want to have something like the following here:
-        //"-isysroot",
-        //"/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator4.3.sdk",
-        //"-D__IPHONE_OS_VERSION_MIN_REQUIRED=40300",
-        "-IC:/MinGW/include",
-        "-I/path/to/sources/1",
-        "-I/path/to/sources/2"
+        "-isystem", "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.7.sdk/usr/include/",
+        "-isystem", "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.7.sdk/usr/include/c++/4.2.1",
+        "-isystem", "C:\\MinGW\\lib\\gcc\\mingw32\\4.7.0\\include",
+        "-isystem", "C:\\MinGW\\lib\\gcc\\mingw32\\4.7.0\\include\\c++",
+        "-isystem", "C:\\MinGW\\lib\\gcc\\mingw32\\4.7.0\\include\\c++\\mingw32",
+        "-isystem", "C:\\MinGW\\include",
+        "-Wall"
     ],
 
     // A command that can be run to fetch actual options for a source file in a build system.
