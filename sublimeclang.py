@@ -65,7 +65,7 @@ def get_translation_unit(view, filename=None, blocking=False):
         elif stat == translationunitcache.TranslationUnitCache.STATUS_PARSING:
             sublime.status_message("Hold your horses, cache still warming up")
             return None
-    return translationunitcache.tuCache.get_translation_unit(filename, translationunitcache.tuCache.get_opts(view), translationunitcache.tuCache.get_opts_script(view))
+    return translationunitcache.tuCache.get_translation_unit(filename, translationunitcache.tuCache.get_opts(view, filename), translationunitcache.tuCache.get_opts_script(view))
 
 navigation_stack = []
 clang_complete_enabled = True

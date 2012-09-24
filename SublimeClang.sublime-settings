@@ -270,6 +270,8 @@
         "-Wall"
     ],
 
+    "compilation_database": "${project_path:build/debug/compile_commands.json}",
+
     // A command that can be run to fetch actual options for a source file in a build system.
     // The script should print on stdout a list of space or newline separated options
     // that will be appended to the static list in "options".
