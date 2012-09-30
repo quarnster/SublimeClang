@@ -60,7 +60,7 @@ try:
         return True
 
     def status_message(msg):
-        sublime.status_message(msg)
+        sublime.status_message(msg.decode("utf-8"))
 
     def get_settings():
         return sublime.load_settings("SublimeClang.sublime-settings")
