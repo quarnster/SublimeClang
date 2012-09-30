@@ -284,7 +284,7 @@ analyzer = Analyzer()
 class ClangAnalyzeFile(sublime_plugin.TextCommand):
     def run(self, edit):
         analyzer.clear()
-        fn = self.view.file_name()
+        fn = self.view.file_name().encode("utf-8")
         analyzer.analyze_file(fn)
 
 

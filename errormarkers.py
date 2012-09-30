@@ -14,7 +14,7 @@ clang_view = None
 class ClangNext(sublime_plugin.TextCommand):
     def run(self, edit):
         v = self.view
-        fn = v.file_name()
+        fn = v.file_name().encode("utf-8")
         line, column = v.rowcol(v.sel()[0].a)
         gotoline = -1
         if fn in ERRORS:
@@ -37,7 +37,7 @@ class ClangNext(sublime_plugin.TextCommand):
 class ClangPrevious(sublime_plugin.TextCommand):
     def run(self, edit):
         v = self.view
-        fn = v.file_name()
+        fn = v.file_name().encode("utf-8")
         line, column = v.rowcol(v.sel()[0].a)
         gotoline = -1
         if fn in ERRORS:
@@ -61,7 +61,7 @@ class ClangErrorPanel(object):
         self.data = ""
 
     def set_data(self, data):
-        self.data = data
+        self.data = data.decode("utf-8")
         if get_setting("update_output_panel", True) and self.is_visible():
             self.flush()
 
@@ -144,7 +144,7 @@ def show_error_marks(view):
     fill_outlines = False
     gutter_mark = 'dot'
     outlines = {'warning': [], 'illegal': []}
-    fn = view.file_name()
+    fn = view.file_name().encode("utf-8")
     markers = {'warning':  get_setting("marker_warning_scope", "comment"),
                 'illegal': get_setting("marker_error_scope", "invalid")
                 }
@@ -179,6 +179,8 @@ def last_selected_lineno(view):
 
 def update_statusbar(view):
     fn = view.file_name()
+    if fn is not None:
+        fn = fn.encode("utf-8")
     lineno = last_selected_lineno(view)
 
     if fn in ERRORS and lineno in ERRORS[fn]:
@@ -216,7 +218,9 @@ class SublimeClangStatusbarUpdater(sublime_plugin.EventListener):
 
     def has_errors(self, view):
         fn = view.file_name()
-        return fn in ERRORS or fn in WARNINGS
+        if fn is None:
+            return False
+        return fn.encode("utf-8") in ERRORS or fn in WARNINGS
 
     def show_errors(self, view):
         if self.has_errors(view) and not get_setting("error_marks_on_panel_only", False, view):
