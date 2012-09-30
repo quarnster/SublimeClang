@@ -2,13 +2,15 @@ import sys
 sys.path.append(".")
 import translationunitcache
 import os
+import os.path
 import pickle
 import sys
 import gzip
 import re
 import platform
 
-opts = []
+scriptpath = os.path.dirname(os.path.abspath(__file__))
+opts = ["-I%s/../clang/include" % scriptpath]
 
 golden = {}
 testsAdded = False
@@ -40,7 +42,7 @@ for arg in sys.argv[1:]:
         raise Exception("Bad argument")
 
 
-filter = re.compile("(^_.*\tmacro$)|(^__)|(OBJC_NEW_PROPERTIES)|(type_info)|(i386)")
+filter = re.compile("(^_.*\tmacro$)|(^__)|(OBJC_NEW_PROPERTIES)|(type_info)|(i386)|linux|unix")
 
 if os.access(GOLDFILE, os.R_OK):
     f = gzip.GzipFile(GOLDFILE, 'rb')
