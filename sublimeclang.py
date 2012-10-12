@@ -117,9 +117,10 @@ class ClangGoBackEventListener(sublime_plugin.EventListener):
             return
         # If the view we just closed was last in the navigation_stack,
         # consider it "popped" from the stack
-        fn = view.file_name().encode("utf-8")
+        fn = view.file_name()
         if fn == None:
             return
+        fn = fn.encode("utf-8")
         while True:
             if len(navigation_stack) == 0 or \
                     not navigation_stack[
@@ -664,7 +665,8 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
 
     def on_query_completions(self, view, prefix, locations):
         global clang_complete_enabled
-        if not is_supported_language(view) or not clang_complete_enabled:
+        if not is_supported_language(view) or not clang_complete_enabled or \
+                not view.match_selector(locations[0], '-string -comment -constant'):
             return []
 
         line = view.substr(sublime.Region(view.line(locations[0]).begin(), locations[0]))
