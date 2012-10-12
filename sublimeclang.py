@@ -701,6 +701,9 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
             if cached_results != None:
                 print "found fast completions"
                 ret = cached_results
+            elif re.match('.*"[0-9a-zA-Z_.]*$', data, re.S):
+                print "donot complete that start with an '\"'"
+                ret = [];
             else:
                 print "doing slow completions"
                 row, col = view.rowcol(locations[0] - len(prefix))
