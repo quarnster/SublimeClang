@@ -493,13 +493,17 @@ add_test("World5 *w; [w ")
 
 # ---------------------------------------------------------
 
-tu = get_tu("unittests/9.mm")
+
 if platform.system() == "Darwin":
+    tu = get_tu("unittests/9.mm")
     add_test("[NSString ", True)
     add_test("NSString *s; [s ", True)
 
     add_test("[NSMutableData ", True)
     add_test("NSMutableData *s; [s ", True)
+
+    add_test("Test t; [t.", True)
+    add_test("Test t; [t.context ", True)
 
 
 # ---------------------------------------------------------

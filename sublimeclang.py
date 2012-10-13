@@ -612,7 +612,7 @@ def is_member_completion(view, caret):
     if member_regex.search(line) != None:
         return True
     elif get_language(view).startswith("objc"):
-        return re.search(r"\[[\s\w\]]+\s+$", line) != None
+        return re.search(r"\[[\.\->\s\w\]]+\s+$", line) != None
     return False
 
 

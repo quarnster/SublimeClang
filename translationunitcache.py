@@ -336,7 +336,7 @@ class Cache:
                                 ret.append((c.display, c.insert))
                         cache_disposeCompletionResults(comp)
             return ret
-        elif re.search(r"(\w+\]+\s+$|\[\w+\s+$|([^ \t]+)(\.|\->)$)", before):
+        elif re.search(r"(\w+\]+\s+$|\[[\w\.\-\>]+\s+$|([^ \t]+)(\.|\->)$)", before):
             comp = data
             if len(prefix) > 0:
                 comp = data[:-len(prefix)]
@@ -448,10 +448,8 @@ class Cache:
                     count += 1
                     match = re.search(r"^([^\.\-\(:\[\]]+)?(\[\]|\(|\.|->|::)(.*)", tocomplete)
                     if match == None:
-                        if "]" in tocomplete:
-                            # probably Objective C code
-                            match = re.search(r"^\s+(\S+)(\s+)(.*)", tocomplete)
-
+                        # probably Objective C code
+                        match = re.search(r"^(\S+)?(\s+)(.*)", tocomplete)
                         if match == None:
                             break
 

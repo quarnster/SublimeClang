@@ -1128,7 +1128,7 @@ class Cursor(Structure):
 
         return ret
 
-    def get_resolved_cursor(self):
+    def get_resolved_cursor(self, parent=None):
         #print "get_type"
         if self.kind == CursorKind.OBJC_INTERFACE_DECL:
             return self
@@ -1153,7 +1153,7 @@ class Cursor(Structure):
                     simple = False
                     break
             if simple and len(children) > 0:
-                return children[first].get_resolved_cursor()
+                return children[first].get_resolved_cursor(self)
             return self
         elif self.result_type.kind == TypeKind.RECORD:
             return self.get_children()[0].get_resolved_cursor()
@@ -1166,7 +1166,9 @@ class Cursor(Structure):
             if ref == self:
                 #print "none1"
                 return None
-            return ref.get_resolved_cursor()
+            elif not parent is None and ref == parent:
+                return self
+            return ref.get_resolved_cursor(self)
         elif self.kind.is_declaration():
             #print "decl: %s, %s" % (self.spelling, self.kind)
             for child in self.get_children():
@@ -1198,13 +1200,16 @@ class Cursor(Structure):
         # print "self dumped"
         return self
 
-    def dump_self(self):
+    def __repr__(self):
         if self is None or self.kind.is_invalid():
-            print "cursor: None"
-            return
-        print "cursor: %s, %s, %s, %s, %s, %s" % (self.kind, self.type.kind, self.result_type.kind, self.spelling, self.displayname, self.get_usr())
+            return "cursor: None"
+        ret =  "cursor: %s, %s, %s, %s, %s, %s" % (self.kind, self.type.kind, self.result_type.kind, self.spelling, self.displayname, self.get_usr())
         source = "<unknown>" if self.location.file is None else self.location.file.name
-        print "defined at: %s, %d, %d" % (source, self.location.line, self.location.column)
+        ret += "\ndefined at: %s, %d, %d" % (source, self.location.line, self.location.column)
+        return ret
+
+    def dump_self(self):
+        print self
 
     def dump(self, once=True):
         indent = "" if once else "    "
