@@ -1262,7 +1262,7 @@ class Cursor(Structure):
                     if definition is None or definition == c:
                         return None
                     return definition.get_resolved_cursor()
-                elif c.kind == CursorKind.STRUCT_DECL:
+                elif c.kind == CursorKind.STRUCT_DECL or c.kind == CursorKind.UNION_DECL:
                     return c
                 else:
                     return None

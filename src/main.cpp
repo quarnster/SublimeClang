@@ -529,7 +529,7 @@ public:
     void visit_children(CXCursor cursor)
     {
         clang_visitChildren(cursor, get_completion_children, this);
-        for (CursorList::iterator i = mAnonymousStructs.begin(); i < mAnonymousStructs.end(); i++)
+        for (CursorList::iterator i = mAnonymousFields.begin(); i < mAnonymousFields.end(); i++)
         {
             CompletionVisitorData d(entries, access, isBaseClass);
             d.visit_children(*i);
@@ -557,10 +557,10 @@ public:
             case CXCursor_UnexposedDecl: // extern "C" for example
                 recurse = true;
                 break;
-            case CXCursor_UnionDecl:
             case CXCursor_EnumDecl:
                 recurse = true;
                 // fall through
+            case CXCursor_UnionDecl:
             case CXCursor_Namespace:
             case CXCursor_ObjCInterfaceDecl:
             case CXCursor_ObjCIvarDecl:
@@ -585,10 +585,10 @@ public:
                 parse_res(ins, disp, cursor);
                 if (ins.length() != 0)
                     entries.push_back(new Entry(cursor, disp, ins, access, isBaseClass));
-                else if (ck == CXCursor_StructDecl)
+                else if (ck == CXCursor_StructDecl || ck == CXCursor_UnionDecl)
                 {
-                    // Might be an anonymous struct whose children we need to add later
-                    mAnonymousStructs.push_back(cursor);
+                    // Might be an anonymous struct or union whose children we need to add later
+                    mAnonymousFields.push_back(cursor);
                 }
                 switch (ck)
                 {
@@ -598,13 +598,15 @@ public:
                     {
                         CXCursor child = clang_getNullCursor();
                         clang_visitChildren(cursor, get_first_child_visitor, &child);
-                        if (!clang_Cursor_isNull(child) && clang_getCursorKind(child) == CXCursor_StructDecl)
+                        if (!clang_Cursor_isNull(child) &&
+                            (clang_getCursorKind(child) == CXCursor_StructDecl ||
+                             clang_getCursorKind(child) == CXCursor_UnionDecl))
                         {
-                            for (CursorList::iterator i = mAnonymousStructs.begin(); i < mAnonymousStructs.end(); i++)
+                            for (CursorList::iterator i = mAnonymousFields.begin(); i < mAnonymousFields.end(); i++)
                             {
                                 if (clang_equalCursors(child, *i))
                                 {
-                                    mAnonymousStructs.erase(i);
+                                    mAnonymousFields.erase(i);
                                     break;
                                 }
                             }
@@ -623,7 +625,7 @@ public:
     bool                  isBaseClass;
 
 private:
-    CursorList            mAnonymousStructs;
+    CursorList            mAnonymousFields;
 
     static CXChildVisitResult get_completion_children(CXCursor cursor, CXCursor parent, CXClientData client_data)
     {

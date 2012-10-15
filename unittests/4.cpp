@@ -68,3 +68,33 @@ struct quat
     Test::Enum myEnum;
 };
 
+class Test2
+{
+public:
+    union
+    {
+        long A1;
+        int  B1;
+        char C1;
+    };
+    union
+    {
+        long A2;
+        int  B2;
+        char C2;
+    } UnionMember;
+    enum
+    {
+        A3,
+        B3,
+        C3
+    };
+    enum
+    {
+        A4,
+        B4,
+        C4
+    } EnumMember;
+
+    int Member;
+};

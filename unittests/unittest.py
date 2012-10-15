@@ -312,11 +312,24 @@ add_test("quat q; q.test.")
 add_test("quat::")
 add_test("quat::test2 t; t.")
 add_test("quat q; q.myEnum.")
+add_test("Test2 t2; t2.")
+add_test("Test2 t2; t2.UnionMember.")
+add_test("Test2 t2; t2.EnumMember.")
+add_test("Test2::")
+add_test("void Test2::something() { this->")
+add_test("void Test2::something() { UnionMember.")
+add_test("void Test2::something() { EnumMember.")
+add_test("void Test2::something() { ", True)
+
 f = open("unittests/3.cpp")
 data = f.read()
 f.close()
 
 add_test(data + "quat q; q.myEnum.")
+add_test(data + "Test2 t2; t2.")
+add_test(data + "Test2 t2; t2.UnionMember.")
+add_test(data + "Test2 t2; t2.EnumMember.")
+
 
 # ---------------------------------------------------------
 

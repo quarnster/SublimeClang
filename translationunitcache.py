@@ -438,6 +438,7 @@ class Cache:
                     if r is None or \
                             not (r.kind == cindex.CursorKind.CLASS_DECL or \
                             r.kind == cindex.CursorKind.STRUCT_DECL or \
+                            r.kind == cindex.CursorKind.UNION_DECL or \
                             r.kind == cindex.CursorKind.OBJC_INTERFACE_DECL or \
                             r.kind == cindex.CursorKind.CLASS_TEMPLATE):
                         if not r is None and not (r.kind == cindex.CursorKind.TEMPLATE_TYPE_PARAMETER or \
