@@ -541,6 +541,7 @@ def display_compilation_results(view):
     errorCount = 0
     warningCount = 0
     ignoreDirs = [os.path.abspath(os.path.normpath(os.path.normcase(d))) for d in get_setting("diagnostic_ignore_dirs", [], view)]
+    ignore_regex = re.compile(get_setting("diagnostic_ignore_regex"))
     try:
         if len(tu.var.diagnostics):
             errString = ""
@@ -556,6 +557,10 @@ def display_compilation_results(view):
                 err = "%s:%d,%d - %s - %s" % (filename, f.line, f.column,
                                               diag.severityName,
                                               diag.spelling)
+
+                if ignore_regex.search(err):
+                    continue
+
                 try:
                     if len(diag.disable_option) > 0:
                         err = "%s [Disable with %s]" % (err, diag.disable_option)

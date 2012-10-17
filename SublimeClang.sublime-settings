@@ -322,5 +322,8 @@
     // All diagnostic errors from files in these directories or below will be ignored
     "diagnostic_ignore_dirs":
     [
-    ]
+    ],
+
+    // Diagnostic errors/warnings matching this regex pattern will be ignored
+    "diagnostic_ignore_regex": "pragma once in main file"
 }
