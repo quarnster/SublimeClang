@@ -130,6 +130,7 @@ def get_tu(filename):
 
 tu = get_tu("unittests/1.cpp")
 add_test("", True)
+add_test("new ", True)
 
 # ---------------------------------------------------------
 
@@ -147,6 +148,8 @@ add_test("void Class2::something() { this->")
 add_test("void Class1::something() { this->")
 add_test("Test t[1]; t.")
 add_test("Test t[1]; t[0].")
+add_test("new ")
+add_test("new Cla")
 
 f = open("unittests/2.cpp")
 data = f.read()
@@ -160,6 +163,12 @@ add_test(data + "t2[0].")
 # ---------------------------------------------------------
 
 tu = get_tu("unittests/3.cpp")
+add_test("new ")
+add_test("new std::", True)
+add_test("new std::rel_ops::", True)
+add_test("new std2::")
+add_test("new blah::", True)
+add_test("new Test::")
 add_test("std::", True)
 add_test("std2::")
 add_test("Test::")
@@ -379,11 +388,14 @@ add_test("A a; a.")
 add_test("A a; a.f.")
 add_test("A a; a.i.")
 add_test("A a; a.ms.")
+add_test("MyStaticClass c; c.")
 add_test("MyStaticClass::")
 add_test("void MyStaticClass::something() { MyStaticClass::")
+add_test("void MyStaticClass::something() { this->")
 add_test("Child::")
 add_test("void Child::something() { MyStaticClass::")
 add_test("void Child::something() { Child::")
+add_test("void Child::something() { this->")
 add_test("void A::something() {")
 
 f = open("unittests/6.cpp")
@@ -522,6 +534,7 @@ if platform.system() == "Darwin":
 # ---------------------------------------------------------
 
 tu = get_tu("unittests/10.cpp")
+add_test("new nms::")
 add_test("function().")
 add_test("function()->")
 add_test("function2().")

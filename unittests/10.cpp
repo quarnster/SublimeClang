@@ -21,6 +21,7 @@ namespace nms
     class Z
     {
         public:
+            Z() {}
             int zvariable;
     };
     Z& function();

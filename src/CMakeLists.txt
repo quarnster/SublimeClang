@@ -39,6 +39,10 @@ if(NOT DEFINED PARALLEL_COMPILES)
     set(PARALLEL_COMPILES 4)
 endif()
 
+file(READ "${PROJECT_SOURCE_DIR}/../package.json" TEMP)
+string(REGEX MATCH "(\"version\": \")([0-9]+\\.[0-9]+\\.[0-9]+)" TEMP ${TEMP})
+
+add_definitions(-DSUBLIMECLANG_VERSION="${CMAKE_MATCH_2}")
 set(TARGETLIB ${LIBPREFIX}cache${LIBSUFFIX})
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/..)
 

@@ -162,6 +162,7 @@ void get_return_type(std::string& returnType, CXCursorKind ck)
         case CXCursor_NamespaceAlias:    // fall through
         case CXCursor_Namespace:         returnType = "namespace"; break;
         case CXCursor_TypedefDecl:       returnType = "typedef";   break;
+        case CXCursor_Constructor:       returnType = "constructor"; break;
     }
 }
 
@@ -579,6 +580,7 @@ public:
             case CXCursor_VarDecl:
             case CXCursor_NamespaceAlias:
             case CXCursor_MacroDefinition:
+            case CXCursor_Constructor:
             {
                 std::string ins;
                 std::string disp;
@@ -624,8 +626,34 @@ public:
     CX_CXXAccessSpecifier access;
     bool                  isBaseClass;
 
+    void addConstructors(CXCursor cursor, CXCursorKind ck)
+    {
+        switch (ck)
+        {
+            case CXCursor_ClassTemplate:
+            case CXCursor_StructDecl:
+            case CXCursor_ClassDecl:
+            {
+                CursorList children;
+                EntryList e;
+                CompletionVisitorData d(e, access);
+                d.visit_children(cursor);
+                for (EntryList::iterator i = e.begin(); i < e.end(); i++)
+                {
+                    Entry *entry = *i;
+                    if (clang_getCursorKind(entry->cursor) == CXCursor_Constructor && entry->access == CX_CXXPublic)
+                        entries.push_back(new Entry(*entry));
+                }
+                break;
+            }
+            default: break;
+        }
+    }
+
+
 private:
     CursorList            mAnonymousFields;
+
 
     static CXChildVisitResult get_completion_children(CXCursor cursor, CXCursor parent, CXClientData client_data)
     {
@@ -662,6 +690,7 @@ private:
             }
             default: break;
         }
+        data->addConstructors(cursor, ck);
 
         if (recurse)
         {
@@ -759,6 +788,7 @@ public:
         {
             CompletionVisitorData d(mEntries, CX_CXXPublic);
             d.add_completion_children(cursor, ck, recurse);
+            d.addConstructors(cursor, ck);
         }
 
         return false;
@@ -1190,6 +1220,11 @@ EXPORT Cache* createCache(CXCursor base)
 EXPORT void deleteCache(Cache *cache)
 {
     delete cache;
+}
+
+EXPORT const char* getVersion()
+{
+    return SUBLIMECLANG_VERSION;
 }
 
 }

@@ -79,6 +79,23 @@ class CacheCompletionResults(Structure):
 
 
 cachelib = get_cache_library()
+try:
+    import json
+    _getVersion = cachelib.getVersion
+    _getVersion.restype = c_char_p
+    f = open("%s/package.json" % scriptpath)
+    data = json.load(f)
+    f.close()
+    json = data["packages"][0]["platforms"]["*"][0]["version"]
+    lib = _getVersion()
+    print "Have SublimeClang package: %s" % json
+    print "Have SublimeClang libcache: %s" % lib
+    assert lib == json
+except:
+    import traceback
+    traceback.print_exc()
+    error_message("Your SublimeClang libcache is out of date. Try restarting ST2 and if that fails, uninstall SublimeClang, restart ST2 and install it again.")
+
 _createCache = cachelib.createCache
 _createCache.restype = c_void_p
 _createCache.argtypes = [cindex.Cursor]
@@ -260,6 +277,29 @@ class Cache:
                         return self.inherits(parent, c2)
         return False
 
+    def filter(self, ret, constr):
+        if ret == None:
+            return None
+        if constr:
+            match = "\t(namespace|constructor|class|typedef|struct)$"
+        else:
+            match = "\t(?!constructor)[^\t]+$"
+        regex = re.compile(match)
+        ret2 = []
+        constrs = []
+        for display, insert in ret:
+            if not regex.search(display):
+                continue
+            if constr and display.endswith("constructor"):
+                constrs.append(display[:display.find("(")])
+            ret2.append((display, insert))
+        if constr:
+            for name in constrs:
+                regex = re.compile(r"%s\t(class|typedef|struct)$" % name)
+                ret2 = filter(lambda a: not regex.search(a[0]), ret2)
+        return ret2
+
+
     def complete(self, data, prefix):
         line = extract_line_at_offset(data, len(data)-1)
         before = line
@@ -268,6 +308,8 @@ class Cache:
 
         ret = None
         if re.search(r"::$", before):
+            constr = re.search(r"(\W|^)new\s+(\w+::)+$", before) != None
+
             ret = []
             match = re.search(r"([^\(\s,]+::)+$", before)
             if match == None:
@@ -335,6 +377,7 @@ class Cache:
                                     c.cursor.kind == cindex.CursorKind.ENUM_DECL:
                                 ret.append((c.display, c.insert))
                         cache_disposeCompletionResults(comp)
+            ret = self.filter(ret, constr)
             return ret
         elif re.search(r"(\w+\]+\s+$|\[[\w\.\-\>]+\s+$|([^ \t]+)(\.|\->)$)", before):
             comp = data
@@ -344,7 +387,6 @@ class Cache:
             if typedef == None:
                 return None
             line, column, typename, var, tocomplete = typedef
-            print typedef
             if typename == None:
                 return None
             cursor = None
@@ -573,11 +615,13 @@ class Cache:
                         cache_disposeCompletionResults(comp)
             return remove_duplicates(ret)
         else:
+            constr = re.search(r"(^|\W)new\s+$", before) != None
+
             cached_results = cache_complete_startswith(self.cache, prefix)
             if cached_results:
                 ret = [(x.display, x.insert) for x in cached_results[0]]
                 cache_disposeCompletionResults(cached_results)
-            variables = extract_variables(data)
+            variables = extract_variables(data) if not constr else []
             var = [("%s\t%s" % (v[1], re.sub(r"(^|\b)\s*static\s+", "", v[0])), v[1]) for v in variables]
             if len(var) and ret == None:
                 ret = []
@@ -607,6 +651,7 @@ class Cache:
                 add = self.complete_namespace(ns)
                 if add:
                     ret.extend(add)
+            ret = self.filter(ret, constr)
         return remove_duplicates(ret)
 
     def clangcomplete(self, filename, row, col, unsaved_files, membercomp):

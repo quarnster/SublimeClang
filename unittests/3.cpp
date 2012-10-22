@@ -14,7 +14,10 @@ namespace Test
             E2,
             E3
         };
+        public:
+            Class1(int pub);
         private:
+            Class1(char priv);
             int privatec1Member;
     };
     void Function1();
@@ -47,3 +50,4 @@ namespace ZZZ
 
     namespace z = d;
 };
+

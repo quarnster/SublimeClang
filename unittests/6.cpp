@@ -38,15 +38,27 @@ class MyStaticClass
 public:
     static int publicStaticField;
     int publicField;
+
+    template<typename T>
+    static void publicStaticTemplateFunction(T& arg);
+    template<typename T>
+    void publicTemplateFunction(T& arg);
 protected:
     static int protectedStaticField;
     int protectedField;
+    template<typename T>
+    static void protectedStaticTemplateFunction(T& arg);
+    template<typename T>
+    void protectedTemplateFunction(T& arg);
 private:
     static int privateStaticField;
     int privateField;
+    template<typename T>
+    static void privateStaticTemplateFunction(T& arg);
+    template<typename T>
+    void privateTemplateFunction(T& arg);
 };
 
 class Child : public MyStaticClass
 {
-
 };
