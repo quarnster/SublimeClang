@@ -277,7 +277,7 @@ class Cache:
                         return self.inherits(parent, c2)
         return False
 
-    def filter(self, ret, constr):
+    def filter(self, ret, constr=False):
         if ret == None:
             return None
         if constr:
@@ -613,6 +613,7 @@ class Cache:
                                     add = (disp, ins)
                                     ret.append(add)
                         cache_disposeCompletionResults(comp)
+            ret = self.filter(ret)
             return remove_duplicates(ret)
         else:
             constr = re.search(r"(^|\W)new\s+$", before) != None
