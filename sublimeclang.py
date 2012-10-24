@@ -334,7 +334,10 @@ class ClangGotoImplementation(sublime_plugin.TextCommand):
             cursor = cindex.Cursor.get(tu.var, view.file_name().encode("utf-8"),
                                        row + 1, col + 1)
             spelling = view.substr(view.word(view.sel()[0].a))
-            if cursor is None or cursor.kind.is_invalid() or cursor.displayname != spelling:
+            cursor_spelling = cursor.spelling or cursor.displayname
+            cursor_spelling = re.sub(r"^(enum|class)\s+", "", cursor_spelling)
+
+            if cursor is None or cursor.kind.is_invalid() or cursor_spelling != spelling:
                 ExtensiveSearch(None, spelling, self.view, self.view.window())
                 return
             d = cursor.get_definition()
@@ -429,7 +432,9 @@ class ClangGotoDef(sublime_plugin.TextCommand):
 
             word = view.word(view.sel()[0].a)
             spelling = view.substr(word)
-            if cursor is None or cursor.kind.is_invalid() or (cursor.displayname != spelling and cursor.kind != cindex.CursorKind.INCLUSION_DIRECTIVE):
+            cursor_spelling = cursor.spelling or cursor.displayname
+            cursor_spelling = re.sub(r"^(enum|class)\s+", "", cursor_spelling)
+            if cursor is None or cursor.kind.is_invalid() or (cursor_spelling != spelling and cursor.kind != cindex.CursorKind.INCLUSION_DIRECTIVE):
                 # Try to determine what we're supposed to be looking for
                 data = view.substr(sublime.Region(0, view.line(view.sel()[0].a).end()))
                 chars = r"[\[\]\(\)&|.+-/*,<>;]"
