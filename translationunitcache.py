@@ -854,7 +854,18 @@ class TranslationUnitCache(Worker):
     def get_opts_script(self, view):
         return expand_path(get_setting("options_script", "", view), view.window())
 
+    def check_opts(self, view):
+        opts = get_setting("options", [], view)
+        if opts != view.settings().get("sublimeclang.raw_options"):
+            view.settings().clear_on_change("sublimeclang.opts")
+            view.settings().erase("sublimeclang.raw_options")
+            view.settings().erase("sublimeclang.cached_options")
+
     def get_opts(self, view):
+        opts = view.settings().get("sublimeclang.cached_options")
+        if opts:
+            return opts
+
         opts = get_path_setting("options", [], view)
         if not get_setting("dont_prepend_clang_includes", False, view):
             opts.insert(0, "-I%s/clang/include" % scriptpath)
@@ -872,6 +883,9 @@ class TranslationUnitCache(Worker):
                 opts.extend(additional_language_options[language] or [])
         self.debug_options = get_setting("debug_options", False)
         self.index_parse_options = get_setting("index_parse_options", 13, view)
+        view.settings().set("sublimeclang.raw_options", get_setting("options", [], view))
+        view.settings().set("sublimeclang.cached_options", opts)
+        view.settings().add_on_change("sublimeclang.opts", lambda: self.check_opts(view))
         return opts
 
     def get_translation_unit(self, filename, opts=[], opts_script=None, unsaved_files=[]):
