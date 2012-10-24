@@ -414,7 +414,7 @@ void trim(EntryList& mEntries)
     // Trim duplicates
     if (mEntries.begin() == mEntries.end())
         return;
-    for (EntryList::iterator i = mEntries.begin()+1; i < mEntries.end(); i++)
+    for (EntryList::iterator i = mEntries.begin()+1; i < mEntries.end(); )
     {
         while (i != mEntries.end() && (*(*i)) == (*(*(i-1))))
         {
@@ -435,6 +435,15 @@ void trim(EntryList& mEntries)
             {
                 i = mEntries.begin();
             }
+            i++;
+        }
+#if _WIN32
+        // MSVC asserts if you i++ past the end of the vector.
+        // In this case it's just an overzealous assert as we won't
+        // be reading from it. Issue #143
+        if (i < mEntries.end())
+#endif
+        {
             i++;
         }
     }
