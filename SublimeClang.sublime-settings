@@ -283,6 +283,9 @@
     // if scriptName.sh is present under the project's folders, will be executed as:
     // "/path/to/scriptName.sh someArgument1 someArgument2 currentViewFileName"
     // before each time a file needs to be parsed by clang.
+    //
+    // An example options script for loading the exact compilation commands from
+    // a CMake json database is available at https://gist.github.com/3944250.
     "options_script": "",
 
     // If set to true, it'll not prepend the compiler options with the path to the
