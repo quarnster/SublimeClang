@@ -319,6 +319,14 @@ class ExtensiveSearch:
             import traceback
             traceback.print_exc()
 
+def get_cursor_spelling(cursor):
+    cursor_spelling = None
+    if not cursor is None:
+        cursor_spelling = cursor.spelling or cursor.displayname
+        cursor_spelling = re.sub(r"^(enum\s+|(class|struct)\s+(\w+::)*)", "", cursor_spelling)
+    return cursor_spelling
+
+
 class ClangGotoImplementation(sublime_plugin.TextCommand):
 
     def run(self, edit):
@@ -334,9 +342,7 @@ class ClangGotoImplementation(sublime_plugin.TextCommand):
             cursor = cindex.Cursor.get(tu.var, view.file_name().encode("utf-8"),
                                        row + 1, col + 1)
             spelling = view.substr(view.word(view.sel()[0].a))
-            cursor_spelling = cursor.spelling or cursor.displayname
-            cursor_spelling = re.sub(r"^(enum|class)\s+", "", cursor_spelling)
-
+            cursor_spelling = get_cursor_spelling(cursor)
             if cursor is None or cursor.kind.is_invalid() or cursor_spelling != spelling:
                 ExtensiveSearch(None, spelling, self.view, self.view.window())
                 return
@@ -407,7 +413,6 @@ class ClangGotoImplementation(sublime_plugin.TextCommand):
     def is_visible(self):
         return is_supported_language(sublime.active_window().active_view())
 
-
 class ClangGotoDef(sublime_plugin.TextCommand):
     def quickpanel_on_done(self, idx):
         if idx == -1:
@@ -432,8 +437,7 @@ class ClangGotoDef(sublime_plugin.TextCommand):
 
             word = view.word(view.sel()[0].a)
             spelling = view.substr(word)
-            cursor_spelling = cursor.spelling or cursor.displayname
-            cursor_spelling = re.sub(r"^(enum|class)\s+", "", cursor_spelling)
+            cursor_spelling = get_cursor_spelling(cursor)
             if cursor is None or cursor.kind.is_invalid() or (cursor_spelling != spelling and cursor.kind != cindex.CursorKind.INCLUSION_DIRECTIVE):
                 # Try to determine what we're supposed to be looking for
                 data = view.substr(sublime.Region(0, view.line(view.sel()[0].a).end()))
