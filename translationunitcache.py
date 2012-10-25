@@ -695,6 +695,7 @@ class TranslationUnitCache(Worker):
         self.index_parse_options = 13
         self.index = None
         self.debug_options = False
+        self.__options_cache = {}
 
     def get_status(self, filename):
         tu = self.translationUnits.lock()
@@ -855,16 +856,16 @@ class TranslationUnitCache(Worker):
         return expand_path(get_setting("options_script", "", view), view.window())
 
     def check_opts(self, view):
+        key = view.file_name()
         opts = get_setting("options", [], view)
-        if opts != view.settings().get("sublimeclang.raw_options"):
+        if opts != self.__options_cache[key][0]:
             view.settings().clear_on_change("sublimeclang.opts")
-            view.settings().erase("sublimeclang.raw_options")
-            view.settings().erase("sublimeclang.cached_options")
+            del self.__options_cache[key]
 
     def get_opts(self, view):
-        opts = view.settings().get("sublimeclang.cached_options")
-        if opts:
-            return opts
+        key = view.file_name()
+        if key in self.__options_cache:
+            return list(self.__options_cache[key][1])
 
         opts = get_path_setting("options", [], view)
         if not get_setting("dont_prepend_clang_includes", False, view):
@@ -883,10 +884,9 @@ class TranslationUnitCache(Worker):
                 opts.extend(additional_language_options[language] or [])
         self.debug_options = get_setting("debug_options", False)
         self.index_parse_options = get_setting("index_parse_options", 13, view)
-        view.settings().set("sublimeclang.raw_options", get_setting("options", [], view))
-        view.settings().set("sublimeclang.cached_options", opts)
-        view.settings().add_on_change("sublimeclang.opts", lambda: self.check_opts(view))
-        return opts
+        self.__options_cache[key] = (get_setting("options", [], view), opts)
+        view.settings().add_on_change("sublimeclang.opts", lambda: run_in_main_thread(lambda: self.check_opts(view)))
+        return list(opts)
 
     def get_translation_unit(self, filename, opts=[], opts_script=None, unsaved_files=[]):
         if self.index == None:
