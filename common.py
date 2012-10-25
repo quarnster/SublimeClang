@@ -112,7 +112,7 @@ except:
     # Just used for unittesting
 
     def error_message(msg):
-        print msg
+        raise Exception(msg)
 
     def get_setting(key, default=None, view=None):
         return default

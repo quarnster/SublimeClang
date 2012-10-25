@@ -39,26 +39,28 @@ if(NOT DEFINED PARALLEL_COMPILES)
     set(PARALLEL_COMPILES 4)
 endif()
 
-file(READ "${PROJECT_SOURCE_DIR}/../package.json" TEMP)
-string(REGEX MATCH "(\"version\": \")([0-9]+\\.[0-9]+\\.[0-9]+)" TEMP ${TEMP})
+if(NOT DEFINED WIN_RELEASE)
+    file(READ "${PROJECT_SOURCE_DIR}/../package.json" TEMP)
+    string(REGEX MATCH "(\"version\": \")([0-9]+\\.[0-9]+\\.[0-9]+)" TEMP ${TEMP})
 
-add_definitions(-DSUBLIMECLANG_VERSION="${CMAKE_MATCH_2}")
-set(TARGETLIB ${LIBPREFIX}cache${LIBSUFFIX})
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/..)
+    add_definitions(-DSUBLIMECLANG_VERSION="${CMAKE_MATCH_2}")
+    set(TARGETLIB ${LIBPREFIX}cache${LIBSUFFIX})
+    set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/..)
 
-link_directories(${PROJECT_SOURCE_DIR}/.. /usr/local/lib /usr/lib /usr/lib64/llvm)
-add_library(${TARGETLIB} SHARED main.cpp )
-target_link_libraries(
-    ${TARGETLIB}
-    ${LIBPREFIX}clang${LIBSUFFIX}
-)
+    link_directories(${PROJECT_SOURCE_DIR}/.. /usr/local/lib /usr/lib /usr/lib64/llvm)
+    add_library(${TARGETLIB} SHARED main.cpp )
+    target_link_libraries(
+        ${TARGETLIB}
+        ${LIBPREFIX}clang${LIBSUFFIX}
+    )
+endif()
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
      add_custom_command(TARGET ${TARGETLIB}
         POST_BUILD
         COMMAND install_name_tool -change /tmp/llvm-3.1.src/build/lib/liblibclang.3.1.dylib libclang.dylib $<TARGET_FILE:cache>
         WORKING_DIRECTORY ${PROJECT_BINARY_DIR})
-elseif(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+elseif(${CMAKE_SYSTEM_NAME} MATCHES "Windows" AND NOT DEFINED WIN_RELEASE)
 
     if(MSVC)
         set(MYPATTERN "[ \t\r\n]+([0-9]+)[ \t]+([0-9A-F]+)[ \t]+([0-9A-F]+)[ \t]+([a-zA-Z0-9_]+)")
@@ -136,7 +138,7 @@ if(BUILD_LIBCLANG)
     elseif(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
         set(LIBCLANG_NAME "liblibclang.dylib")
     else()
-        message(FATAL ERROR "Platform doesn't support building libclang at the moment. You'll have to manuall tweak the CMakeLists.txt")
+        message(FATAL ERROR "Platform doesn't support building libclang at the moment. You'll have to manually tweak the CMakeLists.txt")
     endif()
 
     add_custom_command(OUTPUT llvm/build/lib/${LIBCLANG_NAME}
@@ -154,23 +156,113 @@ if(BUILD_LIBCLANG)
 endif()
 
 
-add_custom_command(OUTPUT release
-                    COMMAND mkdir release
-                    WORKING_DIRECTORY ${PROJECT_BINARY_DIR})
 
-add_custom_target(sublime-package
-                    COMMAND rm -rf *
-                    COMMAND find ../../.. -maxdepth 1 -type f -iregex \".*/[^.].*\" -exec cp {} . "\;"
-                    COMMAND cp -r ../../../parsehelp parsehelp
-                    COMMAND cp -r ../../../clang clang
-                    COMMAND mkdir src
-                    COMMAND find ../../../src -maxdepth 1 -type f  -exec cp {} src "\;"
-                    COMMAND find ../../../src -maxdepth 1 -type d -not -regex \".*/build\" -not -regex \".*/src\" -exec cp -r {} src "\;"
-                    COMMAND find . -name \".git*\" -exec rm -rf {} +
-                    COMMAND find . -name \"*.pyc\" -exec rm -rf {} +
-                    COMMAND find . -name \"unittest*\" -exec rm -rf {} +
-                    COMMAND find . -name \"*.sublime-workspace\" -exec rm -rf {} +
-                    COMMAND find . -name \"lib*.so\" -exec rm -rf {} +
-                    COMMAND zip -r SublimeClang.sublime-package *
-                    DEPENDS ${TARGETLIB} ${PROJECT_BINARY_DIR}/release
-                    WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/release)
+if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+    add_custom_command(OUTPUT release
+                        COMMAND mkdir release
+                        WORKING_DIRECTORY ${PROJECT_BINARY_DIR})
+
+    add_custom_target(clean_release
+                        COMMAND rm -rf *
+                        DEPENDS ${PROJECT_BINARY_DIR}/release
+                        WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/release
+    )
+    add_custom_target(prepare
+                        COMMAND find ../../.. -maxdepth 1 -type f -iregex \".*/[^.].*\" -exec cp {} . "\;"
+                        COMMAND cp -r ../../../parsehelp parsehelp
+                        COMMAND cp -r ../../../clang clang
+                        COMMAND mkdir src
+                        COMMAND find ../../../src -maxdepth 1 -type f  -exec cp {} src "\;"
+                        COMMAND find ../../../src -maxdepth 1 -type d -not -regex \".*/build.*\" -not -regex \".*/src\" -exec cp -r {} src "\;"
+                        COMMAND find . -name \".git*\" -exec rm -rf {} +
+                        COMMAND find . -name \"*.cache\" -exec rm -rf {} +
+                        COMMAND find . -name \"*.sublime-workspace\" -exec rm -rf {} +
+                        COMMAND find . -name \"lib*.so\" -exec rm -rf {} +
+                        DEPENDS ${TARGETLIB} ${PROJECT_BINARY_DIR}/release clean_release
+                        DEPENDS ${PROJECT_SOURCE_DIR}/../libclang.dll ${PROJECT_SOURCE_DIR}/../libcache.dll
+                        DEPENDS ${PROJECT_SOURCE_DIR}/../libclang_x64.dll ${PROJECT_SOURCE_DIR}/../libcache_x64.dll
+                        WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/release
+    )
+
+    add_custom_target(unittest
+                        COMMAND cp -r ../../../unittests unittests
+                        COMMAND python unittests/unittest.py
+                        COMMAND find . -name \"unittest*\" -exec rm -rf {} +
+                        COMMAND find . -name \"*.pyc\" -exec rm -rf {} +
+                        DEPENDS prepare
+                        WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/release)
+
+    add_custom_target(sublime-package
+                        COMMAND zip -r SublimeClang.sublime-package *
+                        DEPENDS unittest
+                        WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/release
+    )
+endif()
+
+if(DEFINED WIN_RELEASE)
+    if(NOT EXISTS ./SublimeClang.sublime-package)
+        message("Downloading current SublimeClang release...")
+        file(DOWNLOAD http://cloud.github.com/downloads/quarnster/SublimeClang/SublimeClang.sublime-package ./SublimeClang.sublime-package)
+    endif()
+    add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/source
+        COMMAND ${CMAKE_COMMAND} -E make_directory source
+        COMMAND ${CMAKE_COMMAND} -E chdir source ${CMAKE_COMMAND} -E tar xf ../SublimeClang.sublime-package
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different source/libclang.dll ${PROJECT_SOURCE_DIR}/../libclang.dll
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different source/libclang_x64.dll ${PROJECT_SOURCE_DIR}/../libclang_x64.dll
+        WORKING_DIRECTORY ${PROJECT_BINARY_DIR}
+    )
+    macro(win_build DIR TARGET LIB)
+        if(${TARGET} MATCHES "/x86")
+            set(CLANGLIB libclang.dll)
+            set(PYTHON c:\\Python27\\python)
+        else()
+            set(CLANGLIB libclang_x64.dll)
+            set(PYTHON c:\\Python27_x64\\python)
+        endif()
+        add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/../${CLANGLIB}
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different source/${CLANGLIB} ${PROJECT_SOURCE_DIR}/../${CLANGLIB}
+            DEPENDS ${PROJECT_BINARY_DIR}/source
+            WORKING_DIRECTORY ${PROJECT_BINARY_DIR}
+        )
+
+        add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/${DIR}
+            COMMAND ${CMAKE_COMMAND} -E make_directory ${DIR}
+            WORKING_DIRECTORY ${PROJECT_BINARY_DIR}
+        )
+        add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/${DIR}/cmds.bat
+            COMMAND ${CMAKE_COMMAND} ARGS -E echo "call \\\"C:\\Program Files\\Microsoft SDKs\\Windows\\v7.1\\Bin\\SetEnv.cmd\\\" /Release ${TARGET}" > cmds.bat
+            COMMAND ${CMAKE_COMMAND} ARGS -E echo "\\\"${CMAKE_COMMAND}\\\" -DCMAKE_BUILD_TYPE=MinSizeRel -G \\\"NMake Makefiles\\\" \\\"${PROJECT_SOURCE_DIR}\\\"" >> cmds.bat
+            DEPENDS ${PROJECT_BINARY_DIR}/${DIR} ${PROJECT_BINARY_DIR}/source
+            WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/${DIR}
+        )
+        add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/${DIR}/build.bat
+            COMMAND ${CMAKE_COMMAND} ARGS -E echo "call \\\"C:\\Program Files\\Microsoft SDKs\\Windows\\v7.1\\Bin\\SetEnv.cmd\\\" /Release ${TARGET}" > build.bat
+            COMMAND ${CMAKE_COMMAND} ARGS -E echo nmake >> build.bat
+            DEPENDS ${PROJECT_BINARY_DIR}/${DIR}
+            WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/${DIR}
+        )
+        add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/${DIR}/CMakeCache.txt
+            COMMAND cmds.bat
+            DEPENDS ${PROJECT_BINARY_DIR}/${DIR}/cmds.bat ${PROJECT_BINARY_DIR}/../${CLANGLIB}
+            WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/${DIR}
+        )
+        add_custom_command(OUTPUT ${PROJECT_SOURCE_DIR}/../${LIB}
+            COMMAND build.bat
+            DEPENDS ${PROJECT_BINARY_DIR}/${DIR}/CMakeCache.txt ${PROJECT_BINARY_DIR}/${DIR}/build.bat
+            WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/${DIR}
+        )
+        add_custom_target(build_${LIB} ALL
+            DEPENDS ${PROJECT_SOURCE_DIR}/../${LIB}
+        )
+
+        add_custom_target(unittest_${LIB} ALL
+            COMMAND ${CMAKE_COMMAND} -E chdir .. ${PYTHON} unittests/unittest.py -disableplatformspecific
+            DEPENDS build_${LIB}
+            WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
+        )
+    endmacro()
+
+    win_build(buildx86 "/x86" libcache.dll)
+    win_build(buildx64 "/x64" libcache_x64.dll)
+endif()
+

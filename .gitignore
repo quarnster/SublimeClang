@@ -1,5 +1,5 @@
 *.pyc
-src/build
+src/build*
 sublimeclang.sublime-workspace
 *.dylib
 *.dll

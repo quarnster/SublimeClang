@@ -163,7 +163,7 @@ add_test(data + "t2[0].")
 # ---------------------------------------------------------
 
 tu = get_tu("unittests/3.cpp")
-add_test("new ")
+add_test("new ", True)
 add_test("new std::", True)
 add_test("new std::rel_ops::", True)
 add_test("new std2::")
