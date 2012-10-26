@@ -181,10 +181,10 @@ class Worker(object):
                 self.tasks.task_done()
 
 
-def complete_path(value, window):
+def complete_path(value):
     path_init, path_last = os.path.split(value)
     if path_init[:2] == "-I" and (path_last == "**" or path_last == "*"):
-        starting_path = expand_path(path_init[2:], window)
+        starting_path = path_init[2:]
         include_paths = []
         if os.path.exists(starting_path):
             if path_last == "*":
@@ -204,17 +204,17 @@ def complete_path(value, window):
             pass  # perhaps put some error here?
         return include_paths
     else:
-        return [expand_path(value, window)]
+        return [value]
 
 
 def get_path_setting(key, default=None, view=None):
     value = get_setting(key, default, view)
     opts = []
     if isinstance(value, str) or isinstance(value, unicode):
-        opts.extend(complete_path(value, view.window()))
+        opts.append(expand_path(value, view.window()))
     else:
         for v in value:
-            opts.extend(complete_path(v, view.window()))
+            opts.append(expand_path(v, view.window()))
     return opts
 
 

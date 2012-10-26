@@ -20,7 +20,7 @@ freely, subject to the following restrictions:
    3. This notice may not be removed or altered from any source
    distribution.
 """
-from common import Worker, expand_path, get_setting, get_path_setting, get_language, LockedVariable, run_in_main_thread, error_message
+from common import Worker, complete_path, expand_path, get_setting, get_path_setting, get_language, LockedVariable, run_in_main_thread, error_message
 from clang import cindex
 import time
 import shlex
@@ -617,7 +617,6 @@ class Cache:
             return remove_duplicates(ret)
         else:
             constr = re.search(r"(^|\W)new\s+$", before) != None
-
             cached_results = cache_complete_startswith(self.cache, prefix)
             if cached_results:
                 ret = [(x.display, x.insert) for x in cached_results[0]]
@@ -896,6 +895,10 @@ class TranslationUnitCache(Worker):
         if filename not in tus:
             self.translationUnits.unlock()
             pre_script_opts = list(opts)
+            opts2 = []
+            for option in opts:
+                opts2.extend(complete_path(option))
+            opts = opts2
 
             if opts_script:
                 # shlex.split barfs if fed with an unicode strings
