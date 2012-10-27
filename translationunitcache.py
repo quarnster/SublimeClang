@@ -20,7 +20,9 @@ freely, subject to the following restrictions:
    3. This notice may not be removed or altered from any source
    distribution.
 """
-from common import Worker, complete_path, expand_path, get_setting, get_path_setting, get_language, LockedVariable, run_in_main_thread, error_message
+from common import Worker, complete_path, expand_path, get_setting, get_path_setting,\
+                    get_language, LockedVariable, run_in_main_thread, error_message,\
+                    display_user_selection, get_cpu_count, status_message
 from clang import cindex
 import time
 import shlex
@@ -29,6 +31,8 @@ from ctypes import cdll, Structure, POINTER, c_char_p, c_void_p, c_uint, c_bool
 from parsehelp.parsehelp import *
 import re
 import os
+import Queue
+import threading
 
 scriptpath = os.path.dirname(os.path.abspath(__file__))
 
@@ -672,6 +676,353 @@ class Cache:
             cache_disposeCompletionResults(comp)
         return ret
 
+def format_cursor(cursor):
+    return "%s:%d:%d" % (cursor.location.file.name, cursor.location.line,
+                         cursor.location.column)
+
+def get_cursor_spelling(cursor):
+    cursor_spelling = None
+    if not cursor is None:
+        cursor_spelling = cursor.spelling or cursor.displayname
+        cursor_spelling = re.sub(r"^(enum\s+|(class|struct)\s+(\w+::)*)", "", cursor_spelling)
+    return cursor_spelling
+
+class ExtensiveSearch:
+
+    def quickpanel_extensive_search(self, idx):
+        if idx == 0:
+            for cpu in range(get_cpu_count()):
+                t = threading.Thread(target=self.worker)
+                t.start()
+            self.queue.put((0, "*/+"))
+
+    def __init__(self, cursor, spelling, found_callback, folders, opts, opts_script, name="", impl=True, search_re=None, file_re=None):
+        self.name = name
+        if impl:
+            self.re = re.compile(r"(\w+\s+|\w+::|\*|&)(%s\s*\([^;\{]*\))\s*\{" % re.escape(spelling))
+            self.impre = re.compile(r"(\.cpp|\.c|\.cc|\.m|\.mm)$")
+        else:
+            self.re = re.compile(r"(\w+\s+|\w+::|\*|&)(%s\s*\([^;\{}]*\))\s*;" % re.escape(spelling))
+            self.impre = re.compile(r"(\.h|\.hpp)$")
+        if search_re != None:
+            self.re = search_re
+        if file_re != None:
+            self.impre = file_re
+        self.folders = folders
+        self.opts = opts
+        self.opts_script = opts_script
+        self.impl = impl
+        self.target = ""
+        self.cursor = cursor
+        self.queue = Queue.PriorityQueue()
+        self.candidates = Queue.Queue()
+        self.lock = threading.RLock()
+        self.timer = None
+        self.status_count = 0
+        self.found_callback = found_callback
+        display = [["Yes", "Do extensive search"], ["No", "Don't do extensive search"]]
+        display_user_selection(display, self.quickpanel_extensive_search)
+
+    def done(self):
+        if len(self.target) > 0:
+            self.found_callback(self.target)
+        elif not self.candidates.empty():
+            display = []
+            while not self.candidates.empty():
+                name, function, line, column = self.candidates.get()
+                pos = "%s:%d:%d" % (name, line, column)
+                display.append([function, pos])
+                self.candidates.task_done()
+            self.found_callback(display)
+        else:
+            self.found_callback(None)
+
+    def do_message(self):
+        try:
+            self.lock.acquire()
+            run_in_main_thread(lambda: status_message(self.status))
+            self.status_count = 0
+            self.timer = None
+        finally:
+            self.lock.release()
+
+    def set_status(self, message):
+        try:
+            self.lock.acquire()
+            self.status = message
+            if self.timer:
+                self.timer.cancel()
+                self.timer = None
+            self.status_count += 1
+            if self.status_count == 30:
+                self.do_message()
+            else:
+                self.timer = threading.Timer(0.1, self.do_message)
+        finally:
+            self.lock.release()
+
+    def worker(self):
+        try:
+            while len(self.target) == 0:
+                prio, name = self.queue.get(timeout=60)
+                if name == "*/+":
+                    run_in_main_thread(lambda: status_message("Searching for %s..." % ("implementation" if self.impl else "definition")))
+                    name = os.path.basename(self.name)
+                    for folder in self.folders:
+                        for dirpath, dirnames, filenames in os.walk(folder):
+                            for filename in filenames:
+                                if self.impre.search(filename) != None:
+                                    score = 1000
+                                    for i in range(min(len(filename), len(name))):
+                                        if filename[i] == name[i]:
+                                            score -= 1
+                                        else:
+                                            break
+                                    self.queue.put((score, os.path.join(dirpath, filename)))
+                    for i in range(get_cpu_count()-1):
+                        self.queue.put((1001, "*/+++"))
+
+                    self.queue.put((1010, "*/++"))
+                    self.queue.task_done()
+                    continue
+                elif name == "*/++":
+                    run_in_main_thread(self.done)
+                    break
+                elif name == "*/+++":
+                    self.queue.task_done()
+                    break
+
+                remove = tuCache.get_status(name) == TranslationUnitCache.STATUS_NOT_IN_CACHE
+                fine_search = not remove
+
+                self.set_status("Searching %s" % name)
+
+                # try a regex search first
+                f = file(name, "r")
+                data = f.read()
+                f.close()
+                match = self.re.search(data)
+                if match != None:
+                    fine_search = True
+                    line, column = get_line_and_column_from_offset(data, match.start())
+                    self.candidates.put((name, "".join(match.groups()), line, column))
+
+                if fine_search and self.cursor and self.impl:
+                    tu2 = tuCache.get_translation_unit(name, self.opts, self.opts_script)
+                    if tu2 != None:
+                        tu2.lock()
+                        try:
+                            cursor2 = cindex.Cursor.get(
+                                    tu2.var, self.cursor.location.file.name,
+                                    self.cursor.location.line,
+                                    self.cursor.location.column)
+                            if not cursor2 is None:
+                                d = cursor2.get_definition()
+                                if not d is None and cursor2 != d:
+                                    self.target = format_cursor(d)
+                                    run_in_main_thread(self.done)
+                        finally:
+                            tu2.unlock()
+                        if remove:
+                            tuCache.remove(name)
+                self.queue.task_done()
+        except Queue.Empty as e:
+            pass
+        except:
+            import traceback
+            traceback.print_exc()
+
+    def get_possible_targets():
+        if len(es.target) > 0:
+            return self.target
+        elif not self.candidates.empty():
+            display = []
+            while not self.candidates.empty():
+                name, function, line, column = self.candidates.get()
+                pos = "%s:%d:%d" % (name, line, column)
+                display.append([function, pos])
+                self.candidates.task_done()
+            return display
+        else:
+            return None
+
+
+class LockedTranslationUnit(LockedVariable):
+    def __init__(self, var, fn):
+        LockedVariable.__init__(self, var)
+        self.cache = Cache(var, fn)
+        self.fn = fn.encode("utf-8")
+
+    def quickpanel_format(self, cursor):
+        return ["%s::%s" % (cursor.get_semantic_parent().spelling,
+                            cursor.displayname), format_cursor(cursor)]
+
+    def get_impdef_prep(self, data, offset):
+        row, col = get_line_and_column_from_offset(data, offset)
+        cursor = cindex.Cursor.get(self.var, self.fn,
+                                       row, col)
+        cursor_spelling = get_cursor_spelling(cursor)
+        word_under_cursor = extract_word_at_offset(data, offset)
+        return cursor, cursor_spelling, word_under_cursor
+
+    def get_implementation(self, data, offset, found_callback, folders):
+        target = None
+        try:
+            self.lock()
+            self.var.reparse([(self.fn, data)])
+            cursor, cursor_spelling, word_under_cursor = self.get_impdef_prep(data, offset)
+            if len(word_under_cursor) == 0:
+                found_callback(None)
+                return
+            if cursor is None or cursor.kind.is_invalid() or cursor_spelling != word_under_cursor:
+                ExtensiveSearch(None, word_under_cursor, found_callback, folders, self.opts, self.opts_script)
+                return
+            d = cursor.get_definition()
+            if not d is None and cursor != d:
+                target = format_cursor(d)
+            elif not d is None and cursor == d and \
+                    (cursor.kind == cindex.CursorKind.VAR_DECL or \
+                    cursor.kind == cindex.CursorKind.PARM_DECL or \
+                    cursor.kind == cindex.CursorKind.FIELD_DECL):
+                for child in cursor.get_children():
+                    if child.kind == cindex.CursorKind.TYPE_REF:
+                        d = child.get_definition()
+                        if not d is None:
+                            target = format_cursor(d)
+                        break
+            elif cursor.kind == cindex.CursorKind.CLASS_DECL:
+                for child in cursor.get_children():
+                    if child.kind == cindex.CursorKind.CXX_BASE_SPECIFIER:
+                        d = child.get_definition()
+                        if not d is None:
+                            target = format_cursor(d)
+            elif d is None:
+                if cursor.kind == cindex.CursorKind.DECL_REF_EXPR or \
+                        cursor.kind == cindex.CursorKind.MEMBER_REF_EXPR or \
+                        cursor.kind == cindex.CursorKind.CALL_EXPR:
+                    cursor = cursor.get_reference()
+
+                if cursor.kind == cindex.CursorKind.CXX_METHOD or \
+                        cursor.kind == cindex.CursorKind.FUNCTION_DECL or \
+                        cursor.kind == cindex.CursorKind.CONSTRUCTOR or \
+                        cursor.kind == cindex.CursorKind.DESTRUCTOR:
+                    f = cursor.location.file.name
+                    if f.endswith(".h"):
+                        endings = ["cpp", "c", "cc", "m", "mm"]
+                        for ending in endings:
+                            f = "%s.%s" % (f[:f.rfind(".")], ending)
+                            if f != self.fn and os.access(f, os.R_OK):
+                                tu2 = get_translation_unit(view, f, True)
+                                if tu2 == None:
+                                    continue
+                                tu2.lock()
+                                try:
+                                    cursor2 = cindex.Cursor.get(
+                                            tu2.var, cursor.location.file.name,
+                                            cursor.location.line,
+                                            cursor.location.column)
+                                    if not cursor2 is None:
+                                        d = cursor2.get_definition()
+                                        if not d is None and cursor2 != d:
+                                            target = format_cursor(d)
+                                            break
+                                finally:
+                                    tu2.unlock()
+                        if not target:
+                            ExtensiveSearch(None, word_under_cursor, found_callback, folders, self.opts, self.opts_script)
+                            return
+        finally:
+            self.unlock()
+        found_callback(target)
+
+    def get_definition(self, data, offset, found_callback, folders):
+        target = None
+        try:
+            self.lock()
+            self.var.reparse([(self.fn, data)])
+            cursor, cursor_spelling, word_under_cursor = self.get_impdef_prep(data, offset)
+            if len(word_under_cursor) == 0:
+                found_callback(None)
+                return
+            if cursor is None or cursor.kind.is_invalid() or (cursor_spelling != word_under_cursor and cursor.kind != cindex.CursorKind.INCLUSION_DIRECTIVE):
+                # Try to determine what we're supposed to be looking for
+                line, col = get_line_and_column_from_offset(data, offset)
+
+                data = data[:get_offset_from_line_and_column(data, line+1, 0)]
+                chars = r"[\[\]\(\)&|.+-/*,<>;]"
+
+                word = [0,0]
+                off = len(data)
+                while True:
+                    off = data[:off].rfind(word_under_cursor)
+                    word = [off, off+len(word_under_cursor)]
+                    if offset >= off and offset <= off+len(word_under_cursor):
+                        break
+                for match in re.finditer(r"(^|\w+|=|%s|\s)\s*(%s)\s*($|==|%s)" % (chars, word_under_cursor, chars), data):
+                    if (match.start(2), match.end(2)) == (word[0], word[1]):
+                        if match.group(3) == "(":
+                            # Probably a function
+                            ExtensiveSearch(None, word_under_cursor, found_callback, folders, self.opts, self.opts_script, impl=False)
+                            return
+                        else:
+                            # A variable perhaps?
+                            data = data[:match.end(2)] + "."
+                            typedef = get_type_definition(data)
+                            if typedef:
+                                line, column, name, var, extra = typedef
+                                if line > 0 and column > 0:
+                                    found_callback("%s:%d:%d" % (self.fn, line, column))
+                                    return
+                                elif name != None and name == get_base_type(name):
+                                    search_re = re.compile(r"(^|\s|\})\s*(class|struct)(\s+%s\s*)(;|\{)" % name)
+                                    ExtensiveSearch(None, name, found_callback, folders, self.opts, self.opts_script, impl=False, search_re=search_re)
+                                    return
+                        break
+                found_callback(None)
+                return
+            ref = cursor.get_reference()
+            target = ""
+
+            if not ref is None and cursor == ref:
+                can = cursor.get_canonical_cursor()
+                if not can is None and can != cursor:
+                    target = format_cursor(can)
+                else:
+                    o = cursor.get_overridden()
+                    if len(o) == 1:
+                        target = format_cursor(o[0])
+                    elif len(o) > 1:
+                        opts = []
+                        for i in range(len(o)):
+                            opts.append(self.quickpanel_format(o[i]))
+                        target = opts
+                    elif (cursor.kind == cindex.CursorKind.VAR_DECL or \
+                            cursor.kind == cindex.CursorKind.PARM_DECL or \
+                            cursor.kind == cindex.CursorKind.FIELD_DECL):
+                        for child in cursor.get_children():
+                            if child.kind == cindex.CursorKind.TYPE_REF:
+                                d = child.get_definition()
+                                if not d is None:
+                                    target = format_cursor(d)
+                                break
+                    elif cursor.kind == cindex.CursorKind.CLASS_DECL:
+                        for child in cursor.get_children():
+                            if child.kind == cindex.CursorKind.CXX_BASE_SPECIFIER:
+                                d = child.get_definition()
+                                if not d is None:
+                                    target = format_cursor(d)
+            elif not ref is None:
+                target = format_cursor(ref)
+            elif cursor.kind == cindex.CursorKind.INCLUSION_DIRECTIVE:
+                f = cursor.get_included_file()
+                if not f is None:
+                    target = f.name
+        finally:
+            self.unlock()
+
+        found_callback(target)
+
+
 
 class TranslationUnitCache(Worker):
     STATUS_PARSING      = 1
@@ -679,10 +1030,7 @@ class TranslationUnitCache(Worker):
     STATUS_READY        = 3
     STATUS_NOT_IN_CACHE = 4
 
-    class LockedTranslationUnit(LockedVariable):
-        def __init__(self, var, fn):
-            LockedVariable.__init__(self, var)
-            self.cache = Cache(var, fn)
+
 
     def __init__(self):
         workerthreadcount = get_setting("worker_threadcount", -1)
@@ -918,8 +1266,9 @@ class TranslationUnitCache(Worker):
             tu = self.index.parse(None, opts, unsaved_files,
                                   self.index_parse_options)
             if tu != None:
-                tu = TranslationUnitCache.LockedTranslationUnit(tu, filename)
+                tu = LockedTranslationUnit(tu, filename)
                 tu.opts = pre_script_opts
+                tu.opts_script = opts_script
                 tus = self.translationUnits.lock()
                 tus[filename] = tu
                 self.translationUnits.unlock()
@@ -927,7 +1276,7 @@ class TranslationUnitCache(Worker):
                 print "tu is None..."
         else:
             tu = tus[filename]
-            recompile = tu.opts != opts
+            recompile = tu.opts != opts or tu.opts_script != opts_script
 
             if recompile:
                 del tus[filename]

@@ -142,22 +142,9 @@ class ClangGoBack(sublime_plugin.TextCommand):
         return is_supported_language(sublime.active_window().active_view())
 
 
-def format_cursor(cursor):
-    return "%s:%d:%d" % (cursor.location.file.name, cursor.location.line,
-                         cursor.location.column)
-
-
 def format_current_file(view):
     row, col = view.rowcol(view.sel()[0].a)
     return "%s:%d:%d" % (view.file_name().encode("utf-8"), row + 1, col + 1)
-
-
-def dump_cursor(cursor):
-    if cursor is None:
-        print "None"
-    else:
-        print cursor.kind, cursor.displayname, cursor.spelling
-        print format_cursor(cursor)
 
 
 def open(view, target):
@@ -165,352 +152,54 @@ def open(view, target):
     view.window().open_file(target, sublime.ENCODED_POSITION)
 
 
-class ExtensiveSearch:
+class ClangGotoBase(sublime_plugin.TextCommand):
 
-    def quickpanel_extensive_search(self, idx):
-        if idx == 0:
-            for cpu in range(get_cpu_count()):
-                t = threading.Thread(target=self.worker)
-                t.start()
-            self.queue.put((0, "*/+", self.window.folders(), (translationunitcache.tuCache.get_opts(self.view), translationunitcache.tuCache.get_opts_script(self.view))))
+    def get_target(self, tu, data, offset, found_callback, folders):
+        pass
 
-    def __init__(self, cursor, spelling, view, window, name="", impl=True, search_re=None, file_re=None):
-        self.name = name
-        if impl:
-            self.re = re.compile(r"(\w+\s+|\w+::|\*|&)(%s\s*\([^;\{]*\))\s*\{" % re.escape(spelling))
-            self.impre = re.compile(r"(\.cpp|\.c|\.cc|\.m|\.mm)$")
-        else:
-            self.re = re.compile(r"(\w+\s+|\w+::|\*|&)(%s\s*\([^;\{}]*\))\s*;" % re.escape(spelling))
-            self.impre = re.compile(r"(\.h|\.hpp)$")
-        if search_re != None:
-            self.re = search_re
-        if file_re != None:
-            self.impre = file_re
-        self.impl = impl
-        self.view = view
-        self.target = ""
-        self.cursor = cursor
-        self.window = window
-        self.queue = Queue.PriorityQueue()
-        self.candidates = Queue.Queue()
-        self.lock = threading.RLock()
-        self.timer = None
-        self.status_count = 0
-
-        display = [["Yes", "Do extensive search"], ["No", "Don't do extensive search"]]
-        self.window.show_quick_panel(display, self.quickpanel_extensive_search)
-
-
-    def quickpanel_on_done(self, idx):
-        if idx == -1:
-            return
-        open(self.view, self.selection[idx])
-
-    def done(self):
-        if len(self.target) > 0:
-            open(self.view, self.target)
-        elif not self.candidates.empty():
-            display = []
-            self.selection = []
-            while not self.candidates.empty():
-                name, function, line, column = self.candidates.get()
-                pos = "%s:%d:%d" % (name, line, column)
-                self.selection.append(pos)
-                display.append([function, pos])
-                self.candidates.task_done()
-            self.window.show_quick_panel(display, self.quickpanel_on_done)
-        else:
-            sublime.status_message("Don't know where the %s is!" % ("implementation" if self.impl else "definition"))
-
-    def do_message(self):
-        try:
-            self.lock.acquire()
-            run_in_main_thread(lambda: status_message(self.status))
-            self.status_count = 0
-            self.timer = None
-        finally:
-            self.lock.release()
-
-    def set_status(self, message):
-        try:
-            self.lock.acquire()
-            self.status = message
-            if self.timer:
-                self.timer.cancel()
-                self.timer = None
-            self.status_count += 1
-            if self.status_count == 30:
-                self.do_message()
-            else:
-                self.timer = threading.Timer(0.1, self.do_message)
-        finally:
-            self.lock.release()
-
-    def worker(self):
-        try:
-            while len(self.target) == 0:
-                prio, name, opts, opts_script = self.queue.get(timeout=60)
-                if name == "*/+":
-                    run_in_main_thread(lambda: status_message("Searching for %s..." % ("implementation" if self.impl else "definition")))
-                    name = os.path.basename(self.name)
-                    folders = opts
-                    opts, opts_script = opts_script
-                    for folder in folders:
-                        for dirpath, dirnames, filenames in os.walk(folder):
-                            for filename in filenames:
-                                if self.impre.search(filename) != None:
-                                    score = 1000
-                                    for i in range(min(len(filename), len(name))):
-                                        if filename[i] == name[i]:
-                                            score -= 1
-                                        else:
-                                            break
-                                    self.queue.put((score, os.path.join(dirpath, filename), opts, opts_script))
-                    for i in range(get_cpu_count()-1):
-                        self.queue.put((1001, "*/+++", None, None))
-
-                    self.queue.put((1010, "*/++", None, None))
-                    self.queue.task_done()
-                    continue
-                elif name == "*/++":
-                    run_in_main_thread(self.done)
-                    break
-                elif name == "*/+++":
-                    self.queue.task_done()
-                    break
-
-                remove = translationunitcache.tuCache.get_status(name) == translationunitcache.TranslationUnitCache.STATUS_NOT_IN_CACHE
-                fine_search = not remove
-
-                self.set_status("Searching %s" % name)
-
-                # try a regex search first
-                f = file(name, "r")
-                data = f.read()
-                f.close()
-                match = self.re.search(data)
-                if match != None:
-                    fine_search = True
-                    line, column = parsehelp.get_line_and_column_from_offset(data, match.start())
-                    self.candidates.put((name, "".join(match.groups()), line, column))
-
-                if fine_search and self.cursor and self.impl:
-                    tu2 = translationunitcache.tuCache.get_translation_unit(name, opts, opts_script)
-                    if tu2 != None:
-                        tu2.lock()
-                        try:
-                            cursor2 = cindex.Cursor.get(
-                                    tu2.var, self.cursor.location.file.name,
-                                    self.cursor.location.line,
-                                    self.cursor.location.column)
-                            if not cursor2 is None:
-                                d = cursor2.get_definition()
-                                if not d is None and cursor2 != d:
-                                    self.target = format_cursor(d)
-                                    run_in_main_thread(self.done)
-                        finally:
-                            tu2.unlock()
-                        if remove:
-                            translationunitcache.tuCache.remove(name)
-                self.queue.task_done()
-        except Queue.Empty as e:
-            pass
-        except:
-            import traceback
-            traceback.print_exc()
-
-def get_cursor_spelling(cursor):
-    cursor_spelling = None
-    if not cursor is None:
-        cursor_spelling = cursor.spelling or cursor.displayname
-        cursor_spelling = re.sub(r"^(enum\s+|(class|struct)\s+(\w+::)*)", "", cursor_spelling)
-    return cursor_spelling
-
-
-class ClangGotoImplementation(sublime_plugin.TextCommand):
-
-    def run(self, edit):
-        view = self.view
-        tu = get_translation_unit(view)
-        if tu == None:
-            return
-        tu.lock()
-        target = ""
-
-        try:
-            row, col = view.rowcol(view.sel()[0].a)
-            cursor = cindex.Cursor.get(tu.var, view.file_name().encode("utf-8"),
-                                       row + 1, col + 1)
-            spelling = view.substr(view.word(view.sel()[0].a))
-            cursor_spelling = get_cursor_spelling(cursor)
-            if cursor is None or cursor.kind.is_invalid() or cursor_spelling != spelling:
-                ExtensiveSearch(None, spelling, self.view, self.view.window())
-                return
-            d = cursor.get_definition()
-            if not d is None and cursor != d:
-                target = format_cursor(d)
-            elif not d is None and cursor == d and \
-                    (cursor.kind == cindex.CursorKind.VAR_DECL or \
-                    cursor.kind == cindex.CursorKind.PARM_DECL or \
-                    cursor.kind == cindex.CursorKind.FIELD_DECL):
-                for child in cursor.get_children():
-                    if child.kind == cindex.CursorKind.TYPE_REF:
-                        d = child.get_definition()
-                        if not d is None:
-                            target = format_cursor(d)
-                        break
-            elif cursor.kind == cindex.CursorKind.CLASS_DECL:
-                for child in cursor.get_children():
-                    if child.kind == cindex.CursorKind.CXX_BASE_SPECIFIER:
-                        d = child.get_definition()
-                        if not d is None:
-                            target = format_cursor(d)
-            elif d is None:
-                if cursor.kind == cindex.CursorKind.DECL_REF_EXPR or \
-                        cursor.kind == cindex.CursorKind.MEMBER_REF_EXPR or \
-                        cursor.kind == cindex.CursorKind.CALL_EXPR:
-                    cursor = cursor.get_reference()
-
-                if cursor.kind == cindex.CursorKind.CXX_METHOD or \
-                        cursor.kind == cindex.CursorKind.FUNCTION_DECL or \
-                        cursor.kind == cindex.CursorKind.CONSTRUCTOR or \
-                        cursor.kind == cindex.CursorKind.DESTRUCTOR:
-                    f = cursor.location.file.name
-                    if f.endswith(".h"):
-                        endings = ["cpp", "c", "cc", "m", "mm"]
-                        for ending in endings:
-                            f = "%s.%s" % (f[:f.rfind(".")], ending)
-                            if f != view.file_name().encode("utf-8") and os.access(f, os.R_OK):
-                                tu2 = get_translation_unit(view, f, True)
-                                if tu2 == None:
-                                    continue
-                                tu2.lock()
-                                try:
-                                    cursor2 = cindex.Cursor.get(
-                                            tu2.var, cursor.location.file.name,
-                                            cursor.location.line,
-                                            cursor.location.column)
-                                    if not cursor2 is None:
-                                        d = cursor2.get_definition()
-                                        if not d is None and cursor2 != d:
-                                            target = format_cursor(d)
-                                            break
-                                finally:
-                                    tu2.unlock()
-                        if len(target) == 0:
-                            ExtensiveSearch(cursor, cursor.spelling, self.view, self.view.window(), cursor.location.file.name)
-                            return
-        finally:
-            tu.unlock()
-        if len(target) > 0:
-            open(self.view, target)
-        else:
+    def found_callback(self, target):
+        print target
+        if target == None:
             sublime.status_message("Don't know where the implementation is!")
+        elif len(target) > 0:
+            open(self.view, target)
+        else:
+            self.targets = target
+            self.window.show_quick_panel(target, self.open_file)
 
-    def is_enabled(self):
-        return is_supported_language(sublime.active_window().active_view())
-
-    def is_visible(self):
-        return is_supported_language(sublime.active_window().active_view())
-
-class ClangGotoDef(sublime_plugin.TextCommand):
-    def quickpanel_on_done(self, idx):
-        if idx == -1:
-            return
-        open(self.view, format_cursor(self.o[idx]))
-
-    def quickpanel_format(self, cursor):
-        return ["%s::%s" % (cursor.get_semantic_parent().spelling,
-                            cursor.displayname), format_cursor(cursor)]
+    def open_file(self, idx):
+        if idx >= 0:
+            target = self.targets[idx]
+            if isinstance(target, tuple):
+                target = target[1]
+            open(self.view, target)
 
     def run(self, edit):
         view = self.view
         tu = get_translation_unit(view)
         if tu == None:
             return
-        tu.lock()
-        target = ""
-        try:
-            row, col = view.rowcol(view.sel()[0].a)
-            cursor = cindex.Cursor.get(tu.var, view.file_name().encode("utf-8"),
-                                       row + 1, col + 1)
 
-            word = view.word(view.sel()[0].a)
-            spelling = view.substr(word)
-            cursor_spelling = get_cursor_spelling(cursor)
-            if cursor is None or cursor.kind.is_invalid() or (cursor_spelling != spelling and cursor.kind != cindex.CursorKind.INCLUSION_DIRECTIVE):
-                # Try to determine what we're supposed to be looking for
-                data = view.substr(sublime.Region(0, view.line(view.sel()[0].a).end()))
-                chars = r"[\[\]\(\)&|.+-/*,<>;]"
-                for match in re.finditer(r"(^|\w+|=|%s|\s)\s*(%s)\s*($|==|%s)" % (chars, spelling, chars), data):
-                    if (match.start(2), match.end(2)) == (word.begin(), word.end()):
-                        if match.group(3) == "(":
-                            # Probably a function
-                            ExtensiveSearch(None, spelling, self.view, self.view.window(), impl=False)
-                        else:
-                            # A variable perhaps?
-                            data = data[:match.end(2)] + "."
-                            typedef = parsehelp.get_type_definition(data)
-                            if typedef:
-                                line, column, name, var, extra = typedef
-                                if line > 0 and column > 0:
-                                    open(view, "%s:%d:%d" % (view.file_name().encode("utf-8"), line, column))
-                                elif name != None and name == parsehelp.get_base_type(name):
-                                    search_re = re.compile(r"(^|\s|\})\s*(class|struct)(\s+%s\s*)(;|\{)" % name)
-                                    ExtensiveSearch(None, name, self.view, self.view.window(), impl=False, search_re=search_re)
-                        break
-                return
-            ref = cursor.get_reference()
-            target = ""
+        offset = view.sel()[0].a
+        data = view.substr(sublime.Region(0, view.size()))
+        self.get_target(tu, data, offset, self.found_callback, self.view.window().folders())
 
-            if not ref is None and cursor == ref:
-                can = cursor.get_canonical_cursor()
-                if not can is None and can != cursor:
-                    target = format_cursor(can)
-                else:
-                    o = cursor.get_overridden()
-                    if len(o) == 1:
-                        target = format_cursor(o[0])
-                    elif len(o) > 1:
-                        self.o = o
-                        opts = []
-                        for i in range(len(o)):
-                            opts.append(self.quickpanel_format(o[i]))
-                        view.window().show_quick_panel(opts,
-                                                       self.quickpanel_on_done)
-                    elif (cursor.kind == cindex.CursorKind.VAR_DECL or \
-                            cursor.kind == cindex.CursorKind.PARM_DECL or \
-                            cursor.kind == cindex.CursorKind.FIELD_DECL):
-                        for child in cursor.get_children():
-                            if child.kind == cindex.CursorKind.TYPE_REF:
-                                d = child.get_definition()
-                                if not d is None:
-                                    target = format_cursor(d)
-                                break
-                    elif cursor.kind == cindex.CursorKind.CLASS_DECL:
-                        for child in cursor.get_children():
-                            if child.kind == cindex.CursorKind.CXX_BASE_SPECIFIER:
-                                d = child.get_definition()
-                                if not d is None:
-                                    target = format_cursor(d)
-            elif not ref is None:
-                target = format_cursor(ref)
-            elif cursor.kind == cindex.CursorKind.INCLUSION_DIRECTIVE:
-                f = cursor.get_included_file()
-                if not f is None:
-                    target = f.name
-        finally:
-            tu.unlock()
-        if len(target) > 0:
-            open(self.view, target)
-        else:
-            sublime.status_message("No parent to go to!")
 
     def is_enabled(self):
         return is_supported_language(sublime.active_window().active_view())
 
     def is_visible(self):
         return is_supported_language(sublime.active_window().active_view())
+
+
+class ClangGotoImplementation(ClangGotoBase):
+    def get_target(self, tu, data, offset, found_callback, folders):
+        return tu.get_implementation(data, offset, found_callback, folders)
+
+
+class ClangGotoDef(ClangGotoBase):
+    def get_target(self, tu, data, offset, found_callback, folders):
+        return tu.get_definition(data, offset, found_callback, folders)
 
 
 class ClangClearCache(sublime_plugin.TextCommand):
