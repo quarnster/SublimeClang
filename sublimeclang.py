@@ -225,6 +225,7 @@ def ignore_diagnostic(path, ignoreDirs):
             return True
     return False
 
+
 def display_compilation_results(view):
     tu = get_translation_unit(view)
     errString = ""
@@ -236,11 +237,12 @@ def display_compilation_results(view):
 
     if not tu.try_lock():
         return
-    errorCount = 0
-    warningCount = 0
-    ignoreDirs = [os.path.abspath(os.path.normpath(os.path.normcase(d))) for d in get_setting("diagnostic_ignore_dirs", [], view)]
-    ignore_regex = re.compile(get_setting("diagnostic_ignore_regex"))
     try:
+        errorCount = 0
+        warningCount = 0
+        ignoreDirs = [os.path.abspath(os.path.normpath(os.path.normcase(d))) for d in get_setting("diagnostic_ignore_dirs", [], view)]
+        ignore_regex = re.compile(get_setting("diagnostic_ignore_regex", "pragma once in main file"))
+
         if len(tu.var.diagnostics):
             errString = ""
             for diag in tu.var.diagnostics:
