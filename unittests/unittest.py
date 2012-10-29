@@ -179,19 +179,22 @@ def get_tu(filename):
     currfile = filename
     myopts = []
     myopts.extend(opts)
-    if filename.endswith(".cpp"):
+    if not filename.endswith(".mm"):
         myopts.append("-x")
         myopts.append("c++")
     else:
         myopts.append("-ObjC")
     return translationunitcache.tuCache.get_translation_unit(filename, myopts)
 
+def read_file(filename):
+    f = open(filename)
+    data = f.read()
+    f.close()
+    return data
 
 if goto_def:
     tu = get_tu("src/main.cpp")
-    f = open("src/main.cpp")
-    data = f.read()
-    f.close()
+    data = read_file("src/main.cpp")
 
     data2 = """/*
 
@@ -231,9 +234,7 @@ if goto_def:
 
 if goto_imp:
     tu = get_tu("src/main.cpp")
-    f = open("src/main.cpp")
-    data = f.read()
-    f.close()
+    data = read_file("src/main.cpp")
     data2 = """/*
 
             Just to make the translation unit no longer map 1:1
@@ -265,7 +266,18 @@ if goto_imp:
     add_goto_imp_test(data2, data2.rfind("CXCursor_FunctionTemplate")+2)
     add_goto_imp_test(data2, data2.find("mNamespaces")+2)
     add_goto_imp_test(data2, data2.find("mFound")+2)
+    add_goto_imp_test(data2, data2.find("strcmp")+2)
+    add_goto_imp_test(data2, data2.find("strlen")+2)
+    tu2 = get_tu("./unittests/search2.cpp")
+    add_goto_imp_test(data2, data2.find("strncmp")+2)
+    tu2.var.reparse()
+    add_goto_imp_test(data2, data2.find("strncmp")+2)
 
+    tu = get_tu("unittests/search3.h")
+    data = read_file("unittests/search3.h")
+    add_goto_imp_test(data, data.find("hello")+2)
+    add_goto_imp_test(data, data.find("notfound")+2)
+    add_goto_imp_test(data, data.find("elsewhere")+2)
 
 
 if complete:
@@ -294,9 +306,7 @@ if complete:
     add_completion_test("new ")
     add_completion_test("new Cla")
 
-    f = open("unittests/2.cpp")
-    data = f.read()
-    f.close()
+    data = read_file("unittests/2.cpp")
     add_completion_test(data + "Test t[1]; t.")
     add_completion_test(data + "Test t[1]; t[0].")
     add_completion_test(data + "t2.")
@@ -473,9 +483,7 @@ if complete:
     add_completion_test("void Test2::something() { EnumMember.")
     add_completion_test("void Test2::something() { ", True)
 
-    f = open("unittests/3.cpp")
-    data = f.read()
-    f.close()
+    data = read_file("unittests/3.cpp")
 
     add_completion_test(data + "quat q; q.myEnum.")
     add_completion_test(data + "Test2 t2; t2.")
@@ -541,9 +549,7 @@ if complete:
     add_completion_test("void Child::something() { this->")
     add_completion_test("void A::something() {")
 
-    f = open("unittests/6.cpp")
-    data = f.read()
-    f.close()
+    data = read_file("unittests/6.cpp")
     add_completion_test(data + " ")
     add_completion_test(data + " myenum::")
     add_completion_test(data + " m.")
@@ -588,9 +594,7 @@ if complete:
     add_completion_test("TestStruct2::MyEnum e; e.")
     add_completion_test("void TestStruct2::blah() { someMember.")
 
-    f = open("unittests/7.cpp")
-    data = f.read()
-    f.close()
+    data = read_file("unittests/7.cpp")
     subdata = data[:data.rfind("*t;")+4]
     add_completion_test(subdata + "t.")
     add_completion_test(subdata + "t->")
@@ -640,9 +644,7 @@ if complete:
     add_completion_test("World *w; w->worldVar.")
     add_completion_test("World *w; w->worldVar->")
 
-    f = open("unittests/8.mm")
-    data = f.read()
-    f.close()
+    data = read_file("unittests/8.mm")
     add_completion_test(data[:data.rfind(".")+1])
     add_completion_test("""@implementation World3
     - (void) something

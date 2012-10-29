@@ -158,19 +158,18 @@ class ClangGotoBase(sublime_plugin.TextCommand):
         pass
 
     def found_callback(self, target):
-        print target
         if target == None:
-            sublime.status_message("Don't know where the implementation is!")
-        elif len(target) > 0:
+            sublime.status_message("Don't know where the %s is!" % self.goto_type)
+        elif isinstance(target, str):
             open(self.view, target)
         else:
             self.targets = target
-            self.window.show_quick_panel(target, self.open_file)
+            self.view.window().show_quick_panel(target, self.open_file)
 
     def open_file(self, idx):
         if idx >= 0:
             target = self.targets[idx]
-            if isinstance(target, tuple):
+            if isinstance(target, list):
                 target = target[1]
             open(self.view, target)
 
@@ -194,11 +193,13 @@ class ClangGotoBase(sublime_plugin.TextCommand):
 
 class ClangGotoImplementation(ClangGotoBase):
     def get_target(self, tu, data, offset, found_callback, folders):
+        self.goto_type = "implementation"
         return tu.get_implementation(data, offset, found_callback, folders)
 
 
 class ClangGotoDef(ClangGotoBase):
     def get_target(self, tu, data, offset, found_callback, folders):
+        self.goto_type = "definition"
         return tu.get_definition(data, offset, found_callback, folders)
 
 

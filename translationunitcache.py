@@ -708,12 +708,15 @@ class ExtensiveSearch:
             self.re = search_re
         if file_re != None:
             self.impre = file_re
+        self.spelling = spelling
         self.folders = folders
         self.opts = opts
         self.opts_script = opts_script
         self.impl = impl
         self.target = ""
-        self.cursor = cursor
+        self.cursor = None
+        if cursor:
+            self.cursor = format_cursor(cursor)
         self.queue = Queue.PriorityQueue()
         self.candidates = Queue.Queue()
         self.lock = threading.RLock()
@@ -801,10 +804,17 @@ class ExtensiveSearch:
                 f = file(name, "r")
                 data = f.read()
                 f.close()
-                match = self.re.search(data)
-                if match != None:
+                fine_cands = []
+                for match in self.re.finditer(data):
                     fine_search = True
-                    line, column = get_line_and_column_from_offset(data, match.start())
+                    loc = match.start()
+                    for i in range(len(match.groups())):
+                        m = match.group(i)
+                        if self.spelling in m:
+                            loc = match.start(i)
+
+                    line, column = get_line_and_column_from_offset(data, loc)
+                    fine_cands.append((name, line, column))
                     self.candidates.put((name, "".join(match.groups()), line, column))
 
                 if fine_search and self.cursor and self.impl:
@@ -812,15 +822,18 @@ class ExtensiveSearch:
                     if tu2 != None:
                         tu2.lock()
                         try:
-                            cursor2 = cindex.Cursor.get(
-                                    tu2.var, self.cursor.location.file.name,
-                                    self.cursor.location.line,
-                                    self.cursor.location.column)
-                            if not cursor2 is None:
-                                d = cursor2.get_definition()
-                                if not d is None and cursor2 != d:
-                                    self.target = format_cursor(d)
-                                    run_in_main_thread(self.done)
+                            for cand in fine_cands:
+                                cursor2 = cindex.Cursor.get(
+                                        tu2.var, cand[0],
+                                        cand[1],
+                                        cand[2])
+                                if not cursor2 is None:
+                                    d = cursor2.get_canonical_cursor()
+                                    if not d is None and cursor2 != d:
+                                        if format_cursor(d) == self.cursor:
+                                            self.target = format_cursor(cursor2)
+                                            run_in_main_thread(self.done)
+                                            break
                         finally:
                             tu2.unlock()
                         if remove:
@@ -875,7 +888,9 @@ class LockedTranslationUnit(LockedVariable):
                 found_callback(None)
                 return
             if cursor is None or cursor.kind.is_invalid() or cursor_spelling != word_under_cursor:
-                ExtensiveSearch(None, word_under_cursor, found_callback, folders, self.opts, self.opts_script)
+                if cursor is None or cursor.kind.is_invalid():
+                    cursor = None
+                ExtensiveSearch(cursor, word_under_cursor, found_callback, folders, self.opts, self.opts_script)
                 return
             d = cursor.get_definition()
             if not d is None and cursor != d:
@@ -912,7 +927,7 @@ class LockedTranslationUnit(LockedVariable):
                         for ending in endings:
                             f = "%s.%s" % (f[:f.rfind(".")], ending)
                             if f != self.fn and os.access(f, os.R_OK):
-                                tu2 = get_translation_unit(view, f, True)
+                                tu2 = tuCache.get_translation_unit(f, self.opts, self.opts_script)
                                 if tu2 == None:
                                     continue
                                 tu2.lock()
@@ -929,7 +944,7 @@ class LockedTranslationUnit(LockedVariable):
                                 finally:
                                     tu2.unlock()
                         if not target:
-                            ExtensiveSearch(None, word_under_cursor, found_callback, folders, self.opts, self.opts_script)
+                            ExtensiveSearch(cursor, word_under_cursor, found_callback, folders, self.opts, self.opts_script)
                             return
         finally:
             self.unlock()
@@ -981,7 +996,7 @@ class LockedTranslationUnit(LockedVariable):
                 found_callback(None)
                 return
             ref = cursor.get_reference()
-            target = ""
+            target = None
 
             if not ref is None and cursor == ref:
                 can = cursor.get_canonical_cursor()
