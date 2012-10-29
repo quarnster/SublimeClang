@@ -687,6 +687,8 @@ def get_cursor_spelling(cursor):
         cursor_spelling = re.sub(r"^(enum\s+|(class|struct)\s+(\w+::)*)", "", cursor_spelling)
     return cursor_spelling
 
+searchcache = {}
+
 class ExtensiveSearch:
 
     def quickpanel_extensive_search(self, idx):
@@ -695,6 +697,8 @@ class ExtensiveSearch:
                 t = threading.Thread(target=self.worker)
                 t.start()
             self.queue.put((0, "*/+"))
+        elif len(self.options) > 2:
+            self.found_callback(self.options[idx][1])
 
     def __init__(self, cursor, spelling, found_callback, folders, opts, opts_script, name="", impl=True, search_re=None, file_re=None):
         self.name = name
@@ -723,22 +727,35 @@ class ExtensiveSearch:
         self.timer = None
         self.status_count = 0
         self.found_callback = found_callback
-        display = [["Yes", "Do extensive search"], ["No", "Don't do extensive search"]]
-        display_user_selection(display, self.quickpanel_extensive_search)
+        self.options = [["Yes", "Do extensive search"], ["No", "Don't do extensive search"]]
+        k = self.key()
+        if k in searchcache:
+            self.options = [["Redo search", "Redo extensive search"], ["Don't redo", "Don't redo extensive search"]]
+            targets = searchcache[k]
+            if isinstance(targets, str):
+                # An exact match is known, we're done here
+                found_callback(targets)
+                return
+            elif targets != None:
+                self.options.extend(targets)
+        display_user_selection(self.options, self.quickpanel_extensive_search)
+
+    def key(self):
+        return str((self.cursor, self.spelling, self.impre.pattern, self.re.pattern, self.impl, str(self.folders)))
 
     def done(self):
+        cache = None
         if len(self.target) > 0:
-            self.found_callback(self.target)
+            cache = self.target
         elif not self.candidates.empty():
-            display = []
+            cache = []
             while not self.candidates.empty():
                 name, function, line, column = self.candidates.get()
                 pos = "%s:%d:%d" % (name, line, column)
-                display.append([function, pos])
+                cache.append([function, pos])
                 self.candidates.task_done()
-            self.found_callback(display)
-        else:
-            self.found_callback(None)
+        searchcache[self.key()] = cache
+        self.found_callback(cache)
 
     def do_message(self):
         try:
@@ -1153,6 +1170,7 @@ class TranslationUnitCache(Worker):
         tus = self.translationUnits.lock()
         try:
             tus.clear()
+            searchcache.clear()
         finally:
             self.translationUnits.unlock()
 

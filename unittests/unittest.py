@@ -117,9 +117,10 @@ def add_test_ex(key, test, platformspecific=False, noneok=False):
         if platformspecific and disableplatformspecific:
             return
         if gold != None and output != None:
-            assert type(gold) == type(output)
-            if isinstance(gold, str):
-                assert gold == output
+            if type(gold) != type(output):
+                fail("gold and output type differs: %s %s" % (type(gold), type(output)))
+            elif isinstance(gold, str) and gold != output:
+                fail("gold and output differs: %s %s" % (gold, output))
             else:
                 gold = [str(x) for x in gold]
                 output = [str(x) for x in output]
@@ -272,6 +273,22 @@ if goto_imp:
     add_goto_imp_test(data2, data2.find("strlen")+2)
     tu2 = get_tu("./unittests/search2.cpp")
     add_goto_imp_test(data2, data2.find("strncmp")+2)
+
+    # index 1 would be "don't redo search/don't do search" so if we get a
+    # timeout exception we know the test failed
+    old = translationunitcache.display_user_selection
+    translationunitcache.display_user_selection = lambda a, b: b(1)
+    add_goto_imp_test(data2, data2.find("strncmp")+2)
+
+    # And in this instance, we want to select one of the options previously found
+    def check_correct(a, b):
+        assert len(a) == 5
+        b(2)
+    translationunitcache.display_user_selection = check_correct
+    add_goto_imp_test(data2, data2.find("strcmp")+2)
+
+    translationunitcache.display_user_selection = old
+    translationunitcache.searchcache.clear()
     tu2.var.reparse()
     add_goto_imp_test(data2, data2.find("strncmp")+2)
 

@@ -160,7 +160,7 @@ class ClangGotoBase(sublime_plugin.TextCommand):
     def found_callback(self, target):
         if target == None:
             sublime.status_message("Don't know where the %s is!" % self.goto_type)
-        elif isinstance(target, str):
+        elif not isinstance(target, list):
             open(self.view, target)
         else:
             self.targets = target
