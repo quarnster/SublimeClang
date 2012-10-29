@@ -119,8 +119,9 @@ def add_test_ex(key, test, platformspecific=False, noneok=False):
         if gold != None and output != None:
             if type(gold) != type(output):
                 fail("gold and output type differs: %s %s" % (type(gold), type(output)))
-            elif isinstance(gold, str) and gold != output:
-                fail("gold and output differs: %s %s" % (gold, output))
+            elif isinstance(gold, str):
+                if gold != output:
+                    fail("gold and output differs: %s %s" % (gold, output))
             else:
                 gold = [str(x) for x in gold]
                 output = [str(x) for x in output]
@@ -134,6 +135,31 @@ def add_test_ex(key, test, platformspecific=False, noneok=False):
                     fail("Test failed: %s - Was in output but not gold: %s" % (key, i))
 
 goto_def_test_count = 0
+
+def defimp_base(queue):
+    allowed_sleeps = 50
+
+    while queue.empty():
+        time.sleep(0.1)
+        if allowed_sleeps == 0:
+            raise Exception("goto def timed out")
+        allowed_sleeps -= 1
+
+    res = queue.get()
+    if isinstance(res, list):
+        nl = []
+        for a,b in res:
+            name, linecol = b.split(":", 1)
+            name = os.path.relpath(name)
+            nl.append((a, "%s:%s" % (name, linecol)))
+        res = nl
+    elif res != None:
+        name, linecol = res.split(":", 1)
+        name = os.path.relpath(name)
+        res =  "%s:%s" % (name, linecol)
+    return res
+
+
 def add_goto_def_test(data, offset):
     global goto_def_test_count
     goto_def_test_count += 1
@@ -141,15 +167,7 @@ def add_goto_def_test(data, offset):
     queue = Queue.Queue()
     def get_res(queue, data, offset):
         tu.get_definition(data, offset, lambda a: queue.put(a), ["."])
-        allowed_sleeps = 50
-
-        while queue.empty():
-            time.sleep(0.1)
-            if allowed_sleeps == 0:
-                raise Exception("goto def timed out")
-            allowed_sleeps -= 1
-
-        return queue.get()
+        return defimp_base(queue)
     add_test_ex(key, lambda: get_res(queue, data, offset))
 
 goto_imp_test_count = 0
@@ -160,15 +178,7 @@ def add_goto_imp_test(data, offset):
     queue = Queue.Queue()
     def get_res(queue, data, offset):
         tu.get_implementation(data, offset, lambda a: queue.put(a), ["."])
-        allowed_sleeps = 50
-
-        while queue.empty():
-            time.sleep(0.1)
-            if allowed_sleeps == 0:
-                raise Exception("goto imp timed out")
-            allowed_sleeps -= 1
-
-        return queue.get()
+        return defimp_base(queue)
     add_test_ex(key, lambda: get_res(queue, data, offset))
 
 
