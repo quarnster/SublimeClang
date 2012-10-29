@@ -121,6 +121,8 @@ def add_test_ex(key, test, platformspecific=False, noneok=False):
             if isinstance(gold, str):
                 assert gold == output
             else:
+                gold = [str(x) for x in gold]
+                output = [str(x) for x in output]
                 goldset = set(gold)
                 outputset = set(output)
                 ingold = goldset - outputset
