@@ -256,7 +256,7 @@ if(DEFINED WIN_RELEASE)
         )
 
         add_custom_target(unittest_${LIB} ALL
-            COMMAND ${CMAKE_COMMAND} -E chdir .. ${PYTHON} unittests/unittest.py -disableplatformspecific
+            COMMAND ${CMAKE_COMMAND} -E chdir .. ${PYTHON} unittests/unittest.py -nogotodef -nogotoimp -disableplatformspecific
             DEPENDS build_${LIB}
             WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
         )
