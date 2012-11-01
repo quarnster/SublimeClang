@@ -46,7 +46,6 @@ if(NOT DEFINED WIN_RELEASE)
     add_definitions(-DSUBLIMECLANG_VERSION="${CMAKE_MATCH_2}")
     set(TARGETLIB ${LIBPREFIX}cache${LIBSUFFIX})
     set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/..)
-
     link_directories(${PROJECT_SOURCE_DIR}/.. /usr/local/lib /usr/lib /usr/lib64/llvm)
     add_library(${TARGETLIB} SHARED main.cpp )
     target_link_libraries(
@@ -55,12 +54,7 @@ if(NOT DEFINED WIN_RELEASE)
     )
 endif()
 
-if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-     add_custom_command(TARGET ${TARGETLIB}
-        POST_BUILD
-        COMMAND install_name_tool -change /tmp/llvm-3.1.src/build/lib/liblibclang.3.1.dylib libclang.dylib $<TARGET_FILE:cache>
-        WORKING_DIRECTORY ${PROJECT_BINARY_DIR})
-elseif(${CMAKE_SYSTEM_NAME} MATCHES "Windows" AND NOT DEFINED WIN_RELEASE)
+if(${CMAKE_SYSTEM_NAME} MATCHES "Windows" AND NOT DEFINED WIN_RELEASE)
 
     if(MSVC)
         set(MYPATTERN "[ \t\r\n]+([0-9]+)[ \t]+([0-9A-F]+)[ \t]+([0-9A-F]+)[ \t]+([a-zA-Z0-9_]+)")
@@ -83,10 +77,10 @@ elseif(${CMAKE_SYSTEM_NAME} MATCHES "Windows" AND NOT DEFINED WIN_RELEASE)
                     DEPENDS ${TARGETLIB}
     )
 
-elseif(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
+else()
     include(CheckFunctionExists)
     string(REPLACE " " "\\ " CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_LIBRARY_OUTPUT_DIRECTORY} )
-    set(CMAKE_REQUIRED_FLAGS "-L${CMAKE_LIBRARY_OUTPUT_DIRECTORY} -L/usr/local/lib -L/usr/lib -L/usr/lib64/llvm")
+    set(CMAKE_REQUIRED_FLAGS "-isysroot / -L${CMAKE_LIBRARY_OUTPUT_DIRECTORY} -L/usr/local/lib -L/usr/lib")
     set(CMAKE_REQUIRED_LIBRARIES clang LLVM-3.1)
     check_function_exists(clang_getExpansionLocation HAS_RIGHT_CLANG)
     if(NOT HAS_RIGHT_CLANG)
@@ -127,18 +121,20 @@ if(BUILD_LIBCLANG)
                     COMMAND mv clang-3.1.src llvm/tools/clang
                     COMMAND mkdir llvm/build
     )
+    set(OSX_TEMP "\"${CMAKE_OSX_ARCHITECTURES}\"")
+    string(REPLACE ";" "\;" OSX_TEMP "${OSX_TEMP}")
     add_custom_command(OUTPUT llvm/build/CMakeCache.txt
                     DEPENDS llvm
-                    COMMAND cmake -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} -DLLVM_TARGETS_TO_BUILD="X86" ..
+                    COMMAND cmake -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} -DLLVM_TARGETS_TO_BUILD="X86" -DCMAKE_OSX_ARCHITECTURES=${OSX_TEMP} ..
                     WORKING_DIRECTORY llvm/build
     )
 
     if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
         set(LIBCLANG_NAME "liblibclang.so.3.1")
     elseif(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-        set(LIBCLANG_NAME "liblibclang.dylib")
+        set(LIBCLANG_NAME "liblibclang.3.1.dylib")
     else()
-        message(FATAL ERROR "Platform doesn't support building libclang at the moment. You'll have to manually tweak the CMakeLists.txt")
+        message(FATAL_ERROR "Platform doesn't support building libclang at the moment. You'll have to manually tweak the CMakeLists.txt")
     endif()
 
     add_custom_command(OUTPUT llvm/build/lib/${LIBCLANG_NAME}
@@ -146,11 +142,15 @@ if(BUILD_LIBCLANG)
                     DEPENDS llvm/build/CMakeCache.txt
                     WORKING_DIRECTORY llvm/build
     )
+
+    set(COPY_TARGET "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libclang${CMAKE_SHARED_LIBRARY_SUFFIX}")
+    string(REPLACE "\\" "" COPY_TARGET ${COPY_TARGET})
     add_custom_command(OUTPUT ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libclang${CMAKE_SHARED_LIBRARY_SUFFIX}
-                    COMMAND ${CMAKE_COMMAND} -E copy llvm/build/lib/${LIBCLANG_NAME} ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libclang${CMAKE_SHARED_LIBRARY_SUFFIX}
+                    COMMAND ${CMAKE_COMMAND} -E copy llvm/build/lib/${LIBCLANG_NAME} ${COPY_TARGET}
                     DEPENDS llvm/build/lib/${LIBCLANG_NAME}
                     WORKING_DIRECTORY ${PROJECT_BINARY_DIR}
     )
+
     add_custom_target(libclang ALL DEPENDS ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libclang${CMAKE_SHARED_LIBRARY_SUFFIX})
     add_dependencies(${TARGETLIB} libclang)
 endif()
@@ -158,6 +158,10 @@ endif()
 
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+    add_custom_command(TARGET ${TARGETLIB}
+                    POST_BUILD
+                    COMMAND install_name_tool -change "${PROJECT_BINARY_DIR}/llvm/build/lib/${LIBCLANG_NAME}" libclang.dylib $<TARGET_FILE:cache>
+                    WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/../../)
     add_custom_command(OUTPUT release
                         COMMAND mkdir release
                         WORKING_DIRECTORY ${PROJECT_BINARY_DIR})
