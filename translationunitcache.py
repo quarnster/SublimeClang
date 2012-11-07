@@ -881,7 +881,7 @@ class LockedTranslationUnit(LockedVariable):
     def __init__(self, var, fn):
         LockedVariable.__init__(self, var)
         self.cache = Cache(var, fn)
-        self.fn = fn.encode("utf-8")
+        self.fn = fn
 
     def quickpanel_format(self, cursor):
         return ["%s::%s" % (cursor.get_semantic_parent().spelling,
