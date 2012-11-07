@@ -1074,7 +1074,7 @@ class TranslationUnitCache(Worker):
         self.index_parse_options = 13
         self.index = None
         self.debug_options = False
-        self.__options_cache = {}
+        self.__options_cache = LockedVariable({})
 
     def get_status(self, filename):
         tu = self.translationUnits.lock()
@@ -1173,6 +1173,11 @@ class TranslationUnitCache(Worker):
             searchcache.clear()
         finally:
             self.translationUnits.unlock()
+        cache = self.__options_cache.lock()
+        try:
+            cache.clear()
+        finally:
+            self.__options_cache.unlock()
 
     def task_remove(self, data):
         if self.add_busy(data, self.task_remove, data):
@@ -1181,9 +1186,15 @@ class TranslationUnitCache(Worker):
             tus = self.translationUnits.lock()
             try:
                 if data in tus:
-                    tus.pop(data)
+                    del tus[data]
             finally:
                 self.translationUnits.unlock()
+            cache = self.__options_cache.lock()
+            try:
+                if data in cache:
+                    del cache[data]
+            finally:
+                self.__options_cache.unlock()
         finally:
             self.remove_busy(data)
 
@@ -1238,14 +1249,22 @@ class TranslationUnitCache(Worker):
     def check_opts(self, view):
         key = view.file_name()
         opts = get_setting("options", [], view)
-        if opts != self.__options_cache[key][0]:
-            view.settings().clear_on_change("sublimeclang.opts")
-            del self.__options_cache[key]
+        cache = self.__options_cache.lock()
+        try:
+            if opts != cache[key][0]:
+                view.settings().clear_on_change("sublimeclang.opts")
+                del cache[key]
+        finally:
+            self.__options_cache.unlock()
 
     def get_opts(self, view):
         key = view.file_name()
-        if key in self.__options_cache:
-            return list(self.__options_cache[key][1])
+        cache = self.__options_cache.lock()
+        try:
+            if key in cache:
+                return list(cache[key][1])
+        finally:
+            self.__options_cache.unlock()
 
         opts = get_path_setting("options", [], view)
         if not get_setting("dont_prepend_clang_includes", False, view):
@@ -1264,7 +1283,11 @@ class TranslationUnitCache(Worker):
                 opts.extend(additional_language_options[language] or [])
         self.debug_options = get_setting("debug_options", False)
         self.index_parse_options = get_setting("index_parse_options", 13, view)
-        self.__options_cache[key] = (get_setting("options", [], view), opts)
+        cache = self.__options_cache.lock()
+        try:
+            cache[key] = (get_setting("options", [], view), opts)
+        finally:
+            self.__options_cache.unlock()
         view.settings().add_on_change("sublimeclang.opts", lambda: run_in_main_thread(lambda: self.check_opts(view)))
         return list(opts)
 
