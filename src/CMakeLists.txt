@@ -42,7 +42,7 @@ endif()
 if(NOT DEFINED WIN_RELEASE)
     file(READ "${PROJECT_SOURCE_DIR}/../package.json" TEMP)
     string(REGEX MATCH "(\"version\": \")([0-9]+\\.[0-9]+\\.[0-9]+)" TEMP ${TEMP})
-
+    set(SUBLIMECLANG_VERSION ${CMAKE_MATCH_2})
     add_definitions(-DSUBLIMECLANG_VERSION="${CMAKE_MATCH_2}")
     set(TARGETLIB ${LIBPREFIX}cache${LIBSUFFIX})
     set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/..)
@@ -161,6 +161,7 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     add_custom_command(TARGET ${TARGETLIB}
                     POST_BUILD
                     COMMAND install_name_tool -change "${PROJECT_BINARY_DIR}/llvm/build/lib/${LIBCLANG_NAME}" libclang.dylib $<TARGET_FILE:cache>
+                    COMMAND install_name_tool -change "/tmp/llvm-3.1.src/build/lib/liblibclang.3.1.dylib" libclang.dylib $<TARGET_FILE:cache>
                     WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/../../)
     add_custom_command(OUTPUT release
                         COMMAND mkdir release
@@ -197,7 +198,7 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
                         WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/release)
 
     add_custom_target(sublime-package
-                        COMMAND zip -r SublimeClang.sublime-package *
+                        COMMAND zip -r SublimeClang-${SUBLIMECLANG_VERSION}.sublime-package *
                         DEPENDS unittest
                         WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/release
     )
