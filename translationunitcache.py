@@ -1283,12 +1283,15 @@ class TranslationUnitCache(Worker):
                 opts.extend(additional_language_options[language] or [])
         self.debug_options = get_setting("debug_options", False)
         self.index_parse_options = get_setting("index_parse_options", 13, view)
-        cache = self.__options_cache.lock()
-        try:
-            cache[key] = (get_setting("options", [], view), opts)
-        finally:
-            self.__options_cache.unlock()
-        view.settings().add_on_change("sublimeclang.opts", lambda: run_in_main_thread(lambda: self.check_opts(view)))
+        if view.window() != None:
+            # At startup it's possible that the window is None and thus path expansion
+            # might be wrong.
+            cache = self.__options_cache.lock()
+            try:
+                cache[key] = (get_setting("options", [], view), opts)
+            finally:
+                self.__options_cache.unlock()
+                view.settings().add_on_change("sublimeclang.opts", lambda: run_in_main_thread(lambda: self.check_opts(view)))
         return list(opts)
 
     def get_translation_unit(self, filename, opts=[], opts_script=None, unsaved_files=[]):
