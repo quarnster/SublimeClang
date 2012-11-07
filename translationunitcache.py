@@ -1256,6 +1256,8 @@ class TranslationUnitCache(Worker):
             if opts != cache[key][0]:
                 view.settings().clear_on_change("sublimeclang.opts")
                 del cache[key]
+        except KeyError:
+            view.settings().clear_on_change("sublimeclang.opts")
         finally:
             self.__options_cache.unlock()
 
