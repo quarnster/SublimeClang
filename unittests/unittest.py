@@ -142,21 +142,24 @@ def defimp_base(queue):
     while queue.empty():
         time.sleep(0.1)
         if allowed_sleeps == 0:
-            raise Exception("goto def timed out")
+            raise Exception("goto def/imp timed out")
         allowed_sleeps -= 1
 
     res = queue.get()
+    def fixup(res):
+        name, linecol = res.split(":", 1)
+        name = os.path.relpath(name)
+        # Just to ensure uniform results on all platforms
+        name = name.replace(os.path.sep, "/")
+        return "%s:%s" % (name, linecol)
+
     if isinstance(res, list):
         nl = []
         for a,b in res:
-            name, linecol = b.split(":", 1)
-            name = os.path.relpath(name)
-            nl.append((a, "%s:%s" % (name, linecol)))
+            nl.append((a, fixup(b)))
         res = nl
     elif res != None:
-        name, linecol = res.split(":", 1)
-        name = os.path.relpath(name)
-        res =  "%s:%s" % (name, linecol)
+        res = fixup(res)
     return res
 
 

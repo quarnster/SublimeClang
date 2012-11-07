@@ -77,7 +77,7 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Windows" AND NOT DEFINED WIN_RELEASE)
                     DEPENDS ${TARGETLIB}
     )
 
-else()
+elseif(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Windows")
     include(CheckFunctionExists)
     string(REPLACE " " "\\ " CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_LIBRARY_OUTPUT_DIRECTORY} )
     set(CMAKE_REQUIRED_FLAGS "-isysroot / -L${CMAKE_LIBRARY_OUTPUT_DIRECTORY} -L/usr/local/lib -L/usr/lib")
@@ -260,7 +260,7 @@ if(DEFINED WIN_RELEASE)
         )
 
         add_custom_target(unittest_${LIB} ALL
-            COMMAND ${CMAKE_COMMAND} -E chdir .. ${PYTHON} unittests/unittest.py -nogotodef -nogotoimp -disableplatformspecific
+            COMMAND ${CMAKE_COMMAND} -E chdir .. ${PYTHON} unittests/unittest.py -disableplatformspecific
             DEPENDS build_${LIB}
             WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
         )

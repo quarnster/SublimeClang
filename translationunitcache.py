@@ -963,6 +963,8 @@ class LockedTranslationUnit(LockedVariable):
                         if not target:
                             ExtensiveSearch(cursor, word_under_cursor, found_callback, folders, self.opts, self.opts_script)
                             return
+            else:
+                target = format_cursor(d)
         finally:
             self.unlock()
         found_callback(target)
