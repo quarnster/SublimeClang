@@ -749,6 +749,16 @@ if complete:
     add_completion_test("TES")
 
     # ---------------------------------------------------------
+    tu = get_tu("unittests/11.cpp")
+    # add_completion_test("test.")
+    # add_completion_test("test.GetT()->")
+    # add_completion_test("test.GetT2()->")
+    add_completion_test("test.GetBase()->")
+    # data = read_file("unittests/11.cpp")
+    # add_completion_test(data + "std::vector<std::string> test2; test2.")
+    # add_completion_test(data + "std::vector<std::string> test2; test2.front().")
+
+    # ---------------------------------------------------------
 
 if (testsAdded or update) and not dryrun:
     f = gzip.GzipFile(GOLDFILE, "wb")

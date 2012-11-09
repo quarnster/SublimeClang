@@ -895,9 +895,13 @@ class Cursor(Structure):
     _fields_ = [("_kind_id", c_int), ("xdata", c_int), ("data", c_void_p * 3)]
 
     def __eq__(self, other):
+        if other is None:
+            return Cursor_eq(self, Cursor_null())
         return Cursor_eq(self, other)
 
     def __ne__(self, other):
+        if other is None:
+            return not Cursor_eq(self, Cursor_null())
         return not Cursor_eq(self, other)
 
     def is_definition(self):
@@ -1128,7 +1132,17 @@ class Cursor(Structure):
 
         return ret
 
-    def get_resolved_cursor(self, parent=None):
+    def __solve_template(self, children, template):
+        print "solving: "
+        print "------children---------"
+        print children
+        print "------template-------"
+        print template
+        print "-------end-----------"
+
+        return self, template
+
+    def get_resolved_cursor(self, template=[], parent=None):
         #print "get_type"
         if self.kind == CursorKind.OBJC_INTERFACE_DECL:
             return self
@@ -1138,7 +1152,7 @@ class Cursor(Structure):
             ret = self.get_definition()
             if ret is None:
                 ret = self
-            return ret
+            return ret, template
         if self.kind == CursorKind.TYPEDEF_DECL:
             children = self.get_children()
             simple = True
@@ -1153,22 +1167,25 @@ class Cursor(Structure):
                     simple = False
                     break
             if simple and len(children) > 0:
-                return children[first].get_resolved_cursor(self)
-            return self
+                return children[first].get_resolved_cursor(template, self)
+
+            if children[first].kind == CursorKind.TEMPLATE_REF:
+                return self.__solve_template(children[first+1:], template)
+            return self, template
         elif self.result_type.kind == TypeKind.RECORD:
-            return self.get_children()[0].get_resolved_cursor()
+            return self.get_children()[0].get_resolved_cursor(template)
         elif self.kind == CursorKind.CLASS_DECL or self.kind == CursorKind.ENUM_DECL or self.kind == CursorKind.CLASS_TEMPLATE:
-            return self
+            return self, template
         elif self.kind == CursorKind.TEMPLATE_TYPE_PARAMETER:
-            return self
+            return self, template
         elif self.kind.is_reference():
             ref = self.get_reference()
             if ref == self:
                 #print "none1"
-                return None
+                return None, template
             elif not parent is None and ref == parent:
-                return self
-            return ref.get_resolved_cursor(self)
+                return self, template
+            return ref.get_resolved_cursor(template, self)
         elif self.kind.is_declaration():
             #print "decl: %s, %s" % (self.spelling, self.kind)
             for child in self.get_children():
@@ -1179,12 +1196,12 @@ class Cursor(Structure):
                     #self.dump(c)
                     if c == child:
                         #print "none3"
-                        return None
-                    return c.get_resolved_cursor()
+                        return None, []
+                    return c.get_resolved_cursor(template)
                 elif child.kind == CursorKind.ENUM_DECL:
-                    return child
+                    return child, template
                 elif child.kind == CursorKind.TEMPLATE_REF:
-                    return self
+                    return self, template
         #if self.kind == CursorKind.TYPE_REF:
         #    return self.get_reference()
 
@@ -1198,7 +1215,7 @@ class Cursor(Structure):
         # print "none2"
         # self.dump_self()
         # print "self dumped"
-        return self
+        return self, template
 
     def __repr__(self):
         if self is None or self.kind.is_invalid():
@@ -1233,7 +1250,32 @@ class Cursor(Structure):
             elif child.kind == CursorKind.COMPOUND_STMT and once:
                 child.dump(False)
 
-    def get_returned_cursor(self):
+    def __find_first_type(self, children):
+        if len(children) == 0:
+            return None, children
+        c = children.pop(0)
+        while len(children):
+            next = children[0]
+            if c.kind == CursorKind.STRUCT_DECL or c.kind == CursorKind.TEMPLATE_REF or (c.kind == CursorKind.TYPE_REF and next.kind != CursorKind.TYPE_REF):
+                break
+            children.pop(0)
+            c = next
+        return c, children
+
+    def __templateify(self):
+        orig, children = self.__find_first_type(self.get_children())
+        newchildren = []
+        while len(children) > 0:
+            c, children = self.__find_first_type(children)
+            res, temp = c.get_resolved_cursor()
+            if self.kind == CursorKind.VAR_DECL:
+                print "c: ", c, "\nres: ", res, "\ntemp: ", temp
+            if res:
+                newchildren.append(res.__templateify())
+
+        return (self, newchildren)
+
+    def get_returned_cursor(self, template=[]):
         ret = None
         if self.kind == CursorKind.FUNCTION_DECL or \
                     self.kind == CursorKind.FIELD_DECL or \
@@ -1246,12 +1288,7 @@ class Cursor(Structure):
                     self.kind == CursorKind.PARM_DECL:
             children = self.get_children()
             if len(children) > 0:
-                c = children.pop(0)
-                while len(children):
-                    next = children.pop(0)
-                    if c.kind == CursorKind.STRUCT_DECL or c.kind == CursorKind.TEMPLATE_REF or (c.kind == CursorKind.TYPE_REF and next.kind != CursorKind.TYPE_REF):
-                        break
-                    c = next
+                c, children = self.__find_first_type(children)
 
                 if c.kind.is_reference():
                     reference = c.get_reference()
@@ -1260,24 +1297,18 @@ class Cursor(Structure):
                         definition = reference
 
                     if definition is None or definition == c:
-                        return None
-                    return definition.get_resolved_cursor()
+                        return None, template
+                    if c.kind == CursorKind.TEMPLATE_REF:
+                        template = self.__templateify()
+                    return definition.get_resolved_cursor(template)
                 elif c.kind == CursorKind.STRUCT_DECL or c.kind == CursorKind.UNION_DECL:
-                    return c
+                    return c, template
                 else:
-                    return None
+                    return None, template
             else:
-                #print "none4"
-                return None
-        # if self.kind.is_reference():
-        #     ref = self.get_reference()
-        #     if self == ref:
-        #         return None
-        #     return ref.get_resolved_cursor()
-        # TODO: cleanup
-        #print "getting returned cursor of %s, %s, %s, %s" % (self.kind, self.spelling, self.type.kind, self.result_type.kind)
+                return None, template
         if self.kind.is_declaration():
-            ret = self #.get_resolved_cursor()
+            ret = self
         if self.result_type.kind == TypeKind.RECORD:
             ret = self.get_children()[0]
         if self.result_type.kind == TypeKind.POINTER or \
@@ -1285,18 +1316,13 @@ class Cursor(Structure):
                     self.result_type.kind == TypeKind.RVALUEREFERENCE:
 
             pointee = self.result_type.get_pointee()
-            #print "pointee kind: %s" % (pointee.kind)
             ret = pointee.get_declaration()
             if ret is None or ret.kind.is_invalid():
-                #ret = pointee.get_canonical().get_declaration()
                 ret = self.result_type.get_result().get_declaration()
 
-        #ret.dump_self()
         if not ret is None and not ret.kind.is_invalid():
-            #ret.dump()
-            return ret.get_resolved_cursor()
-        #print "none5"
-        return None
+            return ret.get_resolved_cursor(template)
+        return None, template
 
     def get_member(self, membername, function):
         #print "want to get the cursor for: %s->%s%s" % (self.spelling, membername, "()" if function else "")
