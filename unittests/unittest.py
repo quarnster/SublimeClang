@@ -406,6 +406,7 @@ if complete:
     add_completion_test("ZZZ::Test2::")
     add_completion_test("ZZZ::Test3::T3Class::")
     add_completion_test("ZZZ::z::")
+    add_completion_test("ZZZ::z::Test3::")
     add_completion_test("void Test::Class1::function(int something) {", True)
     add_completion_test("void Test::Class1::function(Class1 &other) { other.")
 

@@ -27,6 +27,7 @@ freely, subject to the following restrictions:
 #include <vector>
 #include <map>
 #include <algorithm>
+#include <assert.h>
 
 #if _WIN32
     #if _MSC_VER
@@ -884,6 +885,7 @@ CXChildVisitResult NamespaceFinder::visitor(CXCursor cursor, CXCursor parent, CX
             }
             break;
         }
+        case CXCursor_NamespaceAlias:
         case CXCursor_Namespace:
         {
             if (nvd->mParents.size() < nvd->namespaceCount)
@@ -894,7 +896,25 @@ CXChildVisitResult NamespaceFinder::visitor(CXCursor cursor, CXCursor parent, CX
                 {
                     if (!strcmp(nvd->namespaces[nvd->mParents.size()], str))
                     {
-                        recurse = true;
+                        if (ck == CXCursor_NamespaceAlias)
+                        {
+                            CXCursor curr = cursor;
+                            while (ck != CXCursor_Namespace)
+                            {
+                                CursorList l;
+                                clang_visitChildren(curr, getchildren_visitor, &l);
+                                assert(l.size() && clang_isReference(clang_getCursorKind(l.back())));
+                                curr = clang_getCursorReferenced(l.back());
+                                ck = clang_getCursorKind(curr);
+                            }
+                            nvd->mParents.push_back(curr);
+                            clang_visitChildren(curr, NamespaceFinder::visitor, nvd);
+                            nvd->mParents.pop_back();
+                        }
+                        else
+                        {
+                            recurse = true;
+                        }
                     }
                 }
                 clang_disposeString(s);

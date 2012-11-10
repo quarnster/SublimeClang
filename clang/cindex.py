@@ -895,9 +895,13 @@ class Cursor(Structure):
     _fields_ = [("_kind_id", c_int), ("xdata", c_int), ("data", c_void_p * 3)]
 
     def __eq__(self, other):
+        if other is None:
+            return Cursor_eq(self, Cursor_null())
         return Cursor_eq(self, other)
 
     def __ne__(self, other):
+        if other is None:
+            return not Cursor_eq(self, Cursor_null())
         return not Cursor_eq(self, other)
 
     def is_definition(self):
