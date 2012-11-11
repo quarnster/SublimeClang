@@ -207,12 +207,6 @@ class Cache:
         # Maybe it's a subtype?
         parent = self.find_type(data, extra)
         if parent != None and not parent.kind.is_invalid():
-            if parent.kind == cindex.CursorKind.NAMESPACE_ALIAS:
-                children = parent.get_children()
-                curr = children[len(children)-1].get_reference()
-                namespace = self.get_namespace_from_cursor(curr)
-                namespace.append(typename)
-                return self.find_type(data, "::".join(namespace))
             for child in parent.get_children():
                 if child.kind.is_declaration() and child.spelling == typename:
                     return child
@@ -337,13 +331,6 @@ class Cache:
                 if c != None:
                     if c.kind == cindex.CursorKind.ENUM_DECL:
                         # It's not valid to complete enum::
-                        c = None
-                    elif c.kind == cindex.CursorKind.NAMESPACE_ALIAS:
-                        children = c.get_children()
-
-                        curr = children[len(children)-1].get_reference()
-                        namespace = self.get_namespace_from_cursor(curr)
-                        ret = self.complete_namespace(namespace)
                         c = None
                 if c != None and not c.kind.is_invalid() and c.kind != cindex.CursorKind.NAMESPACE:
                     # It's going to be a declaration of some kind, so

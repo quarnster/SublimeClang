@@ -463,15 +463,41 @@ public:
 class EntryStringCompare
 {
 public:
+    EntryStringCompare(bool exact=false)
+        : mExact(exact)
+    {
+
+    }
 
     bool operator()(const Entry *a, const char *str) const
     {
-        return strncmp(a->display, str, strlen(str)) < 0;
+        return compare(a, str) < 0;
     }
     bool operator()(const char *str, const Entry *a) const
     {
-        return strncmp(a->display, str, strlen(str)) > 0;
+        return compare(a, str) > 0;
     }
+private:
+    int compare(const Entry *a, const char *str) const
+    {
+        size_t length;
+
+        if (mExact)
+        {
+            char * off = strchr(a->display, '\t');
+            length = strlen(a->display);
+            if (off != NULL)
+            {
+                length = off - a->display;
+            }
+            length = std::max(strlen(str), length);
+        }
+        else
+            length = strlen(str);
+
+        return strncmp(a->display, str, length);
+    }
+    bool mExact;
 };
 
 class CacheCompletionResults
@@ -710,6 +736,37 @@ private:
     }
 };
 
+class  NamespaceHelper
+{
+public:
+    NamespaceHelper(CursorList &children)
+    {
+        nsLength = children.size();
+        ns = new char*[nsLength];
+        for (size_t i = 0; i < nsLength; i++)
+        {
+            CXString s = clang_getCursorSpelling(children[i]);
+            const char *str = clang_getCString(s);
+            size_t len = strlen(str)+1;
+            ns[i] = new char[len];
+            memcpy(ns[i], str, len);
+            clang_disposeString(s);
+        }
+    }
+
+    ~NamespaceHelper()
+    {
+        for (size_t i = 0; i < nsLength; i++)
+        {
+            delete[] ns[i];
+        }
+        delete[] ns;
+    }
+
+    char **ns;
+    size_t nsLength;
+};
+
 
 
 
@@ -753,8 +810,8 @@ protected:
 class NamespaceVisitorData : public NamespaceFinder
 {
 public:
-    NamespaceVisitorData(Cache * cache, const char* firstName, const char **ns, size_t nsLength)
-    : NamespaceFinder(cache, clang_getNullCursor(), ns, nsLength), mFirstName(firstName)
+    NamespaceVisitorData(Cache * cache, const char* firstName, const char **ns, size_t nsLength, bool trim = true)
+    : NamespaceFinder(cache, clang_getNullCursor(), ns, nsLength), mFirstName(firstName), mTrim(trim)
     {
     }
     ~NamespaceVisitorData()
@@ -770,29 +827,14 @@ public:
         {
             CursorList children;
             clang_visitChildren(cursor, getchildren_visitor, &children);
-            size_t nsLength = children.size();
-            char **ns = new char*[nsLength];
-            for (size_t i = 0; i < nsLength; i++)
-            {
-                CXString s = clang_getCursorSpelling(children[i]);
-                const char *str = clang_getCString(s);
-                size_t len = strlen(str)+1;
-                ns[i] = new char[len];
-                memcpy(ns[i], str, len);
-                clang_disposeString(s);
-            }
-            NamespaceVisitorData d(mCache, ns[0], (const char**) (nsLength > 1 ? &ns[1] : NULL), nsLength-1);
+            NamespaceHelper h(children);
+            NamespaceVisitorData d(mCache, h.ns[0], (const char**) (h.nsLength > 1 ? &h.ns[1] : NULL), h.nsLength-1);
             d.execute();
             EntryList &entries = d.getEntries();
             for (EntryList::iterator i = entries.begin(); i < entries.end(); i++)
             {
                 mEntries.push_back(*i);
             }
-            for (size_t i = 0; i < nsLength; i++)
-            {
-                delete[] ns[i];
-            }
-            delete[] ns;
         }
         else
         {
@@ -813,6 +855,7 @@ public:
 protected:
     const char *mFirstName;
     EntryList   mEntries;
+    bool        mTrim;
 };
 
 class UsingNamespaceFinder : public NamespaceVisitorData
@@ -842,6 +885,7 @@ private:
 
 };
 
+
 CXChildVisitResult NamespaceFinder::visitor(CXCursor cursor, CXCursor parent, CXClientData client_data)
 {
     if (clang_Cursor_isNull(cursor))
@@ -864,28 +908,58 @@ CXChildVisitResult NamespaceFinder::visitor(CXCursor cursor, CXCursor parent, CX
             {
                 CursorList children;
                 clang_visitChildren(cursor, getchildren_visitor, &children);
-                size_t nsLength = children.size();
-                char **ns = new char*[nsLength];
-                for (size_t i = 0; i < nsLength; i++)
-                {
-                    CXString s = clang_getCursorSpelling(children[i]);
-                    const char *str = clang_getCString(s);
-                    size_t len = strlen(str)+1;
-                    ns[i] = new char[len];
-                    memcpy(ns[i], str, len);
-                    clang_disposeString(s);
-                }
-                UsingNamespaceFinder unf(ns[0], (const char**) (nsLength > 1 ? &ns[1] : NULL), nsLength-1, nvd);
+                NamespaceHelper h(children);
+
+                UsingNamespaceFinder unf(h.ns[0], (const char**) (h.nsLength > 1 ? &h.ns[1] : NULL), h.nsLength-1, nvd);
                 unf.execute();
-                for (size_t i = 0; i < nsLength; i++)
-                {
-                    delete[] ns[i];
-                }
-                delete[] ns;
             }
             break;
         }
         case CXCursor_NamespaceAlias:
+        {
+            if (nvd->mParents.size() < nvd->namespaceCount)
+            {
+                CXString s = clang_getCursorSpelling(cursor);
+                const char *str = clang_getCString(s);
+                if (str)
+                {
+                    if (!strcmp(nvd->namespaces[nvd->mParents.size()], str))
+                    {
+                        CXCursor curr = cursor;
+                        CursorList children;
+                        while (clang_getCursorKind(curr) != CXCursor_Namespace)
+                        {
+                            CursorList l;
+                            clang_visitChildren(curr, getchildren_visitor, &l);
+                            assert(l.size() && clang_isReference(clang_getCursorKind(l.back())));
+                            curr = clang_getCursorReferenced(l.back());
+                        }
+                        while (!clang_Cursor_isNull(curr) && clang_getCursorKind(curr) == CXCursor_Namespace)
+                        {
+                            children.insert(children.begin(), curr);
+                            curr = clang_getCursorLexicalParent(curr);
+                        }
+                        NamespaceHelper h(children);
+                        NamespaceVisitorData d(nvd->mCache, h.ns[0], h.nsLength > 1 ? (const char **) &h.ns[1] : NULL, h.nsLength-1, false);
+                        d.execute();
+                        nvd->mParents.push_back(cursor);
+                        EntryList &entries = d.getEntries();
+                        for (EntryList::iterator i = entries.begin(); i < entries.end(); i++)
+                        {
+                            Entry *e = (*i);
+
+                            CXChildVisitResult r = NamespaceFinder::visitor(e->cursor, cursor, nvd);
+                            if (r == CXChildVisit_Recurse)
+                            {
+                                clang_visitChildren(e->cursor, NamespaceFinder::visitor, nvd);
+                            }
+                        }
+                    }
+                }
+                clang_disposeString(s);
+            }
+            break;
+        }
         case CXCursor_Namespace:
         {
             if (nvd->mParents.size() < nvd->namespaceCount)
@@ -896,25 +970,7 @@ CXChildVisitResult NamespaceFinder::visitor(CXCursor cursor, CXCursor parent, CX
                 {
                     if (!strcmp(nvd->namespaces[nvd->mParents.size()], str))
                     {
-                        if (ck == CXCursor_NamespaceAlias)
-                        {
-                            CXCursor curr = cursor;
-                            while (ck != CXCursor_Namespace)
-                            {
-                                CursorList l;
-                                clang_visitChildren(curr, getchildren_visitor, &l);
-                                assert(l.size() && clang_isReference(clang_getCursorKind(l.back())));
-                                curr = clang_getCursorReferenced(l.back());
-                                ck = clang_getCursorKind(curr);
-                            }
-                            nvd->mParents.push_back(curr);
-                            clang_visitChildren(curr, NamespaceFinder::visitor, nvd);
-                            nvd->mParents.pop_back();
-                        }
-                        else
-                        {
-                            recurse = true;
-                        }
+                        recurse = true;
                     }
                 }
                 clang_disposeString(s);
@@ -1044,7 +1100,7 @@ public:
         {
             Entry *e = *i;
             CXCursorKind ck = clang_getCursorKind(e->cursor);
-            if (ck == CXCursor_Namespace)
+            if (ck == CXCursor_Namespace || ck == CXCursor_NamespaceAlias)
             {
                 mNamespaces.push_back(new Entry(*e));
             }
@@ -1197,16 +1253,52 @@ private:
 
 void NamespaceVisitorData::execute()
 {
-    EntryList::iterator start = std::lower_bound(mCache->getNamespaces().begin(), mCache->getNamespaces().end(), mFirstName, EntryStringCompare());
-    EntryList::iterator end   = std::upper_bound(mCache->getNamespaces().begin(), mCache->getNamespaces().end(), mFirstName, EntryStringCompare());
+    EntryList::iterator start = std::lower_bound(mCache->getNamespaces().begin(), mCache->getNamespaces().end(), mFirstName, EntryStringCompare(true));
+    EntryList::iterator end   = std::upper_bound(mCache->getNamespaces().begin(), mCache->getNamespaces().end(), mFirstName, EntryStringCompare(true));
     while (start < end)
     {
-        clang_visitChildren((*start)->cursor, NamespaceFinder::visitor, this);
+        if (clang_getCursorKind((*start)->cursor) == CXCursor_NamespaceAlias)
+        {
+            CXCursor cursor = (*start)->cursor;
+            CXCursor curr = cursor;
+            CursorList children;
+            while (clang_getCursorKind(curr) != CXCursor_Namespace)
+            {
+                CursorList l;
+                clang_visitChildren(curr, getchildren_visitor, &l);
+                assert(l.size() && clang_isReference(clang_getCursorKind(l.back())));
+                curr = clang_getCursorReferenced(l.back());
+            }
+            while (!clang_Cursor_isNull(curr) && clang_getCursorKind(curr) == CXCursor_Namespace)
+            {
+                children.insert(children.begin(), curr);
+                curr = clang_getCursorLexicalParent(curr);
+            }
+            NamespaceHelper h(children);
+            NamespaceVisitorData d(mCache, h.ns[0], h.nsLength > 1 ? (const char **) &h.ns[1] : NULL, h.nsLength-1, false);
+            d.execute();
+            EntryList &entries = d.getEntries();
+            for (EntryList::iterator i = entries.begin(); i < entries.end(); i++)
+            {
+                Entry *e = (*i);
+
+                CXChildVisitResult r = NamespaceFinder::visitor(e->cursor, cursor, this);
+                if (r == CXChildVisit_Recurse)
+                {
+                    clang_visitChildren(e->cursor, NamespaceFinder::visitor, this);
+                }
+            }
+        }
+        else
+        {
+            clang_visitChildren((*start)->cursor, NamespaceFinder::visitor, this);
+        }
         start++;
     }
 
     std::sort(mEntries.begin(), mEntries.end(), EntryCompare());
-    trim(mEntries);
+    if (mTrim)
+        trim(mEntries);
 }
 
 

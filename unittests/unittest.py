@@ -56,6 +56,7 @@ for arg in sys.argv[1:]:
 
 
 filter = re.compile("(^_.*\tmacro$)|(^__)|(OBJC_NEW_PROPERTIES)|(type_info)|(i386)|linux|unix")
+goto_re = re.compile(r"(.*):(\d+):(\d+)")
 
 if os.access(GOLDFILE, os.R_OK):
     f = gzip.GzipFile(GOLDFILE, 'rb')
@@ -121,7 +122,12 @@ def add_test_ex(key, test, platformspecific=False, noneok=False):
                 fail("gold and output type differs: %s %s" % (type(gold), type(output)))
             elif isinstance(gold, str):
                 if gold != output:
-                    fail("gold and output differs: %s %s" % (gold, output))
+                    m1 = goto_re.match(gold)
+                    m2 = goto_re.match(output)
+                    if m1 and m2:
+                        fail("gold and output differs: %s %s (%d, %d)" % (gold, output, int(m2.group(2))-int(m1.group(2)), int(m2.group(3))-int(m1.group(3))))
+                    else:
+                        fail("gold and output differs: %s %s" % (gold, output))
             else:
                 gold = [str(x) for x in gold]
                 output = [str(x) for x in output]
@@ -748,6 +754,15 @@ if complete:
     add_completion_test("void A::something() { function().")
     add_completion_test("B::getInstance()->")
     add_completion_test("TES")
+    add_completion_test("na::nb::")
+    add_completion_test("na::nb::nc::")
+    add_completion_test("na2::nb2::")
+    add_completion_test("na2::nb2::nc2::")
+    add_completion_test("na2::nb2::nc2::nb::")
+    add_completion_test("na2::nb2::nc2::nb::nc::")
+    add_completion_test("na3::")
+    add_completion_test("na4::")
+    add_completion_test("na5::nb2::")
 
     # ---------------------------------------------------------
 

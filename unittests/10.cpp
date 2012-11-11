@@ -52,3 +52,33 @@ public:
     int bvariable;
 };
 
+namespace na
+{
+    namespace nb
+    {
+        namespace nc = nms;
+    }
+}
+
+namespace na
+{
+    namespace nb
+    {
+        class NBClass
+        {
+
+        };
+    }
+}
+
+namespace na2
+{
+    namespace nb2
+    {
+        namespace nc2 = na;
+    }
+}
+
+namespace na3 = nms;
+namespace na4 = na2::nb2::nc2::nb;
+namespace na5 = na2;
