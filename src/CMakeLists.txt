@@ -183,6 +183,8 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
                         COMMAND find . -name \"*.cache\" -exec rm -rf {} +
                         COMMAND find . -name \"*.sublime-workspace\" -exec rm -rf {} +
                         COMMAND find . -name \"lib*.so\" -exec rm -rf {} +
+                        COMMAND find . -name \"*,cover\" -exec rm -rf {} +
+                        COMMAND find . -name \".coverage\" -exec rm -rf {} +
                         DEPENDS ${TARGETLIB} ${PROJECT_BINARY_DIR}/release clean_release
                         DEPENDS ${PROJECT_SOURCE_DIR}/../libclang.dll ${PROJECT_SOURCE_DIR}/../libcache.dll
                         DEPENDS ${PROJECT_SOURCE_DIR}/../libclang_x64.dll ${PROJECT_SOURCE_DIR}/../libcache_x64.dll

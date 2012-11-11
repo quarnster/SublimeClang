@@ -5,3 +5,5 @@ sublimeclang.sublime-workspace
 *.dll
 *.so
 *.cache
+.coverage
+*,cover

@@ -140,8 +140,7 @@ def remove_duplicates(data):
 class Cache:
     def __init__(self, tu, filename):
         self.cache = _createCache(tu.cursor)
-        if self.cache == None:
-            raise Exception("cache is None")
+        assert self.cache != None
         self.tu = tu
         self.filename = filename
 
@@ -211,13 +210,6 @@ class Cache:
                 if child.kind.is_declaration() and child.spelling == typename:
                     return child
         return None
-
-    def get_template_type_count(self, temp):
-        ret = []
-        for child in temp.get_children():
-            if child.kind == cindex.CursorKind.TEMPLATE_TYPE_PARAMETER:
-                ret.append(child)
-        return len(ret)
 
     def solve_template_from_cursor(self, temp, member, template):
         found = False
@@ -314,6 +306,7 @@ class Cache:
                 ret = None
                 cached_results = cache_complete_startswith(self.cache, prefix)
                 if cached_results:
+                    ret = []
                     for x in cached_results[0]:
                         if x.cursor.kind != cindex.CursorKind.MACRO_DEFINITION and \
                                 x.cursor.kind != cindex.CursorKind.CXX_METHOD:
@@ -849,20 +842,6 @@ class ExtensiveSearch:
             import traceback
             traceback.print_exc()
 
-    def get_possible_targets():
-        if len(es.target) > 0:
-            return self.target
-        elif not self.candidates.empty():
-            display = []
-            while not self.candidates.empty():
-                name, function, line, column = self.candidates.get()
-                pos = "%s:%d:%d" % (name, line, column)
-                display.append([function, pos])
-                self.candidates.task_done()
-            return display
-        else:
-            return None
-
 
 class LockedTranslationUnit(LockedVariable):
     def __init__(self, var, fn):
@@ -965,74 +944,10 @@ class LockedTranslationUnit(LockedVariable):
             if len(word_under_cursor) == 0:
                 found_callback(None)
                 return
-            if cursor == None or cursor.kind.is_invalid() or (cursor_spelling != word_under_cursor and cursor.kind != cindex.CursorKind.INCLUSION_DIRECTIVE):
-                # Try to determine what we're supposed to be looking for
-                line, col = get_line_and_column_from_offset(data, offset)
-
-                data = data[:get_offset_from_line_and_column(data, line+1, 0)]
-                chars = r"[\[\]\(\)&|.+-/*,<>;]"
-
-                word = [0,0]
-                off = len(data)
-                while True:
-                    off = data[:off].rfind(word_under_cursor)
-                    word = [off, off+len(word_under_cursor)]
-                    if offset >= off and offset <= off+len(word_under_cursor):
-                        break
-                for match in re.finditer(r"(^|\w+|=|%s|\s)\s*(%s)\s*($|==|%s)" % (chars, word_under_cursor, chars), data):
-                    if (match.start(2), match.end(2)) == (word[0], word[1]):
-                        if match.group(3) == "(":
-                            # Probably a function
-                            ExtensiveSearch(None, word_under_cursor, found_callback, folders, self.opts, self.opts_script, impl=False)
-                            return
-                        else:
-                            # A variable perhaps?
-                            data = data[:match.end(2)] + "."
-                            typedef = get_type_definition(data)
-                            if typedef:
-                                line, column, name, var, extra = typedef
-                                if line > 0 and column > 0:
-                                    found_callback("%s:%d:%d" % (self.fn, line, column))
-                                    return
-                                elif name != None and name == get_base_type(name):
-                                    search_re = re.compile(r"(^|\s|\})\s*(class|struct)(\s+%s\s*)(;|\{)" % name)
-                                    ExtensiveSearch(None, name, found_callback, folders, self.opts, self.opts_script, impl=False, search_re=search_re)
-                                    return
-                        break
-                found_callback(None)
-                return
             ref = cursor.get_reference()
             target = None
 
-            if ref != None and cursor == ref:
-                can = cursor.get_canonical_cursor()
-                if can != None and can != cursor:
-                    target = format_cursor(can)
-                else:
-                    o = cursor.get_overridden()
-                    if len(o) == 1:
-                        target = format_cursor(o[0])
-                    elif len(o) > 1:
-                        opts = []
-                        for i in range(len(o)):
-                            opts.append(self.quickpanel_format(o[i]))
-                        target = opts
-                    elif (cursor.kind == cindex.CursorKind.VAR_DECL or \
-                            cursor.kind == cindex.CursorKind.PARM_DECL or \
-                            cursor.kind == cindex.CursorKind.FIELD_DECL):
-                        for child in cursor.get_children():
-                            if child.kind == cindex.CursorKind.TYPE_REF:
-                                d = child.get_definition()
-                                if d != None:
-                                    target = format_cursor(d)
-                                break
-                    elif cursor.kind == cindex.CursorKind.CLASS_DECL:
-                        for child in cursor.get_children():
-                            if child.kind == cindex.CursorKind.CXX_BASE_SPECIFIER:
-                                d = child.get_definition()
-                                if d != None:
-                                    target = format_cursor(d)
-            elif ref != None:
+            if ref != None:
                 target = format_cursor(ref)
             elif cursor.kind == cindex.CursorKind.INCLUSION_DIRECTIVE:
                 f = cursor.get_included_file()

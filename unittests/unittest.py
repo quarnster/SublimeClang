@@ -154,7 +154,10 @@ def defimp_base(data, offset, queue):
     word = parsehelp.extract_word_at_offset(data, offset)
     res = queue.get()
     def fixup(res):
-        name, line, col = res.split(":")
+        if res.count(":") == 2:
+            name, line, col = res.split(":")
+        else:
+            name, line, col = res, 1, 1
         line, col = int(line), int(col)
         name = os.path.relpath(name)
         # Just to ensure uniform results on all platforms
@@ -258,8 +261,7 @@ if goto_def:
     add_goto_def_test(data2, data2.rfind("CXCursor_FunctionTemplate")+2)
     add_goto_def_test(data2, data2.find("mNamespaces")+2)
     add_goto_def_test(data2, data2.find("mFound")+2)
-
-
+    add_goto_def_test(data, data.find("\"")+3)
 
 
 if goto_imp:
@@ -362,6 +364,7 @@ if complete:
     # ---------------------------------------------------------
 
     tu = get_tu("unittests/3.cpp")
+    add_completion_test("::", True)
     add_completion_test("new ", True)
     add_completion_test("new std::", True)
     add_completion_test("new std::rel_ops::", True)
