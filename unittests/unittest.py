@@ -142,7 +142,7 @@ def add_test_ex(key, test, platformspecific=False, noneok=False):
 
 goto_def_test_count = 0
 
-def defimp_base(queue):
+def defimp_base(data, offset, queue):
     allowed_sleeps = 50
 
     while queue.empty():
@@ -151,13 +151,21 @@ def defimp_base(queue):
             raise Exception("goto def/imp timed out")
         allowed_sleeps -= 1
 
+    word = parsehelp.extract_word_at_offset(data, offset)
     res = queue.get()
     def fixup(res):
-        name, linecol = res.split(":", 1)
+        name, line, col = res.split(":")
+        line, col = int(line), int(col)
         name = os.path.relpath(name)
         # Just to ensure uniform results on all platforms
         name = name.replace(os.path.sep, "/")
-        return "%s:%s" % (name, linecol)
+        d = data
+        if name != "src/main.cpp":
+            d = read_file(name)
+        off = parsehelp.get_offset_from_line_and_column(d, line, col)
+        l2, c2 = parsehelp.get_line_and_column_from_offset(d, off)
+
+        return "%s:%d:%d - %s - %s" % (name, line, col, word, parsehelp.extract_line_at_offset(d, off))
 
     if isinstance(res, list):
         nl = []
@@ -176,7 +184,7 @@ def add_goto_def_test(data, offset):
     queue = Queue.Queue()
     def get_res(queue, data, offset):
         tu.get_definition(data, offset, lambda a: queue.put(a), ["."])
-        return defimp_base(queue)
+        return defimp_base(data, offset, queue)
     add_test_ex(key, lambda: get_res(queue, data, offset))
 
 goto_imp_test_count = 0
@@ -187,7 +195,7 @@ def add_goto_imp_test(data, offset):
     queue = Queue.Queue()
     def get_res(queue, data, offset):
         tu.get_implementation(data, offset, lambda a: queue.put(a), ["."])
-        return defimp_base(queue)
+        return defimp_base(data, offset, queue)
     add_test_ex(key, lambda: get_res(queue, data, offset))
 
 
