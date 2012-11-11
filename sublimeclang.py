@@ -44,7 +44,7 @@ from common import get_setting, get_settings, is_supported_language, get_languag
 import translationunitcache
 from parsehelp import parsehelp
 import Queue
-
+import traceback
 
 def warm_up_cache(view, filename=None):
     if filename == None:
@@ -403,7 +403,10 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
             cached_results = None
             if clang_fast_completions and get_setting("enable_fast_completions", True, view):
                 data = view.substr(sublime.Region(0, locations[0]))
-                cached_results = tu.cache.complete(data, prefix)
+                try:
+                    cached_results = tu.cache.complete(data, prefix)
+                except:
+                    traceback.print_exc()
             if cached_results != None:
                 print "found fast completions"
                 ret = cached_results
