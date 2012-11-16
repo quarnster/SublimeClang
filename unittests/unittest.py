@@ -11,8 +11,9 @@ import platform
 import Queue
 import time
 from parsehelp import parsehelp
+import datetime
 
-
+thisrun = datetime.datetime.now()
 scriptpath = os.path.dirname(os.path.abspath(__file__))
 opts = ["-I%s/../clang/include" % scriptpath]
 
@@ -31,6 +32,7 @@ disableplatformspecific = False
 goto_def = True
 goto_imp = True
 complete = True
+prune = False
 
 for arg in sys.argv[1:]:
     if arg == "-nogotodef":
@@ -51,6 +53,8 @@ for arg in sys.argv[1:]:
         dryrun = True
     elif arg == "-disableplatformspecific":
         disableplatformspecific = True
+    elif arg == "-prune":
+        prune = True
     else:
         raise Exception("Bad argument")
 
@@ -62,12 +66,12 @@ if os.access(GOLDFILE, os.R_OK):
     f = gzip.GzipFile(GOLDFILE, 'rb')
     golden = pickle.load(f)
     for key in golden:
-        if golden[key] and not isinstance(golden[key], str):
+        if golden[key][1] and not isinstance(golden[key][1], str):
             new = []
-            for name in golden[key]:
+            for name in golden[key][1]:
                 if not filter.match(name[0]):
                     new.append(name)
-            golden[key] = new
+            golden[key] = (golden[key][0], new)
     f.close()
 
 
@@ -107,12 +111,14 @@ def add_test_ex(key, test, platformspecific=False, noneok=False):
     if debugnew:
         return
     if not key in golden:
-        golden[key] = output
+        golden[key] = thisrun, output
         testsAdded = True
     else:
-        gold = golden[key]
+        goldrun, gold = golden[key]
         if update:
-            golden[key] = output
+            golden[key] = thisrun, output
+        else:
+            golden[key] = thisrun, gold
         if not (platformspecific and noneok) and ((gold == None and output != None) or (output == None and gold != None)):
             fail("Test failed: %s - %s" % (key, "gold was None, output wasn't %s" % str(output) if gold == None else "output was None, but gold wasn't %s" % str(gold)))
         if platformspecific and disableplatformspecific:
@@ -373,7 +379,6 @@ if complete:
     add_completion_test("new Test::")
     add_completion_test("std::", True)
     add_completion_test("std2::")
-    add_completion_test("Test::")
     add_completion_test("std::string::", True, True)
     add_completion_test("std::vector<int>::", True)
     add_completion_test("Test::Class1::")
@@ -508,7 +513,6 @@ if complete:
     add_completion_test("void C::something() { asinglemix[0]->")
     add_completion_test("void C::something() { asinglemix[0][0].")
     add_completion_test("void C::something() { asinglemix[0][0]->")
-    add_completion_test("void C::something() { asinglemix.")
     add_completion_test("void C::something() { adoublemix1->")
     add_completion_test("void C::something() { adoublemix1[0].")
     add_completion_test("void C::something() { adoublemix1[0]->")
@@ -776,6 +780,21 @@ if complete:
     add_completion_test("na5::nb2::")
 
     # ---------------------------------------------------------
+
+if goto_imp and goto_def and complete:
+    prunelist = []
+    for key in golden:
+        gold = golden[key]
+        if type(gold) != tuple or gold[0] != thisrun:
+            if prune:
+                prunelist.append(key)
+            else:
+                fail("Test not run: %s" % key)
+    if len(prunelist):
+        update = True
+
+    for key in prunelist:
+        del golden[key]
 
 if (testsAdded or update) and not dryrun:
     f = gzip.GzipFile(GOLDFILE, "wb")
