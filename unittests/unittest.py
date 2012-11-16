@@ -33,6 +33,7 @@ goto_def = True
 goto_imp = True
 complete = True
 prune = False
+expectnew = False
 
 for arg in sys.argv[1:]:
     if arg == "-nogotodef":
@@ -55,6 +56,8 @@ for arg in sys.argv[1:]:
         disableplatformspecific = True
     elif arg == "-prune":
         prune = True
+    elif arg == "-expectnew":
+        expectnew = True
     else:
         raise Exception("Bad argument")
 
@@ -796,6 +799,9 @@ if goto_imp and goto_def and complete and not debugnew:
 
     for key in prunelist:
         del golden[key]
+
+if expectnew != testsAdded:
+    fail("New test results were %sadded, but were %sexpected" % ("not " if not testsAdded else "", "not " if not expectnew else ""))
 
 if (testsAdded or update) and not dryrun:
     f = gzip.GzipFile(GOLDFILE, "wb")
