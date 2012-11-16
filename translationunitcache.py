@@ -680,7 +680,7 @@ class ExtensiveSearch:
         elif len(self.options) > 2:
             self.found_callback(self.options[idx][1])
 
-    def __init__(self, cursor, spelling, found_callback, folders, opts, opts_script, name="", impl=True, search_re=None, file_re=None):
+    def __init__(self, cursor, spelling, found_callback, folders, opts, opts_script, opts_file, name="", impl=True, search_re=None, file_re=None):
         self.name = name
         if impl:
             self.re = re.compile(r"(\w+\s+|\w+::|\*|&)(%s\s*\([^;\{]*\))\s*\{" % re.escape(spelling))
@@ -696,6 +696,7 @@ class ExtensiveSearch:
         self.folders = folders
         self.opts = opts
         self.opts_script = opts_script
+        self.opts_file = opts_file
         self.impl = impl
         self.target = ""
         self.cursor = None
@@ -878,7 +879,7 @@ class LockedTranslationUnit(LockedVariable):
             if cursor == None or cursor.kind.is_invalid() or cursor_spelling != word_under_cursor:
                 if cursor == None or cursor.kind.is_invalid():
                     cursor = None
-                ExtensiveSearch(cursor, word_under_cursor, found_callback, folders, self.opts, self.opts_script)
+                ExtensiveSearch(cursor, word_under_cursor, found_callback, folders, self.opts, self.opts_script, self.opts_file)
                 return
             d = cursor.get_definition()
             if d != None and cursor != d:
@@ -932,7 +933,7 @@ class LockedTranslationUnit(LockedVariable):
                                 finally:
                                     tu2.unlock()
                         if not target:
-                            ExtensiveSearch(cursor, word_under_cursor, found_callback, folders, self.opts, self.opts_script)
+                            ExtensiveSearch(cursor, word_under_cursor, found_callback, folders, self.opts, self.opts_script, self.opts_file)
                             return
             else:
                 target = format_cursor(d)
@@ -1083,15 +1084,16 @@ class TranslationUnitCache(Worker):
             return
         options_database = self.options_database.lock()
         try:
+            self.options_database_file = filename
             options_database.clear()
-            self.set_status('Parsing options database: %s' % filename)
-            try:
-                with open(filename) as options_database_file:
-                    options_database.update(json.load(options_database_file))
-                self.options_database_file = filename
-                self.set_status('Parsing %s done' % filename)
-            except IOError:
-                self.set_status('Failed to open options database file: %s' % filename)
+            if len(filename) > 0:
+                self.set_status('Parsing options database: %s' % filename)
+                try:
+                    with open(filename) as options_database_file:
+                        options_database.update(json.load(options_database_file))
+                    self.set_status('Parsing %s done' % filename)
+                except IOError:
+                    self.set_status('Failed to open options database file: %s' % filename)
         finally:
             self.options_database.unlock()
             l = self.parsingList.lock()
@@ -1143,17 +1145,18 @@ class TranslationUnitCache(Worker):
     def parse_database(self, on_done=None):
         ret = False
         options_database_file = self.get_opts_file(None)
-        if options_database_file is not None:
-            pl = self.parsingList.lock()
-            try:
-                if options_database_file not in pl:
-                    ret = True
-                    pl.append(options_database_file)
-                    self.tasks.put((
-                        self.task_parse_database,
-                        (options_database_file, on_done)))
-            finally:
-                self.parsingList.unlock()
+        if options_database_file is None:
+            options_database_file = ""
+        pl = self.parsingList.lock()
+        try:
+            if options_database_file not in pl:
+                ret = True
+                pl.append(options_database_file)
+                self.tasks.put((
+                    self.task_parse_database,
+                    (options_database_file, on_done)))
+        finally:
+            self.parsingList.unlock()
 
         return ret
 
@@ -1313,10 +1316,11 @@ class TranslationUnitCache(Worker):
 
             options_database = self.options_database.lock()
             try:
-                try:
-                    opts += list(options_database[filename])
-                except KeyError:
-                    self.set_status('%s not in options database' % filename)
+                if options_database is not None and len(options_database) > 0:
+                    try:
+                        opts += list(options_database[filename])
+                    except KeyError:
+                        self.set_status('%s not in options database' % filename)
             finally:
                 self.options_database.unlock()
 
