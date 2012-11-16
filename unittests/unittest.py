@@ -268,6 +268,7 @@ if goto_def:
     add_goto_def_test(data2, data2.find("mNamespaces")+2)
     add_goto_def_test(data2, data2.find("mFound")+2)
     add_goto_def_test(data, data.find("\"")+3)
+    add_goto_def_test(data, data.rfind("clang_visitChildren")+len("clang_visitChildren"))
 
 
 if goto_imp:
@@ -781,7 +782,7 @@ if complete:
 
     # ---------------------------------------------------------
 
-if goto_imp and goto_def and complete:
+if goto_imp and goto_def and complete and not debugnew:
     prunelist = []
     for key in golden:
         gold = golden[key]

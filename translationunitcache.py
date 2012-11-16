@@ -859,6 +859,11 @@ class LockedTranslationUnit(LockedVariable):
                                        row, col)
         cursor_spelling = get_cursor_spelling(cursor)
         word_under_cursor = extract_word_at_offset(data, offset)
+        if word_under_cursor == "" and cursor != None:
+            # Allow a parenthesis, brackets and some other non-name characters right after the name
+            match = re.search(r"(\w+)[\(\[\&\+\-\*\/]*$", extract_line_until_offset(data, offset))
+            if match:
+                word_under_cursor = match.group(1)
         return cursor, cursor_spelling, word_under_cursor
 
     def get_implementation(self, data, offset, found_callback, folders):
