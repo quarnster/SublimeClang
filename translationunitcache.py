@@ -33,9 +33,9 @@ import re
 import os
 import Queue
 import threading
+import json
 
 scriptpath = os.path.dirname(os.path.abspath(__file__))
-
 
 def get_cache_library():
     import platform
@@ -90,11 +90,11 @@ try:
     f = open("%s/package.json" % scriptpath)
     data = json.load(f)
     f.close()
-    json = data["packages"][0]["platforms"]["*"][0]["version"]
+    json_data = data["packages"][0]["platforms"]["*"][0]["version"]
     lib = _getVersion()
-    print "Have SublimeClang package: %s" % json
+    print "Have SublimeClang package: %s" % json_data
     print "Have SublimeClang libcache: %s" % lib
-    assert lib == json
+    assert lib == json_data
 except:
     import traceback
     traceback.print_exc()
@@ -680,7 +680,7 @@ class ExtensiveSearch:
         elif len(self.options) > 2:
             self.found_callback(self.options[idx][1])
 
-    def __init__(self, cursor, spelling, found_callback, folders, opts, opts_script, name="", impl=True, search_re=None, file_re=None):
+    def __init__(self, cursor, spelling, found_callback, folders, opts, opts_script, opts_file, name="", impl=True, search_re=None, file_re=None):
         self.name = name
         if impl:
             self.re = re.compile(r"(\w+\s+|\w+::|\*|&)(%s\s*\([^;\{]*\))\s*\{" % re.escape(spelling))
@@ -696,6 +696,7 @@ class ExtensiveSearch:
         self.folders = folders
         self.opts = opts
         self.opts_script = opts_script
+        self.opts_file = opts_file
         self.impl = impl
         self.target = ""
         self.cursor = None
@@ -815,7 +816,7 @@ class ExtensiveSearch:
                     self.candidates.put((name, "".join(match.groups()), line, column))
 
                 if fine_search and self.cursor and self.impl:
-                    tu2 = tuCache.get_translation_unit(name, self.opts, self.opts_script)
+                    tu2 = tuCache.get_translation_unit(name, self.opts, self.opts_script, self.opts_file)
                     if tu2 != None:
                         tu2.lock()
                         try:
@@ -878,7 +879,7 @@ class LockedTranslationUnit(LockedVariable):
             if cursor == None or cursor.kind.is_invalid() or cursor_spelling != word_under_cursor:
                 if cursor == None or cursor.kind.is_invalid():
                     cursor = None
-                ExtensiveSearch(cursor, word_under_cursor, found_callback, folders, self.opts, self.opts_script)
+                ExtensiveSearch(cursor, word_under_cursor, found_callback, folders, self.opts, self.opts_script, self.opts_file)
                 return
             d = cursor.get_definition()
             if d != None and cursor != d:
@@ -915,7 +916,7 @@ class LockedTranslationUnit(LockedVariable):
                         for ending in endings:
                             f = "%s.%s" % (f[:f.rfind(".")], ending)
                             if f != self.fn and os.access(f, os.R_OK):
-                                tu2 = tuCache.get_translation_unit(f, self.opts, self.opts_script)
+                                tu2 = tuCache.get_translation_unit(f, self.opts, self.opts_script, self.opts_file)
                                 if tu2 == None:
                                     continue
                                 tu2.lock()
@@ -932,7 +933,7 @@ class LockedTranslationUnit(LockedVariable):
                                 finally:
                                     tu2.unlock()
                         if not target:
-                            ExtensiveSearch(cursor, word_under_cursor, found_callback, folders, self.opts, self.opts_script)
+                            ExtensiveSearch(cursor, word_under_cursor, found_callback, folders, self.opts, self.opts_script, self.opts_file)
                             return
             else:
                 target = format_cursor(d)
@@ -984,6 +985,8 @@ class TranslationUnitCache(Worker):
         self.index = None
         self.debug_options = False
         self.__options_cache = LockedVariable({})
+        self.options_database = LockedVariable({})
+        self.options_database_file = ""
 
     def get_status(self, filename):
         tu = self.translationUnits.lock()
@@ -1033,12 +1036,12 @@ class TranslationUnitCache(Worker):
             self.busyList.unlock()
 
     def task_parse(self, data):
-        filename, opts, opts_script, on_done = data
+        filename, opts, opts_script, opts_file, on_done = data
         if self.add_busy(filename, self.task_parse, data):
             return
         try:
             self.set_status("Parsing %s" % filename)
-            self.get_translation_unit(filename, opts, opts_script)
+            self.get_translation_unit(filename, opts, opts_script, opts_file)
             self.set_status("Parsing %s done" % filename)
         finally:
             l = self.parsingList.lock()
@@ -1051,12 +1054,12 @@ class TranslationUnitCache(Worker):
             run_in_main_thread(on_done)
 
     def task_reparse(self, data):
-        filename, opts, opts_script, unsaved_files, on_done = data
+        filename, opts, opts_script, opts_file, unsaved_files, on_done = data
         if self.add_busy(filename, self.task_reparse, data):
             return
         try:
             self.set_status("Reparsing %s" % filename)
-            tu = self.get_translation_unit(filename, opts, opts_script, unsaved_files)
+            tu = self.get_translation_unit(filename, opts, opts_script, opts_file, unsaved_files)
             if tu != None:
                 tu.lock()
                 try:
@@ -1075,6 +1078,33 @@ class TranslationUnitCache(Worker):
         if on_done != None:
             run_in_main_thread(on_done)
 
+    def task_parse_database(self, data):
+        filename, on_done = data
+        if self.add_busy(filename, self.task_parse_database, data):
+            return
+        options_database = self.options_database.lock()
+        try:
+            self.options_database_file = filename
+            options_database.clear()
+            if len(filename) > 0:
+                self.set_status('Parsing options database: %s' % filename)
+                try:
+                    with open(filename) as options_database_file:
+                        options_database.update(json.load(options_database_file))
+                    self.set_status('Parsing %s done' % filename)
+                except IOError:
+                    self.set_status('Failed to open options database file: %s' % filename)
+        finally:
+            self.options_database.unlock()
+            l = self.parsingList.lock()
+            try:
+                l.remove(filename)
+            finally:
+                self.parsingList.unlock()
+                self.remove_busy(filename)
+        if not on_done is None:
+            run_in_main_thread(on_done)
+
     def task_clear(self, data):
         tus = self.translationUnits.lock()
         try:
@@ -1087,6 +1117,11 @@ class TranslationUnitCache(Worker):
             cache.clear()
         finally:
             self.__options_cache.unlock()
+        options_database = self.options_database.lock()
+        try:
+            options_database.clear()
+        finally:
+            self.options_database.unlock()
 
     def task_remove(self, data):
         if self.add_busy(data, self.task_remove, data):
@@ -1107,7 +1142,41 @@ class TranslationUnitCache(Worker):
         finally:
             self.remove_busy(data)
 
+    def parse_database(self, on_done=None):
+        ret = False
+        options_database_file = self.get_opts_file(None)
+        if options_database_file is None:
+            options_database_file = ""
+        pl = self.parsingList.lock()
+        try:
+            if options_database_file not in pl:
+                ret = True
+                pl.append(options_database_file)
+                self.tasks.put((
+                    self.task_parse_database,
+                    (options_database_file, on_done)))
+        finally:
+            self.parsingList.unlock()
+
+        return ret
+
+    def need_database_reparse(self, opts_file):
+        if opts_file != self.options_database_file:
+            return True
+        else:
+            options_database = self.options_database.lock()
+            try:
+                if len(options_database) == 0:
+                    return True
+            finally:
+                self.options_database.unlock()
+        return False
+
     def reparse(self, view, filename, unsaved_files=[], on_done=None):
+        opts_file = self.get_opts_file(view)
+        if self.need_database_reparse(opts_file):
+            self.parse_database()
+
         ret = False
         pl = self.parsingList.lock()
         try:
@@ -1116,12 +1185,15 @@ class TranslationUnitCache(Worker):
                 pl.append(filename)
                 self.tasks.put((
                     self.task_reparse,
-                    (filename, self.get_opts(view), self.get_opts_script(view), unsaved_files, on_done)))
+                    (filename, self.get_opts(view), self.get_opts_script(view), opts_file, unsaved_files, on_done)))
         finally:
             self.parsingList.unlock()
         return ret
 
-    def add_ex(self, filename, opts, opts_script, on_done=None):
+    def add_ex(self, filename, opts, opts_script, opts_file, on_done=None):
+        if self.need_database_reparse(opts_file):
+            self.parse_database()
+
         tu = self.translationUnits.lock()
         pl = self.parsingList.lock()
         try:
@@ -1129,12 +1201,16 @@ class TranslationUnitCache(Worker):
                 pl.append(filename)
                 self.tasks.put((
                     self.task_parse,
-                    (filename, opts, opts_script, on_done)))
+                    (filename, opts, opts_script, opts_file, on_done)))
         finally:
             self.translationUnits.unlock()
             self.parsingList.unlock()
 
     def add(self, view, filename, on_done=None):
+        opts_file = self.get_opts_file(view)
+        if self.need_database_reparse(opts_file):
+            self.parse_database()
+
         ret = False
         tu = self.translationUnits.lock()
         pl = self.parsingList.lock()
@@ -1146,7 +1222,7 @@ class TranslationUnitCache(Worker):
                 pl.append(filename)
                 self.tasks.put((
                     self.task_parse,
-                    (filename, opts, opts_script, on_done)))
+                    (filename, opts, opts_script, opts_file, on_done)))
         finally:
             self.translationUnits.unlock()
             self.parsingList.unlock()
@@ -1154,6 +1230,12 @@ class TranslationUnitCache(Worker):
 
     def get_opts_script(self, view):
         return expand_path(get_setting("options_script", "", view), view.window())
+
+    def get_opts_file(self, view):
+        if view is not None:
+            return expand_path(get_setting("options_file", "", view), view.window())
+        else:
+            return expand_path(get_setting("options_file", "", None), None)
 
     def check_opts(self, view):
         key = view.file_name()
@@ -1178,8 +1260,10 @@ class TranslationUnitCache(Worker):
             self.__options_cache.unlock()
 
         opts = get_path_setting("options", [], view)
+
         if not get_setting("dont_prepend_clang_includes", False, view):
             opts.insert(0, "-I%s/clang/include" % scriptpath)
+
         if get_setting("add_language_option", True, view):
             language = get_language(view)
             if language == "objc":
@@ -1192,6 +1276,7 @@ class TranslationUnitCache(Worker):
             additional_language_options = get_setting("additional_language_options", {}, view)
             if additional_language_options.has_key(language):
                 opts.extend(additional_language_options[language] or [])
+
         self.debug_options = get_setting("debug_options", False)
         self.index_parse_options = get_setting("index_parse_options", 13, view)
         if view.window() != None:
@@ -1205,7 +1290,7 @@ class TranslationUnitCache(Worker):
                 view.settings().add_on_change("sublimeclang.opts", lambda: run_in_main_thread(lambda: self.check_opts(view)))
         return list(opts)
 
-    def get_translation_unit(self, filename, opts=[], opts_script=None, unsaved_files=[]):
+    def get_translation_unit(self, filename, opts=[], opts_script=None, opts_file=None, unsaved_files=[]):
         if self.index == None:
             self.index = cindex.Index.create()
         tu = None
@@ -1229,6 +1314,16 @@ class TranslationUnitCache(Worker):
                 else:
                     opts += shlex.split(output[0])
 
+            options_database = self.options_database.lock()
+            try:
+                if options_database is not None and len(options_database) > 0:
+                    try:
+                        opts += list(options_database[filename])
+                    except KeyError:
+                        self.set_status('%s not in options database' % filename)
+            finally:
+                self.options_database.unlock()
+
             if self.debug_options:
                 print "Will compile file %s with the following options:\n%s" % (filename, opts)
 
@@ -1239,6 +1334,7 @@ class TranslationUnitCache(Worker):
                 tu = LockedTranslationUnit(tu, filename)
                 tu.opts = pre_script_opts
                 tu.opts_script = opts_script
+                tu.opts_file = opts_file
                 tus = self.translationUnits.lock()
                 tus[filename] = tu
                 self.translationUnits.unlock()
@@ -1246,7 +1342,7 @@ class TranslationUnitCache(Worker):
                 print "tu is None..."
         else:
             tu = tus[filename]
-            recompile = tu.opts != opts or tu.opts_script != opts_script
+            recompile = tu.opts != opts or tu.opts_script != opts_script or tu.opts_file != opts_file
 
             if recompile:
                 del tus[filename]
@@ -1254,7 +1350,7 @@ class TranslationUnitCache(Worker):
 
             if recompile:
                 self.set_status("Options change detected. Will recompile %s" % filename)
-                self.add_ex(filename, opts, opts_script, None)
+                self.add_ex(filename, opts, opts_script, opts_file, None)
         return tu
 
     def remove(self, filename):
