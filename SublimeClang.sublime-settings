@@ -290,6 +290,27 @@
     // a CMake json database is available at https://gist.github.com/3944250.
     "options_script": "",
 
+    // A JSON file that contains a map of source file names to lists of options
+    // for that file. This provides similar functionality to options_script,
+    // but without the need to run an external script.
+    //
+    // Example:
+    // {
+    //   "/path/to/source_file1.cpp" :
+    //   [
+    //     "-DTEST1",
+    //     "-DTEST2",
+    //     "-I/some/include/dir1"
+    //   ],
+    //   "/path/to/source_file2.cpp" :
+    //   [
+    //     "-DTEST3",
+    //     "-DTEST4",
+    //     "-I/some/include/dir2"
+    //   ]
+    // }
+    "options_file": "",
+
     // If set to true, it'll not prepend the compiler options with the path to the
     // included headers
     "dont_prepend_clang_includes": false,
