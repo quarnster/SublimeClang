@@ -69,17 +69,25 @@ See http://github.com/quarnster/SublimeClang for more details.
 class CacheEntry(Structure):
     _fields_ = [("cursor", cindex.Cursor), ("insert", c_char_p), ("display", c_char_p), ("access", c_uint), ("static", c_bool), ("baseclass", c_bool)]
 
+class _Cache(Structure):
+    def __del__(self):
+        _deleteCache(self)
 
 class CacheCompletionResults(Structure):
-    _fields_ = [("entries", POINTER(POINTER(CacheEntry))), ("length", c_uint)]
+    @property
+    def length(self):
+        return self.__len__()
 
     def __len__(self):
-        return self.length
+        return completionResults_length(self)
 
     def __getitem__(self, key):
         if key >= self.length:
             raise IndexError
-        return self.entries[key][0]
+        return completionResults_getEntry(self, key)[0]
+
+    def __del__(self):
+        completionResults_dispose(self)
 
 
 cachelib = get_cache_library()
@@ -101,26 +109,32 @@ except:
     error_message("Your SublimeClang libcache is out of date. Try restarting ST2 and if that fails, uninstall SublimeClang, restart ST2 and install it again.")
 
 _createCache = cachelib.createCache
-_createCache.restype = c_void_p
+_createCache.restype = POINTER(_Cache)
 _createCache.argtypes = [cindex.Cursor]
 _deleteCache = cachelib.deleteCache
-_deleteCache.argtypes = [c_void_p]
+_deleteCache.argtypes = [POINTER(_Cache)]
 cache_completeNamespace = cachelib.cache_completeNamespace
-cache_completeNamespace.argtypes = [c_void_p, POINTER(c_char_p), c_uint]
+cache_completeNamespace.argtypes = [POINTER(_Cache), POINTER(c_char_p), c_uint]
 cache_completeNamespace.restype = POINTER(CacheCompletionResults)
 cache_complete_startswith = cachelib.cache_complete_startswith
-cache_complete_startswith.argtypes = [c_void_p, c_char_p]
+cache_complete_startswith.argtypes = [POINTER(_Cache), c_char_p]
 cache_complete_startswith.restype = POINTER(CacheCompletionResults)
-cache_disposeCompletionResults = cachelib.cache_disposeCompletionResults
-cache_disposeCompletionResults.argtypes = [POINTER(CacheCompletionResults)]
+completionResults_length = cachelib.completionResults_length
+completionResults_length.argtypes = [POINTER(CacheCompletionResults)]
+completionResults_length.restype = c_uint
+completionResults_getEntry = cachelib.completionResults_getEntry
+completionResults_getEntry.argtypes = [POINTER(CacheCompletionResults)]
+completionResults_getEntry.restype = POINTER(CacheEntry)
+completionResults_dispose = cachelib.completionResults_dispose
+completionResults_dispose.argtypes = [POINTER(CacheCompletionResults)]
 cache_findType = cachelib.cache_findType
-cache_findType.argtypes = [c_void_p, POINTER(c_char_p), c_uint, c_char_p]
+cache_findType.argtypes = [POINTER(_Cache), POINTER(c_char_p), c_uint, c_char_p]
 cache_findType.restype = cindex.Cursor
 cache_completeCursor = cachelib.cache_completeCursor
-cache_completeCursor.argtypes = [c_void_p, cindex.Cursor]
+cache_completeCursor.argtypes = [POINTER(_Cache), cindex.Cursor]
 cache_completeCursor.restype = POINTER(CacheCompletionResults)
 cache_clangComplete = cachelib.cache_clangComplete
-cache_clangComplete.argtypes = [c_void_p, c_char_p, c_uint, c_uint, POINTER(cindex._CXUnsavedFile), c_uint, c_bool]
+cache_clangComplete.argtypes = [POINTER(_Cache), c_char_p, c_uint, c_uint, POINTER(cindex._CXUnsavedFile), c_uint, c_bool]
 cache_clangComplete.restype = POINTER(CacheCompletionResults)
 
 
@@ -139,14 +153,14 @@ def remove_duplicates(data):
 
 class Cache:
     def __init__(self, tu, filename):
-        self.cache = _createCache(tu.cursor)
+        self.cache = _createCache(tu.cursor)[0]
         assert self.cache != None
         self.tu = tu
         self.filename = filename
 
     def __del__(self):
-        if self.cache:
-            _deleteCache(self.cache)
+        self.tu = None
+        self.cache = None
 
     def get_native_namespace(self, namespace):
         nsarg = (c_char_p*len(namespace))()
@@ -161,7 +175,6 @@ class Cache:
             comp = cache_completeNamespace(self.cache, nsarg, len(nsarg))
             if comp:
                 ret = [(x.display, x.insert) for x in comp[0]]
-                cache_disposeCompletionResults(comp)
         return ret
 
     def get_namespace_from_cursor(self, cursor):
@@ -311,7 +324,6 @@ class Cache:
                         if x.cursor.kind != cindex.CursorKind.MACRO_DEFINITION and \
                                 x.cursor.kind != cindex.CursorKind.CXX_METHOD:
                             ret.append((x.display, x.insert))
-                    cache_disposeCompletionResults(cached_results)
                 return ret
             before = match.group(1)
             namespace = before.split("::")
@@ -360,7 +372,6 @@ class Cache:
                                     c.cursor.kind == cindex.CursorKind.ENUM_CONSTANT_DECL or \
                                     c.cursor.kind == cindex.CursorKind.ENUM_DECL:
                                 ret.append((c.display, c.insert))
-                        cache_disposeCompletionResults(comp)
             ret = self.filter(ret, constr)
             return ret
         elif re.search(r"(\w+\]+\s+$|\[[\w\.\-\>]+\s+$|([^ \t]+)(\.|\->)$)", before):
@@ -454,7 +465,6 @@ class Cache:
                                     if cursor == None:
                                         ret = []
                                     break
-                        cache_disposeCompletionResults(cached_results)
 
             if cursor != None and not cursor.kind.is_invalid():
                 r = cursor
@@ -596,7 +606,6 @@ class Cache:
                                         ins = re.sub(r[0], r[1], ins)
                                     add = (disp, ins)
                                     ret.append(add)
-                        cache_disposeCompletionResults(comp)
             ret = self.filter(ret)
             return remove_duplicates(ret)
         else:
@@ -604,7 +613,6 @@ class Cache:
             cached_results = cache_complete_startswith(self.cache, prefix)
             if cached_results:
                 ret = [(x.display, x.insert) for x in cached_results[0]]
-                cache_disposeCompletionResults(cached_results)
             variables = extract_variables(data) if not constr else []
             var = [("%s\t%s" % (v[1], re.sub(r"(^|\b)\s*static\s+", "", v[0])), v[1]) for v in variables]
             if len(var) and ret == None:
@@ -625,7 +633,6 @@ class Cache:
                                     not (c.baseclass and c.access == cindex.CXXAccessSpecifier.PRIVATE):
                                 add = (c.display, c.insert)
                                 ret.append(add)
-                        cache_disposeCompletionResults(comp)
             namespaces = extract_used_namespaces(data)
             ns = extract_namespace(data)
             if ns:
@@ -653,7 +660,6 @@ class Cache:
 
         if comp:
             ret = [(c.display, c.insert) for c in comp[0]]
-            cache_disposeCompletionResults(comp)
         return ret
 
 def format_cursor(cursor):

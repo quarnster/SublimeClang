@@ -12,6 +12,8 @@ import Queue
 import time
 from parsehelp import parsehelp
 import datetime
+import json
+
 
 thisrun = datetime.datetime.now()
 scriptpath = os.path.dirname(os.path.abspath(__file__))
@@ -62,7 +64,7 @@ for arg in sys.argv[1:]:
         raise Exception("Bad argument")
 
 
-filter = re.compile("(^_.*\tmacro$)|(^__)|(OBJC_NEW_PROPERTIES)|(type_info)|(i386)|linux|unix")
+filter = re.compile("(^_.*\tmacro$)|(^__)|(OBJC_NEW_PROPERTIES)|(type_info)|(i386)|linux|unix|SUBLIMECLANG_VERSION|SHARED_PTR|SHARED_PTR_HDR")
 goto_re = re.compile(r"(.*):(\d+):(\d+)")
 
 if os.access(GOLDFILE, os.R_OK):
@@ -134,7 +136,7 @@ def add_test_ex(key, test, platformspecific=False, noneok=False):
                     m1 = goto_re.match(gold)
                     m2 = goto_re.match(output)
                     if m1 and m2:
-                        fail("gold and output differs: %s %s (%d, %d)" % (gold, output, int(m2.group(2))-int(m1.group(2)), int(m2.group(3))-int(m1.group(3))))
+                        fail("gold and output differs:\n\t%s\n\t%s\n\t(%d, %d)" % (gold, output, int(m2.group(2))-int(m1.group(2)), int(m2.group(3))-int(m1.group(3))))
                     else:
                         fail("gold and output differs: %s %s" % (gold, output))
             else:
@@ -233,6 +235,8 @@ def read_file(filename):
     data = f.read()
     f.close()
     return data
+
+opts.extend(json.loads(read_file("sublimeclang.sublime-project"))["settings"]["sublimeclang_options"])
 
 if goto_def:
     tu = get_tu("src/main.cpp")
@@ -392,16 +396,16 @@ if complete:
     add_completion_test("Test::stringvector::")
     add_completion_test("Test::stringvector s; s.")
     add_completion_test("Test::stringvector s; s[0].")
-    add_completion_test("std::vector<std::string> s; s.", True)
+    add_completion_test("std::vector<std::string> s; s.", True, True)
     add_completion_test("std::vector<std::string> s; s.back().")
     add_completion_test("std::vector<std::string> s; s[0].")
     add_completion_test("namespace Test { ", True)
     add_completion_test(" ", True)
     add_completion_test("using namespace Test; ", True)
     add_completion_test("using namespace Test;\nusing namespace std; ", True)
-    add_completion_test("std::vector<Test::Class1> t; t.", True)
-    add_completion_test("using namespace Class1; std::vector<Class1> t; t.", True)
-    add_completion_test("using namespace std; vector<Test::Class1> t; t.", True)
+    add_completion_test("std::vector<Test::Class1> t; t.", True, True)
+    add_completion_test("using namespace Class1; std::vector<Class1> t; t.", True, True)
+    add_completion_test("using namespace std; vector<Test::Class1> t; t.", True, True)
     add_completion_test("vector<Test::Class1> t; t.")
     add_completion_test("std::vector<Test::Class1> t; t[0].")
     add_completion_test("std::string s; s.", True, True)
@@ -541,7 +545,7 @@ if complete:
     add_completion_test("void Test2::something() { EnumMember.")
     add_completion_test("void Test2::something() { ", True)
 
-    data = read_file("unittests/3.cpp")
+    data = read_file("unittests/4.cpp")
 
     add_completion_test(data + "quat q; q.myEnum.")
     add_completion_test(data + "Test2 t2; t2.")
