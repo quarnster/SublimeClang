@@ -679,6 +679,7 @@ public:
                     Entry *entry = *i;
                     if (clang_getCursorKind(entry->cursor) == CXCursor_Constructor && entry->access == CX_CXXPublic)
                         entries.push_back(new Entry(*entry));
+                    delete entry;
                 }
                 break;
             }
