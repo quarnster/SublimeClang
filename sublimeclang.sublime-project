@@ -47,7 +47,6 @@
             "-DSUBLIMECLANG_VERSION=\"1.0\"",
             "-DSUBLIMECLANG_USE_TR1",
             "-isystem", "/",
-            "-isystem", "/usr/lib/c++/v1",
             "-Wall"
         ]
     }

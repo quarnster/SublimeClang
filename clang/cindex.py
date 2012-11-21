@@ -1122,7 +1122,9 @@ class Cursor(Structure):
                 children = self.get_children()
                 if len(children) == 1 and children[0].kind == CursorKind.TYPE_REF:
                     ref = children[0].get_reference()
-                    return ret + ref.get_returned_pointer_level()
+                    if ref != self:
+                        return ret + ref.get_returned_pointer_level()
+                    return ret
 
                 if self.kind == CursorKind.TYPEDEF_DECL:
                     for child in children:

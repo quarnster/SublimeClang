@@ -241,13 +241,17 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
 endif()
 
 if(DEFINED WIN_RELEASE)
-    if(NOT EXISTS ./SublimeClang.sublime-package)
+    file(DOWNLOAD https://raw.github.com/quarnster/SublimeClang/master/package.json ${PROJECT_BINARY_DIR}/current.json LOG log)
+    file(READ "${PROJECT_BINARY_DIR}/current.json" TEMP)
+    string(REGEX MATCH "\"url\": \"(.*/(.*))\"" TEMP ${TEMP})
+
+    if(NOT EXISTS ${PROJECT_BINARY_DIR}/${CMAKE_MATCH_2})
         message("Downloading current SublimeClang release...")
-        file(DOWNLOAD http://cloud.github.com/downloads/quarnster/SublimeClang/SublimeClang.sublime-package ./SublimeClang.sublime-package)
+        file(DOWNLOAD ${CMAKE_MATCH_1} ${PROJECT_BINARY_DIR}/${CMAKE_MATCH_2})
     endif()
     add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/source
         COMMAND ${CMAKE_COMMAND} -E make_directory source
-        COMMAND ${CMAKE_COMMAND} -E chdir source ${CMAKE_COMMAND} -E tar xf ../SublimeClang.sublime-package
+        COMMAND ${CMAKE_COMMAND} -E chdir source ${CMAKE_COMMAND} -E tar xf ${PROJECT_BINARY_DIR}/${CMAKE_MATCH_2}
         COMMAND ${CMAKE_COMMAND} -E copy_if_different source/libclang.dll ${PROJECT_SOURCE_DIR}/../libclang.dll
         COMMAND ${CMAKE_COMMAND} -E copy_if_different source/libclang_x64.dll ${PROJECT_SOURCE_DIR}/../libclang_x64.dll
         WORKING_DIRECTORY ${PROJECT_BINARY_DIR}

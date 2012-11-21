@@ -236,7 +236,8 @@ def read_file(filename):
     f.close()
     return data
 
-opts.extend(json.loads(read_file("sublimeclang.sublime-project"))["settings"]["sublimeclang_options"])
+if platform.system() != "Windows":
+    opts.extend(json.loads(read_file("sublimeclang.sublime-project"))["settings"]["sublimeclang_options"])
 
 if goto_def:
     tu = get_tu("src/main.cpp")
