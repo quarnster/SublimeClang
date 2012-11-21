@@ -64,7 +64,7 @@ for arg in sys.argv[1:]:
         raise Exception("Bad argument")
 
 
-filter = re.compile("(^_.*\tmacro$)|(^__)|(OBJC_NEW_PROPERTIES)|(type_info)|(i386)|linux|unix|SUBLIMECLANG_VERSION|SHARED_PTR|SHARED_PTR_HDR")
+filter = re.compile("(^_.*\tmacro$)|(^__)|(OBJC_NEW_PROPERTIES)|(type_info)|(i386)|linux|unix|SUBLIMECLANG_")
 goto_re = re.compile(r"(.*):(\d+):(\d+)")
 
 if os.access(GOLDFILE, os.R_OK):
@@ -391,7 +391,7 @@ if complete:
     add_completion_test("std::vector<int>::", True)
     add_completion_test("Test::Class1::")
     add_completion_test("Test::intvector::", True)
-    add_completion_test("Test::intvector s; s.", True)
+    add_completion_test("Test::intvector s; s.", True, True)
     add_completion_test("Test::intvector s; s[0].", True)
     add_completion_test("Test::stringvector::")
     add_completion_test("Test::stringvector s; s.")
@@ -726,16 +726,15 @@ if complete:
     # ---------------------------------------------------------
 
 
-    if platform.system() == "Darwin":
-        tu = get_tu("unittests/9.mm")
-        add_completion_test("[NSString ", True)
-        add_completion_test("NSString *s; [s ", True)
+    tu = get_tu("unittests/9.mm")
+    add_completion_test("[NSString ", True, True)
+    add_completion_test("NSString *s; [s ", True, True)
 
-        add_completion_test("[NSMutableData ", True)
-        add_completion_test("NSMutableData *s; [s ", True)
+    add_completion_test("[NSMutableData ", True, True)
+    add_completion_test("NSMutableData *s; [s ", True, True)
 
-        add_completion_test("Test t; [t.", True)
-        add_completion_test("Test t; [t.context ", True)
+    add_completion_test("Test t; [t.", True, True)
+    add_completion_test("Test t; [t.context ", True, True)
 
 
     # ---------------------------------------------------------

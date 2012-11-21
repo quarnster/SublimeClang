@@ -1095,8 +1095,11 @@ class Cursor(Structure):
                 _child.data = child[0].data
                 children.append(_child)
             else:
-                assert child != Cursor_null()
-                children.append(child)
+                try:
+                    assert child != Cursor_null()
+                    children.append(child)
+                except:
+                    pass
             return 1 # continue
         children = []
         Cursor_visit(self, Cursor_visit_callback(visitor), children)

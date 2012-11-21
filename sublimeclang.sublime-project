@@ -45,8 +45,7 @@
         "sublimeclang_options":
         [
             "-DSUBLIMECLANG_VERSION=\"1.0\"",
-            "-std=c++11",
-            "-stdlib=libc++",
+            "-DSUBLIMECLANG_USE_TR1",
             "-isystem", "/",
             "-isystem", "/usr/lib/c++/v1",
             "-Wall"
