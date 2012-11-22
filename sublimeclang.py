@@ -314,7 +314,7 @@ def display_compilation_results(view):
             if clang_error_panel.is_visible():
                 window.run_command("clang_toggle_panel", {"show": False})
 
-member_regex = re.compile("(([a-zA-Z_]+[0-9_]*)|([\)\]])+)((\.)|(->))$")
+member_regex = re.compile(r"(([a-zA-Z_]+[0-9_]*)|([\)\]])+)((\.)|(->))$")
 
 
 def is_member_completion(view, caret):

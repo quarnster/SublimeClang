@@ -10,11 +10,17 @@ namespace Test
     {
         enum
         {
-            E1,
-            E2,
-            E3
+            E1_priv,
+            E2_priv,
+            E3_priv
         };
         public:
+            enum
+            {
+                E1,
+                E2,
+                E3
+            };
             Class1(int pub);
         private:
             Class1(char priv);

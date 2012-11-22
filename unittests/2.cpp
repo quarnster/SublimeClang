@@ -2,17 +2,17 @@
 class Class1
 {
 public:
-    Class1(int pub);
+    Class1();
     void publicFunction();
     int publicField;
     static void publicStaticFunction();
 private:
-    Class1(int pri);
+    Class1(int pri, int pri2);
     void privateFunction();
     int privateField;
     static void privateStaticFunction();
 protected:
-    Class1(int pro);
+    Class1(int pro, int pro2, int pro3);
     void protectedFunction();
     static void protectedStaticFunction();
     int protectedField;

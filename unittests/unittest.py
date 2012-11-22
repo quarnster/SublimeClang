@@ -23,6 +23,7 @@ golden = {}
 testsAdded = False
 tu = None
 currfile = None
+currfile_data = None
 
 GOLDFILE = "unittests/gold.txt.gz"
 debug = False
@@ -64,7 +65,7 @@ for arg in sys.argv[1:]:
         raise Exception("Bad argument")
 
 
-filter = re.compile("(^_.*\tmacro$)|(^__)|(OBJC_NEW_PROPERTIES)|(type_info)|(i386)|linux|unix|SUBLIMECLANG_")
+filter = re.compile("(^_.*\tmacro$)|(^__)|(OBJC_NEW_PROPERTIES)|(type_info)|(i386)|linux|unix|SUBLIMECLANG_|fd_set\tstruct|wait\tunion|\w+_s(_l)?\(")
 goto_re = re.compile(r"(.*):(\d+):(\d+)")
 
 if os.access(GOLDFILE, os.R_OK):
@@ -213,14 +214,49 @@ def add_goto_imp_test(data, offset):
     add_test_ex(key, lambda: get_res(queue, data, offset))
 
 
+
+member_regex = re.compile(r"(([a-zA-Z_]+[0-9_]*)|([\)\]])+)((\.)|(->))$")
+
+def is_member_completion(data, caret):
+    line = parsehelp.extract_line_until_offset(data, caret)
+    if member_regex.search(line) != None:
+        return True
+    elif currfile.endswith("m"):
+        return re.search(r"\[[\.\->\s\w\]]+\s+$", line) != None
+    return False
+
 def add_completion_test(currtest, platformspecific=False, noneok=False):
     key = "%s-%s" % (currfile, currtest)
     add_test_ex(key, lambda: tu.cache.complete(currtest, ""), platformspecific, noneok)
 
+    data = currfile_data
+    if "{" not in currtest:
+        data += "void __dummy__() {\n" + currtest
+    else:
+        data += currtest
+
+    if currtest.startswith(currfile_data):
+        # This is pretty much what we've already tested for the clangcomplete operation
+        return
+    data += " "
+    row, col = parsehelp.get_line_and_column_from_offset(data, len(data)-1)
+    def test():
+        #complete = tu.cache.complete(currtest, "") or []
+        memb = is_member_completion(data, len(data)-2)
+        clangcomplete = tu.cache.clangcomplete(currfile, row, col, [(currfile,data)], memb)
+
+        # for result in complete:
+        #     print "complete: ", result
+        return clangcomplete
+
+    add_test_ex(key + " (clangcomplete)", test, platformspecific, noneok)
+
 
 def get_tu(filename):
     global currfile
+    global currfile_data
     currfile = filename
+    currfile_data = read_file(filename)
     myopts = []
     myopts.extend(opts)
     if not filename.endswith(".mm"):
@@ -394,12 +430,12 @@ if complete:
     add_completion_test("Test::intvector::", True)
     add_completion_test("Test::intvector s; s.", True, True)
     add_completion_test("Test::intvector s; s[0].", True)
-    add_completion_test("Test::stringvector::")
-    add_completion_test("Test::stringvector s; s.")
-    add_completion_test("Test::stringvector s; s[0].")
+    add_completion_test("Test::stringvector::", True)
+    add_completion_test("Test::stringvector s; s.", True)
+    add_completion_test("Test::stringvector s; s[0].", True)
     add_completion_test("std::vector<std::string> s; s.", True, True)
-    add_completion_test("std::vector<std::string> s; s.back().")
-    add_completion_test("std::vector<std::string> s; s[0].")
+    add_completion_test("std::vector<std::string> s; s.back().", True)
+    add_completion_test("std::vector<std::string> s; s[0].", True)
     add_completion_test("namespace Test { ", True)
     add_completion_test(" ", True)
     add_completion_test("using namespace Test; ", True)
@@ -807,7 +843,7 @@ if goto_imp and goto_def and complete and not debugnew:
 if expectnew != testsAdded:
     fail("New test results were %sadded, but were %sexpected" % ("not " if not testsAdded else "", "not " if not expectnew else ""))
 
-if (testsAdded or update) and not dryrun:
+if ((testsAdded and expectnew) or update) and not dryrun:
     f = gzip.GzipFile(GOLDFILE, "wb")
     pickle.dump(golden, f, -1)
     f.close()
