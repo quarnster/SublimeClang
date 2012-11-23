@@ -691,10 +691,10 @@ class ExtensiveSearch:
     def __init__(self, cursor, spelling, found_callback, folders, opts, opts_script, name="", impl=True, search_re=None, file_re=None):
         self.name = name
         if impl:
-            self.re = re.compile(r"(\w+)[\*&\s]+((?:\w+::)?%s\s*\([^;\{]*\))(?=\s*\{)" % re.escape(spelling))
+            self.re = re.compile(r"\w+[\*&\s]+(?:\w+::)?(%s\s*\([^;\{]*\))(?=\s*\{)" % re.escape(spelling))
             self.impre = re.compile(r"(\.cpp|\.c|\.cc|\.m|\.mm)$")
         else:
-            self.re = re.compile(r"(\w+)[\*&\s]+((?:\w+::)?%s\s*\([^;\{]*\))(?=\s*;)" % re.escape(spelling))
+            self.re = re.compile(r"\w+[\*&\s]+(?:\w+::)?(%s\s*\([^;\{]*\))(?=\s*;)" % re.escape(spelling))
             self.impre = re.compile(r"(\.h|\.hpp)$")
         if search_re != None:
             self.re = search_re
@@ -813,7 +813,7 @@ class ExtensiveSearch:
                 for match in self.re.finditer(data):
                     fine_search = True
                     loc = match.start()
-                    for i in range(len(match.groups())):
+                    for i in range(len(match.groups())+1):
                         m = match.group(i)
                         if self.spelling in m:
                             loc = match.start(i)
