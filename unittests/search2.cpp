@@ -33,6 +33,11 @@ void Test::elsewhere()
 {
 }
 
+int* returnsPointer()
+{
+    return NULL;
+}
+
 void elsewhere()
 {
 }

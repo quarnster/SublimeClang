@@ -691,10 +691,10 @@ class ExtensiveSearch:
     def __init__(self, cursor, spelling, found_callback, folders, opts, opts_script, name="", impl=True, search_re=None, file_re=None):
         self.name = name
         if impl:
-            self.re = re.compile(r"(\w+\s+|\w+::|\*|&)(%s\s*\([^;\{]*\))\s*\{" % re.escape(spelling))
+            self.re = re.compile(r"(\w+)[\*&\s]+((?:\w+::)?%s\s*\([^;\{]*\))(?=\s*\{)" % re.escape(spelling))
             self.impre = re.compile(r"(\.cpp|\.c|\.cc|\.m|\.mm)$")
         else:
-            self.re = re.compile(r"(\w+\s+|\w+::|\*|&)(%s\s*\([^;\{}]*\))\s*;" % re.escape(spelling))
+            self.re = re.compile(r"(\w+)[\*&\s]+((?:\w+::)?%s\s*\([^;\{]*\))(?=\s*;)" % re.escape(spelling))
             self.impre = re.compile(r"(\.h|\.hpp)$")
         if search_re != None:
             self.re = search_re
@@ -820,7 +820,7 @@ class ExtensiveSearch:
 
                     line, column = get_line_and_column_from_offset(data, loc)
                     fine_cands.append((name, line, column))
-                    self.candidates.put((name, "".join(match.groups()), line, column))
+                    self.candidates.put((name, match.group(0), line, column))
 
                 if fine_search and self.cursor and self.impl:
                     tu2 = tuCache.get_translation_unit(name, self.opts, self.opts_script)
@@ -939,9 +939,9 @@ class LockedTranslationUnit(LockedVariable):
                                             break
                                 finally:
                                     tu2.unlock()
-                        if not target:
-                            ExtensiveSearch(cursor, word_under_cursor, found_callback, folders, self.opts, self.opts_script)
-                            return
+                    if not target:
+                        ExtensiveSearch(cursor, word_under_cursor, found_callback, folders, self.opts, self.opts_script)
+                        return
             else:
                 target = format_cursor(d)
         finally:

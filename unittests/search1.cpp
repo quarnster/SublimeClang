@@ -14,6 +14,8 @@ void strcmp(...)
 
 };
 
+int* returnsPointer();
+
 int strcmp(int a)
 {
     return 0;

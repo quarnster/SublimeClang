@@ -378,6 +378,10 @@ if goto_imp:
     add_goto_imp_test(data, data.find("notfound")+2)
     add_goto_imp_test(data, data.find("elsewhere")+2)
 
+    tu = get_tu("unittests/search1.cpp")
+    add_goto_imp_test(currfile_data, currfile_data.find("returnsPointer")+2)
+
+
 
 if complete:
     # ---------------------------------------------------------
