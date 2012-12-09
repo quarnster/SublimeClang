@@ -470,7 +470,7 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
     def recompile(self):
         view = self.view
         unsaved_files = []
-        if view.is_dirty():
+        if view.is_dirty() and get_setting("reparse_use_dirty_buffer", False, view):
             unsaved_files.append((view.file_name().encode("utf-8"),
                                   view.substr(Region(0, view.size()))))
         if not translationunitcache.tuCache.reparse(view, view.file_name().encode("utf-8"), unsaved_files,

@@ -35,7 +35,8 @@
     "enable_fast_completions": true,
 
     // Delay in ms until recompiling the file after the buffer is modified
-    // Set to 0 to disable
+    // Set to 0 to disable.
+    // You probably also want to change the reparse_use_dirty_buffer
     "recompile_delay": 0,
 
     // Whether or not to hide the clang output panel when it's empty
@@ -105,6 +106,9 @@
     // When set to true a reparse command will be triggered
     // when a view is saved
     "reparse_on_save": true,
+
+    // Whether to use the saved file or the (possibly) dirty buffer contents when reparsing
+    "reparse_use_dirty_buffer": false,
 
     // When set to true will display parse status messages
     "parse_status_messages": true,
