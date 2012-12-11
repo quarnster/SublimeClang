@@ -305,6 +305,45 @@ CXChildVisitResult getchildren_visitor(CXCursor cursor, CXCursor parent, CXClien
     return CXChildVisit_Continue;
 }
 
+CXCursor resolve(CXCursor cursor)
+{
+    if (clang_Cursor_isNull(cursor))
+        return cursor;
+    CXCursorKind ck = clang_getCursorKind(cursor);
+    switch (ck)
+    {
+        case CXCursor_TypedefDecl:
+        {
+            CursorList children;
+            clang_visitChildren(cursor, getchildren_visitor, &children);
+            CursorList::iterator first = children.begin();
+            while (first < children.end())
+            {
+                if (clang_getCursorKind(*first) != CXCursor_NamespaceRef)
+                    break;
+                first++;
+            }
+            bool simple = true;
+
+            for (CursorList::iterator i = first + 1; i < children.end(); i++)
+            {
+                if (clang_getCursorKind(*i) != CXCursor_IntegerLiteral)
+                {
+                    simple = false;
+                    break;
+                }
+            }
+            if (simple && children.size())
+                return resolve(*first);
+            return clang_getNullCursor();
+        }
+        default:
+            break;
+    }
+    return cursor;
+}
+
+
 void get_return_type(std::string& returnType, CXCursorKind ck)
 {
     switch (ck)
@@ -846,7 +885,7 @@ private:
             case CXCursor_ObjCSuperClassRef:
             case CXCursor_ObjCProtocolRef:
             {
-                CXCursor ref = clang_getCursorReferenced(cursor);
+                CXCursor ref = resolve(clang_getCursorReferenced(cursor));
 
                 if (!clang_Cursor_isNull(ref) && !clang_isInvalid(clang_getCursorKind(ref)) && !clang_equalCursors(ref, parent))
                 {

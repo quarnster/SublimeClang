@@ -829,6 +829,11 @@ if complete:
 
     # ---------------------------------------------------------
 
+    tu = get_tu("unittests/issue178.cpp")
+    add_completion_test("TEST t; t.")
+    add_completion_test("TEST1 t; t.")
+    add_completion_test("TEST2 t; t.")
+
 if goto_imp and goto_def and complete and not debugnew:
     prunelist = []
     for key in golden:
