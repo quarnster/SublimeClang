@@ -312,6 +312,11 @@ CXCursor resolve(CXCursor cursor)
     CXCursorKind ck = clang_getCursorKind(cursor);
     switch (ck)
     {
+        case CXCursor_TypeRef:
+        {
+            CXCursor ref = clang_getCursorReferenced(cursor);
+            return resolve(ref);
+        }
         case CXCursor_TypedefDecl:
         {
             CursorList children;

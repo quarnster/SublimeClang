@@ -833,6 +833,10 @@ if complete:
     add_completion_test("TEST t; t.")
     add_completion_test("TEST1 t; t.")
     add_completion_test("TEST2 t; t.")
+    add_completion_test("B1 b; b.")
+    add_completion_test("B2 b; b.")
+    add_completion_test("B3 b; b.")
+    add_completion_test("B4 b; b.")
 
 if goto_imp and goto_def and complete and not debugnew:
     prunelist = []
