@@ -239,6 +239,7 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
                     COMMAND strings libcache_x64.dll | python -c "${VERSION_SCRIPT}"
                     COMMAND strings libcache.dll | python -c "${VERSION_SCRIPT}"
                     COMMAND strings libcache.dylib | python -c "${VERSION_SCRIPT}"
+                    DEPENDS prepare
                     WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/release
     )
 
@@ -253,6 +254,8 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
 import re
 import json
 import subprocess
+import tempfile
+import os
 
 def get(url):
     proc = subprocess.Popen('curl -s %s' % url, shell=True, stdout=subprocess.PIPE)
