@@ -20,18 +20,27 @@ freely, subject to the following restrictions:
    3. This notice may not be removed or altered from any source
    distribution.
 """
+
+import imp
+import os
+
+common = imp.load_source("common", os.path.join(os.path.dirname(os.path.abspath(__file__)), "common.py"))
 from common import Worker, complete_path, expand_path, get_setting, get_path_setting,\
                     get_language, LockedVariable, run_in_main_thread, error_message,\
                     display_user_selection, get_cpu_count, status_message
-from clang import cindex
 import time
 import shlex
 import subprocess
+import sys
 from ctypes import cdll, Structure, POINTER, c_char_p, c_void_p, c_uint, c_bool
-from parsehelp.parsehelp import *
+cindex = imp.load_source("cindex", os.path.join(os.path.dirname(os.path.abspath(__file__)), "clang/cindex.py"))
+parsehelp = imp.load_source("parsehelp", os.path.join(os.path.dirname(os.path.abspath(__file__)), "parsehelp/parsehelp.py"))
+from parsehelp import *
 import re
-import os
-import Queue
+try:
+    import Queue
+except:
+    import queue as Queue
 import threading
 
 scriptpath = os.path.dirname(os.path.abspath(__file__))
@@ -41,7 +50,7 @@ def get_cache_library():
     import platform
     name = platform.system()
     if name == 'Darwin':
-        return cdll.LoadLibrary('libcache.dylib')
+        return cdll.LoadLibrary('%s/libcache.dylib' % scriptpath)
     elif name == 'Windows':
         if cindex.isWin64:
             return cdll.LoadLibrary("libcache_x64.dll")
@@ -99,9 +108,9 @@ try:
     data = json.load(f)
     f.close()
     json = data["packages"][0]["platforms"]["*"][0]["version"]
-    lib = _getVersion()
-    print "Have SublimeClang package: %s" % json
-    print "Have SublimeClang libcache: %s" % lib
+    lib = _getVersion().decode(sys.getdefaultencoding())
+    print("Have SublimeClang package: %s" % json)
+    print("Have SublimeClang libcache: %s" % lib)
     assert lib == json
 except:
     import traceback
@@ -1198,7 +1207,7 @@ class TranslationUnitCache(Worker):
                 opts.append("-x")
                 opts.append(language)
             additional_language_options = get_setting("additional_language_options", {}, view)
-            if additional_language_options.has_key(language):
+            if language in additional_language_options:
                 opts.extend(additional_language_options[language] or [])
         self.debug_options = get_setting("debug_options", False)
         self.index_parse_options = get_setting("index_parse_options", 13, view)
@@ -1232,13 +1241,13 @@ class TranslationUnitCache(Worker):
                 process = subprocess.Popen(args, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
                 output = process.communicate()
                 if process.returncode:
-                    print "The options_script failed with code [%s]" % process.returncode
-                    print output[1]
+                    print("The options_script failed with code [%s]" % process.returncode)
+                    print(output[1])
                 else:
                     opts += shlex.split(output[0])
 
             if self.debug_options:
-                print "Will compile file %s with the following options:\n%s" % (filename, opts)
+                print("Will compile file %s with the following options:\n%s" % (filename, opts))
 
             opts.append(filename)
             tu = self.index.parse(None, opts, unsaved_files,
@@ -1251,7 +1260,7 @@ class TranslationUnitCache(Worker):
                 tus[filename] = tu
                 self.translationUnits.unlock()
             else:
-                print "tu is None..."
+                print("tu is None...")
         else:
             tu = tus[filename]
             recompile = tu.opts != opts or tu.opts_script != opts_script
@@ -1271,4 +1280,12 @@ class TranslationUnitCache(Worker):
     def clear(self):
         self.tasks.put((self.task_clear, None))
 
-tuCache = TranslationUnitCache()
+tuCache = None
+try:
+    # Dirty hack for ST3...
+    def init_tu():
+        global tuCache
+        tuCache = TranslationUnitCache()
+    common.are_we_there_yet(init_tu)
+except:
+    tuCache = TranslationUnitCache()

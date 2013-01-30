@@ -23,13 +23,23 @@ freely, subject to the following restrictions:
 
 import threading
 import time
-import Queue
+try:
+    import Queue
+except:
+    import queue as Queue
 import os
 import re
 
 
 try:
     import sublime
+    def are_we_there_yet(x):
+        w = sublime.active_window()
+        if not w or not w.active_view():
+            sublime.set_timeout(lambda: are_we_there_yet(x), 500)
+        else:
+            x()
+
     def run_in_main_thread(func):
         sublime.set_timeout(func, 0)
 
@@ -132,7 +142,7 @@ except:
         func()
 
     def status_message(msg):
-        print msg
+        print(msg)
 
     def expand_path(value, window):
         return value
@@ -221,11 +231,11 @@ def complete_path(value):
 def get_path_setting(key, default=None, view=None):
     value = get_setting(key, default, view)
     opts = []
-    if isinstance(value, str) or isinstance(value, unicode):
-        opts.append(expand_path(value, view.window()))
-    else:
+    if isinstance(value, list):
         for v in value:
             opts.append(expand_path(v, view.window()))
+    else:
+        opts.append(expand_path(value, view.window()))
     return opts
 
 

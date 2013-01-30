@@ -1,7 +1,10 @@
 import sublime
 import sublime_plugin
 from collections import defaultdict
-from common import get_setting
+try:
+    from common import get_setting
+except:
+    from SublimeClang.common import get_setting
 
 ERRORS = {}
 WARNINGS = {}
@@ -95,7 +98,7 @@ class ClangErrorPanel(object):
             if get_setting("output_panel_use_syntax_file", False):
                 fileName = get_setting("output_panel_syntax_file", None)
                 if fileName is not None:
-                    self.view.set_syntax_file(fileName)            
+                    self.view.set_syntax_file(fileName)
         self.flush()
 
         window.run_command("show_panel", {"panel": "output.clang"})

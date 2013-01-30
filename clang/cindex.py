@@ -63,7 +63,10 @@ call is efficient.
 # o implement additional SourceLocation, SourceRange, and File methods.
 
 from ctypes import *
-from common import error_message
+try:
+    from common import error_message
+except:
+    from SublimeClang.common import error_message
 import platform
 
 isWin64 = False
@@ -259,7 +262,7 @@ class Diagnostic(object):
 
             def __getitem__(self, key):
                 if (key >= len(self)):
-                    raise IndexError
+                    raise(IndexError)
                 return _clang_getDiagnosticRange(self.diag, key)
 
         return RangeIterator(self)
@@ -277,7 +280,7 @@ class Diagnostic(object):
                 range = SourceRange()
                 value = _clang_getDiagnosticFixIt(self.diag, key, byref(range))
                 if len(value) == 0:
-                    raise IndexError
+                    raise(IndexError)
 
                 return FixIt(range, value)
 
@@ -319,7 +322,7 @@ class CursorKind(object):
         if value >= len(CursorKind._kinds):
             CursorKind._kinds += [None] * (value - len(CursorKind._kinds) + 1)
         if CursorKind._kinds[value] is not None:
-            raise ValueError,'CursorKind already loaded'
+            raise(ValueError,'CursorKind already loaded')
         self.value = value
         CursorKind._kinds[value] = self
         CursorKind._name_map = None
@@ -346,7 +349,7 @@ class CursorKind(object):
     @staticmethod
     def from_id(id):
         if id >= len(CursorKind._kinds) or CursorKind._kinds[id] is None:
-            raise ValueError,'Unknown cursor kind'
+            raise(ValueError,'Unknown cursor kind')
         return CursorKind._kinds[id]
 
     @staticmethod
@@ -946,7 +949,7 @@ class Cursor(Structure):
 
             def __getitem__(self, key):
                 if key >= self.num:
-                    raise IndexError
+                    raise(IndexError)
                 return self.obj[key]
         return OverriddenIter(self)
 
@@ -1138,7 +1141,7 @@ class Cursor(Structure):
         return ret
 
     def get_resolved_cursor(self, parent=None):
-        #print "get_type"
+        #print("get_type")
         if self.kind == CursorKind.OBJC_INTERFACE_DECL:
             return self
         if self.kind == CursorKind.STRUCT_DECL or \
@@ -1173,21 +1176,21 @@ class Cursor(Structure):
         elif self.kind.is_reference():
             ref = self.get_reference()
             if ref == self:
-                #print "none1"
+                #print("none1")
                 return None
             elif not parent is None and ref == parent:
                 return self
             return ref.get_resolved_cursor(self)
         elif self.kind.is_declaration():
-            #print "decl: %s, %s" % (self.spelling, self.kind)
+            #print("decl: %s, %s" % (self.spelling, self.kind))
             for child in self.get_children():
-                #print "%s, %s, %s, %s" % (child.kind, child.spelling, child.type.kind, child.result_type.kind)
+                #print("%s, %s, %s, %s" % (child.kind, child.spelling, child.type.kind, child.result_type.kind))
                 if child.kind == CursorKind.TYPE_REF:
                     c = child.get_reference()
-                    #print "will return this type: "
+                    #print("will return this type: ")
                     #self.dump(c)
                     if c == child:
-                        #print "none3"
+                        #print("none3")
                         return None
                     return c.get_resolved_cursor()
                 elif child.kind == CursorKind.ENUM_DECL:
@@ -1198,15 +1201,15 @@ class Cursor(Structure):
         #    return self.get_reference()
 
         #if self.kind == CursorKind.TYPEDEF_DECL:
-        #    print "here"
+        #    print("here")
         #    self.dump_cursor(self)
         # return self.get_type_from_:cursor(self, self.get_reference())
         if self.result_type.kind == TypeKind.POINTER or self.result_type.kind == TypeKind.LVALUEREFERENCE or self.result_type.kind == TypeKind.RVALUEREFERENCE:
             return self.result_type.get_pointee().get_declaration()
 
-        # print "none2"
+        # print("none2")
         # self.dump_self()
-        # print "self dumped"
+        # print("self dumped")
         return self
 
     def __repr__(self):
@@ -1218,25 +1221,25 @@ class Cursor(Structure):
         return ret
 
     def dump_self(self):
-        print self
+        print(self)
 
     def dump(self, once=True):
         indent = "" if once else "    "
-        print "%s this: %s, %s, %s, %s, %s, %s, %s" % (indent, self.kind, self.spelling, self.displayname, self.type.kind, self.result_type.kind, self.get_usr(), self.location)
+        print("%s this: %s, %s, %s, %s, %s, %s, %s" % (indent, self.kind, self.spelling, self.displayname, self.type.kind, self.result_type.kind, self.get_usr(), self.location))
         children = self.get_children()
         for i in range(len(children)):
             child = children[i]
-            print "%s    %d: %s, %s, %s, %s, %s, %s" % (indent, i, child.kind, child.spelling, child.displayname, child.type.kind, child.result_type.kind, child.get_usr())
+            print("%s    %d: %s, %s, %s, %s, %s, %s" % (indent, i, child.kind, child.spelling, child.displayname, child.type.kind, child.result_type.kind, child.get_usr()))
             if child.kind == CursorKind.CXX_ACCESS_SPEC_DECL:
-                print "    %s access: %s" % (indent, child.get_cxx_access_specifier())
+                print("    %s access: %s" % (indent, child.get_cxx_access_specifier()))
             if child.result_type.kind == TypeKind.POINTER:
                 pointee = child.result_type.get_pointee()
                 c3 = pointee.get_declaration()
                 if not c3 is None and not c3.kind.is_invalid():
-                    print "    %s dumping pointee" % indent
+                    print("    %s dumping pointee" % indent)
                     c3.dump_self()
                 else:
-                    print "c3 == null"
+                    print("c3 == null")
             if child.kind.is_reference() and child.kind != CursorKind.NAMESPACE_REF and once:
                 child.get_reference().dump(False)
             elif child.kind == CursorKind.COMPOUND_STMT and once:
@@ -1276,7 +1279,7 @@ class Cursor(Structure):
                 else:
                     return None
             else:
-                #print "none4"
+                #print("none4")
                 return None
         # if self.kind.is_reference():
         #     ref = self.get_reference()
@@ -1284,7 +1287,7 @@ class Cursor(Structure):
         #         return None
         #     return ref.get_resolved_cursor()
         # TODO: cleanup
-        #print "getting returned cursor of %s, %s, %s, %s" % (self.kind, self.spelling, self.type.kind, self.result_type.kind)
+        #print("getting returned cursor of %s, %s, %s, %s" % (self.kind, self.spelling, self.type.kind, self.result_type.kind))
         if self.kind.is_declaration():
             ret = self #.get_resolved_cursor()
         if self.result_type.kind == TypeKind.RECORD:
@@ -1294,7 +1297,7 @@ class Cursor(Structure):
                     self.result_type.kind == TypeKind.RVALUEREFERENCE:
 
             pointee = self.result_type.get_pointee()
-            #print "pointee kind: %s" % (pointee.kind)
+            #print("pointee kind: %s" % (pointee.kind))
             ret = pointee.get_declaration()
             if ret is None or ret.kind.is_invalid():
                 #ret = pointee.get_canonical().get_declaration()
@@ -1304,11 +1307,11 @@ class Cursor(Structure):
         if not ret is None and not ret.kind.is_invalid():
             #ret.dump()
             return ret.get_resolved_cursor()
-        #print "none5"
+        #print("none5")
         return None
 
     def get_member(self, membername, function):
-        #print "want to get the cursor for: %s->%s%s" % (self.spelling, membername, "()" if function else "")
+        #print("want to get the cursor for: %s->%s%s" % (self.spelling, membername, "()" if function else ""))
         for child in self.get_children():
             if function and (child.kind == CursorKind.CXX_METHOD or child.kind == CursorKind.OBJC_INSTANCE_METHOD_DECL) and child.spelling == membername:
                 return child
@@ -1319,7 +1322,7 @@ class Cursor(Structure):
                 if not ret is None:
                     return ret
             # elif child.spelling == membername:
-            #     print "unhandled kind: %s" % child.kind
+            #     print("unhandled kind: %s" % child.kind)
         if self.kind == CursorKind.OBJC_INTERFACE_DECL:
             for child in self.get_children():
                 if child.kind == CursorKind.OBJC_INSTANCE_METHOD_DECL and child.spelling == membername:
@@ -1362,7 +1365,7 @@ class TypeKind(object):
         if value >= len(TypeKind._kinds):
             TypeKind._kinds += [None] * (value - len(TypeKind._kinds) + 1)
         if TypeKind._kinds[value] is not None:
-            raise ValueError,'TypeKind already loaded'
+            raise(ValueError,'TypeKind already loaded')
         self.value = value
         TypeKind._kinds[value] = self
         TypeKind._name_map = None
@@ -1383,7 +1386,7 @@ class TypeKind(object):
     @staticmethod
     def from_id(id):
         if id >= len(TypeKind._kinds) or TypeKind._kinds[id] is None:
-            raise ValueError,'Unknown cursor kind'
+            raise(ValueError,'Unknown cursor kind')
         return TypeKind._kinds[id]
 
     def __repr__(self):
@@ -1670,7 +1673,7 @@ class CompletionString(ClangObject):
 
     def __getitem__(self, key):
         if len(self) <= key:
-            raise IndexError
+            raise(IndexError)
         return CompletionChunk(self.obj, key)
 
     @property
@@ -1719,7 +1722,7 @@ class CCRStructure(Structure):
 
     def __getitem__(self, key):
         if len(self) <= key:
-            raise IndexError
+            raise(IndexError)
 
         return self.results[key]
 
@@ -1753,7 +1756,7 @@ class CodeCompletionResults(ClangObject):
             def __getitem__(self, key):
                 diag = _clang_codeCompleteGetDiagnostic(self.ccr, key)
                 if not diag:
-                    raise IndexError
+                    raise(IndexError)
                 return Diagnostic(diag)
 
         return DiagnosticsItr(self)
@@ -1762,7 +1765,7 @@ def makeString(value):
     if not isinstance(value, str):
         value = value.encode("ascii", "ignore")
     if not isinstance(value, str):
-        raise TypeError,'Unexpected unsaved file contents.'
+        raise(TypeError,'Unexpected unsaved file contents.')
     return value
 
 class Index(ClangObject):
@@ -1876,7 +1879,7 @@ class TranslationUnit(ClangObject):
             def __getitem__(self, key):
                 diag = _clang_getDiagnostic(self.tu, key)
                 if not diag:
-                    raise IndexError
+                    raise(IndexError)
                 return Diagnostic(diag)
 
         return DiagIterator(self)

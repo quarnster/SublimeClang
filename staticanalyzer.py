@@ -28,8 +28,12 @@ import sublime_plugin
 import time
 import threading
 import traceback
-import Queue
-from common import get_setting, get_cpu_count, Worker
+try:
+    import Queue
+    from common import get_setting, get_cpu_count, Worker
+except:
+    import queue as Queue
+    from SublimeClang.common import get_setting, get_cpu_count, Worker
 
 
 def parse(l):

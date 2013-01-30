@@ -10,7 +10,8 @@ import re
 import platform
 import Queue
 import time
-from parsehelp import parsehelp
+import imp
+parsehelp = imp.load_source("parsehelp", os.path.join(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../"), "parsehelp/parsehelp.py"))
 import datetime
 import json
 
