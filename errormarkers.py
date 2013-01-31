@@ -2,9 +2,9 @@ import sublime
 import sublime_plugin
 from collections import defaultdict
 try:
-    from common import get_setting
+    from common import get_setting, sdecode
 except:
-    from SublimeClang.common import get_setting
+    from SublimeClang.common import get_setting, sdecode
 
 ERRORS = {}
 WARNINGS = {}
@@ -58,13 +58,18 @@ class ClangPrevious(sublime_plugin.TextCommand):
             sublime.status_message("No more errors or warnings!")
 
 
+class ClangErrorPanelFlush(sublime_plugin.TextCommand):
+    def run(self, edit, data):
+        self.view.erase(edit, sublime.Region(0, self.view.size()))
+        self.view.insert(edit, 0, data)
+
 class ClangErrorPanel(object):
     def __init__(self):
         self.view = None
         self.data = ""
 
     def set_data(self, data):
-        self.data = data.decode("utf-8")
+        self.data = sdecode(data)
         if get_setting("update_output_panel", True) and self.is_visible():
             self.flush()
 
@@ -83,10 +88,7 @@ class ClangErrorPanel(object):
     def flush(self):
         self.view.set_read_only(False)
         self.view.set_scratch(True)
-        e = self.view.begin_edit()
-        self.view.erase(e, sublime.Region(0, self.view.size()))
-        self.view.insert(e, 0, self.data)
-        self.view.end_edit(e)
+        self.view.run_command("clang_error_panel_flush", {"data": self.data})
         self.view.set_read_only(True)
 
     def open(self, window=None):

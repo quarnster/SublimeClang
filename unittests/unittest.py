@@ -8,7 +8,10 @@ import sys
 import gzip
 import re
 import platform
-import Queue
+try:
+    import Queue
+except:
+    import queue as Queue
 import time
 import imp
 parsehelp = imp.load_source("parsehelp", os.path.join(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../"), "parsehelp/parsehelp.py"))
@@ -71,7 +74,7 @@ goto_re = re.compile(r"(.*):(\d+):(\d+)")
 
 if os.access(GOLDFILE, os.R_OK):
     f = gzip.GzipFile(GOLDFILE, 'rb')
-    golden = pickle.load(f)
+    golden = pickle.load(f) #, encoding="utf-8")
     for key in golden:
         if golden[key][1] and not isinstance(golden[key][1], str):
             new = []
@@ -84,7 +87,7 @@ if os.access(GOLDFILE, os.R_OK):
 
 def fail(message, forcewarn=False):
     if onlywarn or forcewarn:
-        print message
+        print(message)
     else:
         raise Exception(message)
 
@@ -105,16 +108,16 @@ def add_test_ex(key, test, platformspecific=False, noneok=False):
         output = new
 
     if debug or dn:
-        print key
+        print(key)
         if output == None:
-            print "\tNone"
+            print("\tNone")
         elif isinstance(output, str):
-            print "\t%s" % output
+            print("\t%s" % output)
         elif len(output) == 0:
-            print "\t[]"
+            print("\t[]")
         else:
             for data in output:
-                print "\t%s" % str(data)
+                print("\t%s" % str(data))
     if debugnew:
         return
     if not key in golden:
@@ -167,6 +170,8 @@ def defimp_base(data, offset, queue):
     word = parsehelp.extract_word_at_offset(data, offset)
     res = queue.get()
     def fixup(res):
+        if res.startswith("Don't"):
+            return res
         if res.count(":") == 2:
             name, line, col = res.split(":")
         else:
@@ -247,7 +252,7 @@ def add_completion_test(currtest, platformspecific=False, noneok=False):
         clangcomplete = tu.cache.clangcomplete(currfile, row, col, [(currfile,data)], memb)
 
         # for result in complete:
-        #     print "complete: ", result
+        #     print("complete: ", result)
         return clangcomplete
 
     add_test_ex(key + " (clangcomplete)", test, platformspecific, noneok)
@@ -859,7 +864,7 @@ if expectnew != testsAdded:
 
 if ((testsAdded and expectnew) or update) and not dryrun:
     f = gzip.GzipFile(GOLDFILE, "wb")
-    pickle.dump(golden, f, -1)
+    pickle.dump(golden, f, 2)
     f.close()
 
-print "All is well"
+print("All is well")

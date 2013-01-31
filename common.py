@@ -29,6 +29,31 @@ except:
     import queue as Queue
 import os
 import re
+import sys
+
+if sys.version[0] == '2':
+    def sencode(s):
+        return s.encode("utf-8")
+
+    def sdecode(s):
+        return s
+
+    def bencode(s):
+        return s
+    def bdecode(s):
+        return s
+else:
+    def sencode(s):
+        return s
+
+    def sdecode(s):
+        return s
+
+    def bencode(s):
+        return s.encode("utf-8")
+
+    def bdecode(s):
+        return s.decode("utf-8")
 
 
 try:
@@ -39,6 +64,7 @@ try:
             sublime.set_timeout(lambda: are_we_there_yet(x), 500)
         else:
             x()
+
 
     def run_in_main_thread(func):
         sublime.set_timeout(func, 0)
@@ -74,7 +100,7 @@ try:
         return True
 
     def status_message(msg):
-        sublime.status_message(msg.decode("utf-8"))
+        sublime.status_message(sdecode(msg))
 
     def get_settings():
         return sublime.load_settings("SublimeClang.sublime-settings")
@@ -128,6 +154,8 @@ try:
 
 except:
     # Just used for unittesting
+    def are_we_there_yet(f):
+        f()
 
     def error_message(msg):
         raise Exception(msg)
@@ -188,7 +216,8 @@ class Worker(object):
         try:
             # Just so we give time for the editor itself to start
             # up before we start doing work
-            time.sleep(5)
+            if sys.version[0] != '3':
+                time.sleep(5)
         except:
             pass
         while True:

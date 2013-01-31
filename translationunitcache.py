@@ -21,26 +21,36 @@ freely, subject to the following restrictions:
    distribution.
 """
 
-import imp
 import os
+import sys
 
-common = imp.load_source("common", os.path.join(os.path.dirname(os.path.abspath(__file__)), "common.py"))
-from common import Worker, complete_path, expand_path, get_setting, get_path_setting,\
-                    get_language, LockedVariable, run_in_main_thread, error_message,\
-                    display_user_selection, get_cpu_count, status_message
+try:
+    from common import Worker, complete_path, expand_path, get_setting, get_path_setting,\
+                        get_language, LockedVariable, run_in_main_thread, error_message,\
+                        display_user_selection, get_cpu_count, status_message, bencode, bdecode, are_we_there_yet
+    from clang import cindex
+    from parsehelp.parsehelp import *
+except:
+    from SublimeClang.common import Worker, complete_path, expand_path, get_setting, get_path_setting,\
+                        get_language, LockedVariable, run_in_main_thread, error_message,\
+                        display_user_selection, get_cpu_count, status_message, bencode, bdecode, are_we_there_yet
+    from SublimeClang.clang import cindex
+    from SublimeClang.parsehelp import parsehelp
+    from parsehelp import *
+
+try:
+    import Queue
+except:
+    import queue as Queue
+
+
 import time
 import shlex
 import subprocess
 import sys
 from ctypes import cdll, Structure, POINTER, c_char_p, c_void_p, c_uint, c_bool
-cindex = imp.load_source("cindex", os.path.join(os.path.dirname(os.path.abspath(__file__)), "clang/cindex.py"))
-parsehelp = imp.load_source("parsehelp", os.path.join(os.path.dirname(os.path.abspath(__file__)), "parsehelp/parsehelp.py"))
-from parsehelp import *
+
 import re
-try:
-    import Queue
-except:
-    import queue as Queue
 import threading
 
 scriptpath = os.path.dirname(os.path.abspath(__file__))
@@ -76,7 +86,14 @@ See http://github.com/quarnster/SublimeClang for more details.
 
 
 class CacheEntry(Structure):
-    _fields_ = [("cursor", cindex.Cursor), ("insert", c_char_p), ("display", c_char_p), ("access", c_uint), ("static", c_bool), ("baseclass", c_bool)]
+    _fields_ = [("cursor", cindex.Cursor), ("raw_insert", c_char_p), ("raw_display", c_char_p), ("access", c_uint), ("static", c_bool), ("baseclass", c_bool)]
+    @property
+    def insert(self):
+        return bdecode(self.raw_insert)
+
+    @property
+    def display(self):
+        return bdecode(self.raw_display)
 
 class _Cache(Structure):
     def __del__(self):
@@ -174,7 +191,7 @@ class Cache:
     def get_native_namespace(self, namespace):
         nsarg = (c_char_p*len(namespace))()
         for i in range(len(namespace)):
-            nsarg[i] = namespace[i]
+            nsarg[i] = bencode(namespace[i])
         return nsarg
 
     def complete_namespace(self, namespace):
@@ -216,7 +233,7 @@ class Cache:
             if ns:
                 nsarg = self.get_native_namespace(ns.split("::"))
                 nslen = len(nsarg)
-            cursor = cache_findType(self.cache, nsarg, nslen, typename)
+            cursor = cache_findType(self.cache, nsarg, nslen, bencode(typename))
             if cursor != None and not cursor.kind.is_invalid():
                 if cursor.kind.is_reference():
                     cursor = cursor.get_referenced()
@@ -326,7 +343,7 @@ class Cache:
             match = re.search(r"([^\(\s,]+::)+$", before)
             if match == None:
                 ret = None
-                cached_results = cache_complete_startswith(self.cache, prefix)
+                cached_results = cache_complete_startswith(self.cache, bencode(prefix))
                 if cached_results:
                     ret = []
                     for x in cached_results[0]:
@@ -464,7 +481,7 @@ class Cache:
                     if typename.endswith("()"):
                         func = True
                         typename = typename[:-2]
-                    cached_results = cache_complete_startswith(self.cache, typename)
+                    cached_results = cache_complete_startswith(self.cache, bencode(typename))
                     if cached_results:
                         for x in cached_results[0]:
                             if x.cursor.spelling == typename:
@@ -621,7 +638,7 @@ class Cache:
             return remove_duplicates(ret)
         else:
             constr = re.search(r"(^|\W)new\s+$", before) != None
-            cached_results = cache_complete_startswith(self.cache, prefix)
+            cached_results = cache_complete_startswith(self.cache, bencode(prefix))
             if cached_results:
                 ret = [(x.display, x.insert) for x in cached_results[0]]
             variables = extract_variables(data) if not constr else []
@@ -664,10 +681,11 @@ class Cache:
             for i, (name, value) in enumerate(unsaved_files):
                 if not isinstance(value, str):
                     value = value.encode("ascii", "ignore")
-                unsaved[i].name = name
+                value = bencode(value)
+                unsaved[i].name = bencode(name)
                 unsaved[i].contents = value
                 unsaved[i].length = len(value)
-        comp = cache_clangComplete(self.cache, filename, row, col, unsaved, len(unsaved_files), membercomp)
+        comp = cache_clangComplete(self.cache, bencode(filename), row, col, unsaved, len(unsaved_files), membercomp)
 
         if comp:
             ret = [(c.display, c.insert) for c in comp[0]]
@@ -815,7 +833,7 @@ class ExtensiveSearch:
                 self.set_status("Searching %s" % name)
 
                 # try a regex search first
-                f = file(name, "r")
+                f = open(name, "r")
                 data = f.read()
                 f.close()
                 fine_cands = []
@@ -1286,6 +1304,6 @@ try:
     def init_tu():
         global tuCache
         tuCache = TranslationUnitCache()
-    common.are_we_there_yet(init_tu)
+    are_we_there_yet(init_tu)
 except:
     tuCache = TranslationUnitCache()
