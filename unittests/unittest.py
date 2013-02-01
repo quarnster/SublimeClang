@@ -1,6 +1,6 @@
 import sys
 sys.path.append(".")
-import translationunitcache
+from internals import translationunitcache
 import os
 import os.path
 import pickle
@@ -14,7 +14,7 @@ except:
     import queue as Queue
 import time
 import imp
-parsehelp = imp.load_source("parsehelp", os.path.join(os.path.join(os.path.dirname(os.path.abspath(__file__)), "../"), "parsehelp/parsehelp.py"))
+from internals.parsehelp import parsehelp
 import datetime
 import json
 

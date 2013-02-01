@@ -63,10 +63,7 @@ call is efficient.
 # o implement additional SourceLocation, SourceRange, and File methods.
 
 from ctypes import *
-try:
-    from common import error_message, bencode, bdecode
-except:
-    from SublimeClang.common import error_message, bencode, bdecode
+from ..common import error_message, bencode, bdecode
 import platform
 import sys
 

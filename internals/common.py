@@ -55,16 +55,24 @@ else:
     def bdecode(s):
         return s.decode("utf-8")
 
+loaded = False
+loaded_callbacks = []
+def plugin_loaded():
+    global loaded
+    global loaded_callbacks
+    loaded = True
+    for c in loaded_callbacks:
+        c()
+    loaded_callbacks = []
 
 try:
     import sublime
     def are_we_there_yet(x):
-        w = sublime.active_window()
-        if not w or not w.active_view():
-            sublime.set_timeout(lambda: are_we_there_yet(x), 500)
-        else:
+        global loaded_callbacks
+        if loaded:
             x()
-
+        else:
+            loaded_callbacks.append(x)
 
     def run_in_main_thread(func):
         sublime.set_timeout(func, 0)

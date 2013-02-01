@@ -30,10 +30,10 @@ import threading
 import traceback
 try:
     import Queue
-    from common import get_setting, get_cpu_count, Worker
+    from internals.common import get_setting, get_cpu_count, Worker
 except:
     import queue as Queue
-    from SublimeClang.common import get_setting, get_cpu_count, Worker
+    from .internals.common import get_setting, get_cpu_count, Worker
 
 
 def parse(l):

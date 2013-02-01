@@ -2,9 +2,10 @@ import sublime
 import sublime_plugin
 from collections import defaultdict
 try:
-    from common import get_setting, sdecode
+    from .internals.common import get_setting, sdecode
 except:
-    from SublimeClang.common import get_setting, sdecode
+    from internals.common import get_setting, sdecode
+
 
 ERRORS = {}
 WARNINGS = {}

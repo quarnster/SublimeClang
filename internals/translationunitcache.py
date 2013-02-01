@@ -24,19 +24,11 @@ freely, subject to the following restrictions:
 import os
 import sys
 
-try:
-    from common import Worker, complete_path, expand_path, get_setting, get_path_setting,\
-                        get_language, LockedVariable, run_in_main_thread, error_message,\
-                        display_user_selection, get_cpu_count, status_message, bencode, bdecode, are_we_there_yet
-    from clang import cindex
-    from parsehelp.parsehelp import *
-except:
-    from SublimeClang.common import Worker, complete_path, expand_path, get_setting, get_path_setting,\
-                        get_language, LockedVariable, run_in_main_thread, error_message,\
-                        display_user_selection, get_cpu_count, status_message, bencode, bdecode, are_we_there_yet
-    from SublimeClang.clang import cindex
-    from SublimeClang.parsehelp import parsehelp
-    from parsehelp import *
+from .common import Worker, complete_path, expand_path, get_setting, get_path_setting,\
+                    get_language, LockedVariable, run_in_main_thread, error_message,\
+                    display_user_selection, get_cpu_count, status_message, bencode, bdecode, are_we_there_yet
+from .clang import cindex
+from .parsehelp.parsehelp import *
 
 try:
     import Queue
@@ -121,7 +113,7 @@ try:
     import json
     _getVersion = cachelib.getVersion
     _getVersion.restype = c_char_p
-    f = open("%s/package.json" % scriptpath)
+    f = open("%s/../package.json" % scriptpath)
     data = json.load(f)
     f.close()
     json = data["packages"][0]["platforms"]["*"][0]["version"]
