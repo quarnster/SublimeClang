@@ -344,8 +344,19 @@ def is_member_completion(view, caret):
 
 class ClangComplete(sublime_plugin.TextCommand):
     def run(self, edit, characters):
-        for region in self.view.sel():
-            self.view.insert(edit, region.end(), characters)
+        regions = [a for a in self.view.sel()]
+        self.view.sel().clear()
+        for region in regions:
+            pos = 0
+            region.end() + len(characters)
+            if region.size() > 0:
+                self.view.replace(edit, region, characters)
+                pos = region.begin() + len(characters)
+            else:
+                self.view.insert(edit, region.end(), characters)
+                pos = region.end() + len(characters)
+
+            self.view.sel().add(sublime.Region(pos, pos))
         caret = self.view.sel()[0].begin()
         line = self.view.substr(sublime.Region(self.view.word(caret-1).a, caret))
         if is_member_completion(self.view, caret) or line.endswith("::") or re.search("(^|\W)new\s+\w*$", line):
