@@ -317,7 +317,7 @@ class Cache:
         if constr:
             for name in constrs:
                 regex = re.compile(r"%s\t(class|typedef|struct)$" % name)
-                ret2 = filter(lambda a: not regex.search(a[0]), ret2)
+                ret2 = list(filter(lambda a: not regex.search(a[0]), ret2))
         return ret2
 
 

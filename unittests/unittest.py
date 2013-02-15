@@ -15,11 +15,9 @@ except:
 import time
 import imp
 from internals.parsehelp import parsehelp
-import datetime
 import json
 
-
-thisrun = datetime.datetime.now()
+thisrun = time.time()
 scriptpath = os.path.dirname(os.path.abspath(__file__))
 opts = ["-I%s/../clang/include" % scriptpath]
 
