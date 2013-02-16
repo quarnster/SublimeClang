@@ -95,7 +95,8 @@ _mm_div_ps(__m128 a, __m128 b)
 static __inline__ __m128 __attribute__((__always_inline__, __nodebug__))
 _mm_sqrt_ss(__m128 a)
 {
-  return __builtin_ia32_sqrtss(a);
+  __m128 c = __builtin_ia32_sqrtss(a);
+  return (__m128) { c[0], a[1], a[2], a[3] };
 }
 
 static __inline__ __m128 __attribute__((__always_inline__, __nodebug__))
@@ -107,7 +108,8 @@ _mm_sqrt_ps(__m128 a)
 static __inline__ __m128 __attribute__((__always_inline__, __nodebug__))
 _mm_rcp_ss(__m128 a)
 {
-  return __builtin_ia32_rcpss(a);
+  __m128 c = __builtin_ia32_rcpss(a);
+  return (__m128) { c[0], a[1], a[2], a[3] };
 }
 
 static __inline__ __m128 __attribute__((__always_inline__, __nodebug__))
@@ -119,7 +121,8 @@ _mm_rcp_ps(__m128 a)
 static __inline__ __m128 __attribute__((__always_inline__, __nodebug__))
 _mm_rsqrt_ss(__m128 a)
 {
-  return __builtin_ia32_rsqrtss(a);
+  __m128 c = __builtin_ia32_rsqrtss(a);
+  return (__m128) { c[0], a[1], a[2], a[3] };
 }
 
 static __inline__ __m128 __attribute__((__always_inline__, __nodebug__))
@@ -664,7 +667,7 @@ _mm_storer_ps(float *p, __m128 a)
 /* FIXME: We have to #define this because "sel" must be a constant integer, and
    Sema doesn't do any form of constant propagation yet. */
 
-#define _mm_prefetch(a, sel) (__builtin_prefetch((void *)(a), 0, sel))
+#define _mm_prefetch(a, sel) (__builtin_prefetch((void *)(a), 0, (sel)))
 
 static __inline__ void __attribute__((__always_inline__, __nodebug__))
 _mm_stream_pi(__m64 *p, __m64 a)

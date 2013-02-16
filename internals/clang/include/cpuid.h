@@ -1,4 +1,4 @@
-/*===---- wmmintrin.h - AES intrinsics ------------------------------------===
+/*===---- cpuid.h - X86 cpu model detection --------------------------------===
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,22 +21,13 @@
  *===-----------------------------------------------------------------------===
  */
 
-#ifndef _WMMINTRIN_H
-#define _WMMINTRIN_H
+#if !(__x86_64__ || __i386__)
+#error this header is for x86 only
+#endif
 
-#include <emmintrin.h>
-
-#if !defined (__AES__) && !defined (__PCLMUL__)
-# error "AES/PCLMUL instructions not enabled"
-#else
-
-#ifdef __AES__
-#include <__wmmintrin_aes.h>
-#endif /* __AES__ */
-
-#ifdef __PCLMUL__
-#include <__wmmintrin_pclmul.h>
-#endif /* __PCLMUL__ */
-
-#endif /* __AES__ || __PCLMUL__ */
-#endif /* _WMMINTRIN_H */
+static inline int __get_cpuid (unsigned int level, unsigned int *eax,
+                               unsigned int *ebx, unsigned int *ecx,
+                               unsigned int *edx) {
+    __asm("cpuid" : "=a"(*eax), "=b" (*ebx), "=c"(*ecx), "=d"(*edx) : "0"(level));
+    return 1;
+}

@@ -947,7 +947,10 @@ _mm_cmpeq_epi32(__m128i a, __m128i b)
 static __inline__ __m128i __attribute__((__always_inline__, __nodebug__))
 _mm_cmpgt_epi8(__m128i a, __m128i b)
 {
-  return (__m128i)((__v16qi)a > (__v16qi)b);
+  /* This function always performs a signed comparison, but __v16qi is a char
+     which may be signed or unsigned. */
+  typedef signed char __v16qs __attribute__((__vector_size__(16)));
+  return (__m128i)((__v16qs)a > (__v16qs)b);
 }
 
 static __inline__ __m128i __attribute__((__always_inline__, __nodebug__))
@@ -1183,7 +1186,10 @@ _mm_maskmoveu_si128(__m128i d, __m128i n, char *p)
 static __inline__ void __attribute__((__always_inline__, __nodebug__))
 _mm_storel_epi64(__m128i *p, __m128i a)
 {
-  __builtin_ia32_storelv4si((__v2si *)p, a);
+  struct __mm_storel_epi64_struct {
+    long long u;
+  } __attribute__((__packed__, __may_alias__));
+  ((struct __mm_storel_epi64_struct*)p)->u = a[0];
 }
 
 static __inline__ void __attribute__((__always_inline__, __nodebug__))

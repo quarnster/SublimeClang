@@ -1,4 +1,4 @@
-/*===---- wmmintrin.h - AES intrinsics ------------------------------------===
+/*===---- lzcntintrin.h - LZCNT intrinsics ---------------------------------===
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,22 +21,35 @@
  *===-----------------------------------------------------------------------===
  */
 
-#ifndef _WMMINTRIN_H
-#define _WMMINTRIN_H
+#if !defined __X86INTRIN_H && !defined __IMMINTRIN_H
+#error "Never use <lzcntintrin.h> directly; include <x86intrin.h> instead."
+#endif
 
-#include <emmintrin.h>
+#ifndef __LZCNT__
+# error "LZCNT instruction is not enabled"
+#endif /* __LZCNT__ */
 
-#if !defined (__AES__) && !defined (__PCLMUL__)
-# error "AES/PCLMUL instructions not enabled"
-#else
+#ifndef __LZCNTINTRIN_H
+#define __LZCNTINTRIN_H
 
-#ifdef __AES__
-#include <__wmmintrin_aes.h>
-#endif /* __AES__ */
+static __inline__ unsigned short __attribute__((__always_inline__, __nodebug__))
+__lzcnt16(unsigned short __X)
+{
+  return __builtin_clzs(__X);
+}
 
-#ifdef __PCLMUL__
-#include <__wmmintrin_pclmul.h>
-#endif /* __PCLMUL__ */
+static __inline__ unsigned int __attribute__((__always_inline__, __nodebug__))
+__lzcnt32(unsigned int __X)
+{
+  return __builtin_clz(__X);
+}
 
-#endif /* __AES__ || __PCLMUL__ */
-#endif /* _WMMINTRIN_H */
+#ifdef __x86_64__
+static __inline__ unsigned long long __attribute__((__always_inline__, __nodebug__))
+__lzcnt64(unsigned long long __X)
+{
+  return __builtin_clzll(__X);
+}
+#endif
+
+#endif /* __LZCNTINTRIN_H */

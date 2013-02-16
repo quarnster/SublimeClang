@@ -1,4 +1,4 @@
-/*===---- wmmintrin.h - AES intrinsics ------------------------------------===
+/*===---- popcntintrin.h - POPCNT intrinsics -------------------------------===
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,22 +21,25 @@
  *===-----------------------------------------------------------------------===
  */
 
-#ifndef _WMMINTRIN_H
-#define _WMMINTRIN_H
+#ifndef __POPCNT__
+#error "POPCNT instruction set not enabled"
+#endif
 
-#include <emmintrin.h>
+#ifndef _POPCNTINTRIN_H
+#define _POPCNTINTRIN_H
 
-#if !defined (__AES__) && !defined (__PCLMUL__)
-# error "AES/PCLMUL instructions not enabled"
-#else
+static __inline__ int __attribute__((__always_inline__, __nodebug__))
+_mm_popcnt_u32(unsigned int __A)
+{
+  return __builtin_popcount(__A);
+}
 
-#ifdef __AES__
-#include <__wmmintrin_aes.h>
-#endif /* __AES__ */
+#ifdef __x86_64__
+static __inline__ long long __attribute__((__always_inline__, __nodebug__))
+_mm_popcnt_u64(unsigned long long __A)
+{
+  return __builtin_popcountll(__A);
+}
+#endif /* __x86_64__ */
 
-#ifdef __PCLMUL__
-#include <__wmmintrin_pclmul.h>
-#endif /* __PCLMUL__ */
-
-#endif /* __AES__ || __PCLMUL__ */
-#endif /* _WMMINTRIN_H */
+#endif /* _POPCNTINTRIN_H */

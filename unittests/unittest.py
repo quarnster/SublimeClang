@@ -16,10 +16,11 @@ import time
 import imp
 from internals.parsehelp import parsehelp
 import json
+from internals.clang import cindex
 
 thisrun = time.time()
 scriptpath = os.path.dirname(os.path.abspath(__file__))
-opts = ["-I%s/../clang/include" % scriptpath]
+opts = ["-I%s/../clang/include" % scriptpath, "-I%s/../src" % scriptpath]
 
 golden = {}
 testsAdded = False
@@ -268,7 +269,20 @@ def get_tu(filename):
         myopts.append("c++")
     else:
         myopts.append("-ObjC")
-    return translationunitcache.tuCache.get_translation_unit(filename, myopts)
+    tu = translationunitcache.tuCache.get_translation_unit(filename, myopts)
+    assert(tu != None)
+    for diag in tu.var.diagnostics:
+        f = diag.location
+        filename = ""
+        if f.file != None:
+            filename = f.file.name
+
+        print("%s:%d,%d - %s - %s" % (filename, f.line, f.column,
+                                      diag.severityName,
+                                      diag.spelling))
+        assert(diag.severity != cindex.Diagnostic.Fatal)
+
+    return tu
 
 def read_file(filename):
     f = open(filename)

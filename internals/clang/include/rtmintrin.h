@@ -1,4 +1,4 @@
-/*===---- wmmintrin.h - AES intrinsics ------------------------------------===
+/*===---- rtmintrin.h - RTM intrinsics -------------------------------------===
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,22 +21,29 @@
  *===-----------------------------------------------------------------------===
  */
 
-#ifndef _WMMINTRIN_H
-#define _WMMINTRIN_H
+#ifndef __IMMINTRIN_H
+#error "Never use <rtmintrin.h> directly; include <immintrin.h> instead."
+#endif
 
-#include <emmintrin.h>
+#define _XBEGIN_STARTED   (~0u)
+#define _XABORT_EXPLICIT  (1 << 0)
+#define _XABORT_RETRY     (1 << 1)
+#define _XABORT_CONFLICT  (1 << 2)
+#define _XABORT_CAPACITY  (1 << 3)
+#define _XABORT_DEBUG     (1 << 4)
+#define _XABORT_NESTED    (1 << 5)
+#define _XABORT_CODE(x)   (((x) >> 24) & 0xFF)
 
-#if !defined (__AES__) && !defined (__PCLMUL__)
-# error "AES/PCLMUL instructions not enabled"
-#else
+static __inline__ unsigned int __attribute__((__always_inline__, __nodebug__))
+_xbegin(void)
+{
+  return __builtin_ia32_xbegin();
+}
 
-#ifdef __AES__
-#include <__wmmintrin_aes.h>
-#endif /* __AES__ */
+static __inline__ void __attribute__((__always_inline__, __nodebug__))
+_xend(void)
+{
+  __builtin_ia32_xend();
+}
 
-#ifdef __PCLMUL__
-#include <__wmmintrin_pclmul.h>
-#endif /* __PCLMUL__ */
-
-#endif /* __AES__ || __PCLMUL__ */
-#endif /* _WMMINTRIN_H */
+#define _xabort(imm) __builtin_ia32_xabort((imm))

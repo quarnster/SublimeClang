@@ -33,6 +33,8 @@ include_directories(
     .
 )
 
+set(CLANG_VERSION 3.2 CACHE STRING "Clang version to use")
+
 if(NOT DEFINED BUILD_LIBCLANG)
     set(BUILD_LIBCLANG False)
 endif()
@@ -115,10 +117,10 @@ elseif(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Windows")
     include(CheckFunctionExists)
     string(REPLACE " " "\\ " CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_LIBRARY_OUTPUT_DIRECTORY} )
     set(CMAKE_REQUIRED_FLAGS "-isysroot / -L${CMAKE_LIBRARY_OUTPUT_DIRECTORY} -L/usr/local/lib -L/usr/lib")
-    set(CMAKE_REQUIRED_LIBRARIES clang LLVM-3.1)
+    set(CMAKE_REQUIRED_LIBRARIES clang LLVM-${CLANG_VERSION})
     check_function_exists(clang_getExpansionLocation HAS_RIGHT_CLANG)
     if(NOT HAS_RIGHT_CLANG)
-        # Try again, but this time without LLVM-3.1
+        # Try again, but this time without LLVM-${CLANG_VERSION}
         set(CMAKE_REQUIRED_LIBRARIES clang)
         check_function_exists(clang_getExpansionLocation HAS_RIGHT_CLANG2)
     endif()
@@ -138,21 +140,27 @@ elseif(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Windows")
 
 endif()
 
+if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
+    set(LIBCLANG_NAME "libclang.so.${CLANG_VERSION}")
+elseif(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+    set(LIBCLANG_NAME "libclang.${CLANG_VERSION}.dylib")
+endif()
+
 if(BUILD_LIBCLANG)
     if(NOT EXISTS ./llvm.tar.gz)
         message("Downloading llvm...")
-        file(DOWNLOAD http://www.llvm.org/releases/3.1/llvm-3.1.src.tar.gz ./llvm.tar.gz)
+        file(DOWNLOAD http://www.llvm.org/releases/${CLANG_VERSION}/llvm-${CLANG_VERSION}.src.tar.gz ./llvm.tar.gz)
     endif()
     if(NOT EXISTS ./clang.tar.gz)
         message("Downloading clang...")
-        file(DOWNLOAD http://www.llvm.org/releases/3.1/clang-3.1.src.tar.gz ./clang.tar.gz)
+        file(DOWNLOAD http://www.llvm.org/releases/${CLANG_VERSION}/clang-${CLANG_VERSION}.src.tar.gz ./clang.tar.gz)
     endif()
 
     add_custom_command(OUTPUT llvm
                     COMMAND tar xfz llvm.tar.gz
                     COMMAND tar xfz clang.tar.gz
-                    COMMAND mv llvm-3.1.src llvm
-                    COMMAND mv clang-3.1.src llvm/tools/clang
+                    COMMAND mv llvm-${CLANG_VERSION}.src llvm
+                    COMMAND mv clang-${CLANG_VERSION}.src llvm/tools/clang
                     COMMAND mkdir llvm/build
     )
     set(OSX_TEMP "\"${CMAKE_OSX_ARCHITECTURES}\"")
@@ -163,11 +171,7 @@ if(BUILD_LIBCLANG)
                     WORKING_DIRECTORY llvm/build
     )
 
-    if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
-        set(LIBCLANG_NAME "liblibclang.so.3.1")
-    elseif(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-        set(LIBCLANG_NAME "liblibclang.3.1.dylib")
-    else()
+    if(NOT ${CMAKE_SYSTEM_NAME} MATCHES "Linux" AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
         message(FATAL_ERROR "Platform doesn't support building libclang at the moment. You'll have to manually tweak the CMakeLists.txt")
     endif()
 
@@ -195,7 +199,6 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     add_custom_command(TARGET ${TARGETLIB}
                     POST_BUILD
                     COMMAND install_name_tool -change "${PROJECT_BINARY_DIR}/llvm/build/lib/${LIBCLANG_NAME}" libclang.dylib $<TARGET_FILE:cache>
-                    COMMAND install_name_tool -change "/tmp/llvm-3.1.src/build/lib/liblibclang.3.1.dylib" libclang.dylib $<TARGET_FILE:cache>
                     WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/../../internals/)
     add_custom_command(OUTPUT release
                         COMMAND mkdir release

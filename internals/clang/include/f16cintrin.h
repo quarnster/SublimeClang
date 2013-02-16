@@ -1,4 +1,4 @@
-/*===---- wmmintrin.h - AES intrinsics ------------------------------------===
+/*===---- f16cintrin.h - F16C intrinsics ---------------------------------===
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -21,22 +21,38 @@
  *===-----------------------------------------------------------------------===
  */
 
-#ifndef _WMMINTRIN_H
-#define _WMMINTRIN_H
+#if !defined __X86INTRIN_H && !defined __IMMINTRIN_H
+#error "Never use <f16cintrin.h> directly; include <x86intrin.h> instead."
+#endif
 
-#include <emmintrin.h>
+#ifndef __F16C__
+# error "F16C instruction is not enabled"
+#endif /* __F16C__ */
 
-#if !defined (__AES__) && !defined (__PCLMUL__)
-# error "AES/PCLMUL instructions not enabled"
-#else
+#ifndef __F16CINTRIN_H
+#define __F16CINTRIN_H
 
-#ifdef __AES__
-#include <__wmmintrin_aes.h>
-#endif /* __AES__ */
+typedef float __v8sf __attribute__ ((__vector_size__ (32)));
+typedef float __m256 __attribute__ ((__vector_size__ (32)));
 
-#ifdef __PCLMUL__
-#include <__wmmintrin_pclmul.h>
-#endif /* __PCLMUL__ */
+#define _mm_cvtps_ph(a, imm) __extension__ ({ \
+  __m128 __a = (a); \
+ (__m128i)__builtin_ia32_vcvtps2ph((__v4sf)__a, (imm)); })
 
-#endif /* __AES__ || __PCLMUL__ */
-#endif /* _WMMINTRIN_H */
+#define _mm256_cvtps_ph(a, imm) __extension__ ({ \
+  __m256 __a = (a); \
+ (__m128i)__builtin_ia32_vcvtps2ph256((__v8sf)__a, (imm)); })
+
+static __inline __m128 __attribute__((__always_inline__, __nodebug__))
+_mm_cvtph_ps(__m128i a)
+{
+  return (__m128)__builtin_ia32_vcvtph2ps((__v8hi)a);
+}
+
+static __inline __m256 __attribute__((__always_inline__, __nodebug__))
+_mm256_cvtph_ps(__m128i a)
+{
+  return (__m256)__builtin_ia32_vcvtph2ps256((__v8hi)a);
+}
+
+#endif /* __F16CINTRIN_H */
