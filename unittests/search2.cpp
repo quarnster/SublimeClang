@@ -42,3 +42,8 @@ void elsewhere()
 {
 }
 
+void Test::consttest() const
+{
+
+}
+

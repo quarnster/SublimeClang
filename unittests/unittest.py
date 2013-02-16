@@ -399,6 +399,9 @@ if goto_imp:
     tu = get_tu("unittests/search1.cpp")
     add_goto_imp_test(currfile_data, currfile_data.find("returnsPointer")+2)
 
+    tu = get_tu("unittests/search3.h")
+    data = read_file("unittests/search3.h")
+    add_goto_imp_test(data, data.find("consttest")+2)
 
 
 if complete:
