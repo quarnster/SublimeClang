@@ -241,51 +241,18 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
                     DEPENDS prepare
                     WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/release/internals
     )
-
+    set(PACKAGE_NAME SublimeClang-${SUBLIMECLANG_VERSION}.sublime-package)
     add_custom_target(sublime-package
-                        COMMAND zip -r SublimeClang-${SUBLIMECLANG_VERSION}.sublime-package *
+                        COMMAND zip -r ${PACKAGE_NAME} *
                         DEPENDS verify_versions
                         DEPENDS unittest
                         WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/release
     )
-    if(NOT EXISTS ${PROJECT_BINARY_DIR}/build.py)
-        file(WRITE "${PROJECT_BINARY_DIR}/build.py" "
-import re
-import json
-import subprocess
-import tempfile
-import os
 
-def get(url):
-    proc = subprocess.Popen('curl -s %s' % url, shell=True, stdout=subprocess.PIPE)
-    stdout, stderr = proc.communicate()
-    return stdout
-version = json.load(open('${PROJECT_SOURCE_DIR}/../package.json'))['packages'][0]['platforms']['*'][0]['version']
-package_name = 'SublimeClang-%s.sublime-package' % version
-current_downloads = json.loads(get(\"https://api.github.com/repos/quarnster/SublimeClang/downloads\"))
-for download in current_downloads:
-    assert download['name'] != package_name
-f = tempfile.NamedTemporaryFile()
-f.write(\"\"\"{ \"name\": \"%s\", \"size\": %s}\"\"\" % (package_name, os.path.getsize(\"release/%s\" % package_name)))
-f.flush()
-response = json.loads(get(\"-X POST -d @%s -u quarnster https://api.github.com/repos/quarnster/SublimeClang/downloads\" % f.name))
-f.close()
-args = \"\"\"\\
--F \"key=%s\" \\
--F \"acl=%s\" \\
--F \"success_action_status=201\" \\
--F \"Filename=%s\" \\
--F \"AWSAccessKeyId=%s\" \\
--F \"Policy=%s\" \\
--F \"Signature=%s\" \\
--F \"Content-Type=%s\" \\
--F \"file=@release/%s\" \\
-https://github.s3.amazonaws.com/\"\"\" % (response['path'], response['acl'], response['name'], response['accesskeyid'], response['policy'], response['signature'], response['mime_type'], package_name)
-print get(args)
-")
-    endif()
-
-    add_custom_target(upload COMMAND python build.py WORKING_DIRECTORY ${PROJECT_BINARY_DIR})
+    add_custom_target(upload
+        COMMAND scp ${PACKAGE_NAME} quarn@frs.sourceforge.net:/home/frs/project/sublimeclang/${PACKAGE_NAME}
+        DEPENDS sublime-package
+        WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/release)
 endif()
 
 if(DEFINED WIN_RELEASE)
