@@ -798,14 +798,19 @@ class ExtensiveSearch:
                     for folder in self.folders:
                         for dirpath, dirnames, filenames in os.walk(folder):
                             for filename in filenames:
-                                if self.impre.search(filename) != None:
+                                full_path = os.path.join(dirpath, filename)
+                                ok = not "./src/build" in full_path
+                                if not ok:
+                                    full_path = os.path.abspath(full_path)
+                                    ok = not "SublimeClang" in full_path
+                                if ok and self.impre.search(filename) != None:
                                     score = 1000
                                     for i in range(min(len(filename), len(name))):
                                         if filename[i] == name[i]:
                                             score -= 1
                                         else:
                                             break
-                                    self.queue.put((score, os.path.join(dirpath, filename)))
+                                    self.queue.put((score, full_path))
                     for i in range(get_cpu_count()-1):
                         self.queue.put((1001, "*/+++"))
 

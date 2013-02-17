@@ -49,6 +49,7 @@ using namespace std;
 #include <tr1/memory>
 using namespace std::tr1;
 #elif defined(BOOST_TR1_MEMORY_INCLUDED)
+#include <boost/tr1/tr1/memory>
 using namespace boost;
 #endif
 
