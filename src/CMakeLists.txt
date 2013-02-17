@@ -6,7 +6,7 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
     if(MSVC)
         set(LIBPREFIX lib)
     endif()
-    if(CMAKE_CL_64)
+    if(CMAKE_CL_64 OR CMAKE_SIZEOF_VOID_P EQUAL 8)
         set(LIBSUFFIX _x64)
     endif()
 
@@ -33,7 +33,7 @@ include_directories(
 )
 
 set(CLANG_VERSION 3.2 CACHE STRING "Clang version to use")
-set(LLVM_TARGETS_TO_BUILD "X86")
+set(LLVM_TARGETS_TO_BUILD "X86" CACHE STRING "LLVM targets to build")
 
 if(NOT DEFINED BUILD_LIBCLANG)
     set(BUILD_LIBCLANG False)
@@ -145,11 +145,11 @@ if(BUILD_LIBCLANG)
         execute_process(COMMAND ${CMAKE_COMMAND} -E rename clang-${CLANG_VERSION}.src llvm/tools/clang WORKING_DIRECTORY ${PROJECT_BINARY_DIR})
     endif()
 
-    if(NOT EXISTS ${PROJECT_BINARY_DIR}/native)
-        # TODO
+    if(NOT EXISTS ${PROJECT_BINARY_DIR}/native AND CMAKE_CROSSCOMPILING)
         execute_process(COMMAND ln -s ${PROJECT_BINARY_DIR}/../build2/llvm_out native WORKING_DIRECTORY ${PROJECT_BINARY_DIR})
     endif()
     add_subdirectory(${PROJECT_BINARY_DIR}/llvm ${PROJECT_BINARY_DIR}/llvm_out EXCLUDE_FROM_ALL)
+    set_target_properties(libclang PROPERTIES OUTPUT_NAME "${LIBPREFIX}clang${LIBSUFFIX}")
 
     string(REPLACE "\\" "" COPY_TARGET ${COPY_TARGET})
 
@@ -161,8 +161,8 @@ if(BUILD_LIBCLANG)
     add_dependencies(${TARGETLIB} copy)
 endif()
 
-# TODO
 if(${CMAKE_SYSTEM_NAME} MATCHES "Windows" AND NOT DEFINED WIN_RELEASE)
+#    TODO
 #    if(MSVC)
 #        #set(MYPATTERN "[ \t\r\n]+([0-9]+)[ \t]+([0-9A-F]+)[ \t]+([0-9A-F]+)[ \t]+([a-zA-Z0-9_]+)")
 #        #execute_process(COMMAND dumpbin /exports ${PROJECT_SOURCE_DIR}/../libclang${LIBSUFFIX}.dll OUTPUT_VARIABLE libclangdump)
@@ -184,7 +184,7 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Windows" AND NOT DEFINED WIN_RELEASE)
 #        add_dependencies(${TARGETLIB} linklib)
 #    endif()
     add_custom_target(copy2 ALL
-                    COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:cache> ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}
+                    COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${TARGETLIB}> ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}
                     WORKING_DIRECTORY  ${PROJECT_BINARY_DIR}
                     DEPENDS ${TARGETLIB}
                     VERBATIM
@@ -194,7 +194,7 @@ endif()
 if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     add_custom_command(TARGET ${TARGETLIB}
                     POST_BUILD
-                    COMMAND install_name_tool -change $<TARGET_FILE:libclang> libclang.dylib $<TARGET_FILE:cache>
+                    COMMAND install_name_tool -change $<TARGET_FILE:libclang> libclang.dylib $<TARGET_FILE:${TARGETLIB}>
                     WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/../../internals/
                     VERBATIM
                 )

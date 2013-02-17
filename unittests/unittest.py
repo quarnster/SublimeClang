@@ -20,7 +20,22 @@ from internals.clang import cindex
 
 thisrun = time.time()
 scriptpath = os.path.dirname(os.path.abspath(__file__))
-opts = ["-I%s/../clang/include" % scriptpath, "-I%s/../src" % scriptpath]
+opts = [
+        "-I%s/../internals/clang/include" % scriptpath,
+        "-I%s/../src" % scriptpath,
+        "-isystem", "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.7.sdk/usr/include/",
+        "-isystem", "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.7.sdk/usr/include/c++/4.2.1",
+        "-F/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.7.sdk/System/Library/Frameworks/",
+        "-Wno-deprecated-declarations",
+        "-std=c++11",
+        "-isystem", "C:\\MinGW\\lib\\gcc\\mingw32\\4.7.0\\include",
+        "-isystem", "C:\\MinGW\\lib\\gcc\\mingw32\\4.7.0\\include\\c++",
+        "-isystem", "C:\\MinGW\\lib\\gcc\\mingw32\\4.7.0\\include\\c++\\mingw32",
+        "-isystem", "C:\\MinGW\\include",
+        "-isystem", "/usr/include",
+        "-isystem", "/usr/include/c++/*",
+        "-Wall"
+]
 
 golden = {}
 testsAdded = False
@@ -240,7 +255,7 @@ def add_completion_test(currtest, platformspecific=False, noneok=False):
     else:
         data += currtest
 
-    if currtest.startswith(currfile_data):
+    if currtest.startswith(currfile_data) or disableplatformspecific:
         # This is pretty much what we've already tested for the clangcomplete operation
         return
     data += " "
@@ -732,71 +747,73 @@ if complete:
 
     # ---------------------------------------------------------
 
-    opts = [
-                "-isysroot",
-                "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.7.sdk/",
-                "-F/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.7.sdk/System/Library/Frameworks",
-                "-ICocoa"]
-    tu = get_tu("unittests/8.mm")
-    add_completion_test(" ", True)
-    add_completion_test("[Hello ")
-    add_completion_test("Hello * h; [h ")
-    add_completion_test("World * w; [w ")
-    add_completion_test("World * w; [[w world] ")
-    add_completion_test("World * w; [[w blah] ")
-    add_completion_test("World2 * w; [[w world2] ")
-    add_completion_test("World2 * w; [[[w world2] world] ")
-    add_completion_test("World2 * w; w.")
-    add_completion_test("World2 * w; w.world2.")
-    add_completion_test("World2 * w; w.world2.world.")
-    add_completion_test("""@implementation World2
-    - (World*) world2
-    {
-    [self """)
-    add_completion_test("""@implementation World2
-    - (World*) world2
-    {
-        self.""")
+    if platform.system() == "Darwin":
 
-    add_completion_test("World3 *w; w.")
-    add_completion_test("World3 *w; [w ")
-    add_completion_test("World3 *w; w->")
-    add_completion_test("World *w; w.")
-    add_completion_test("World *w; w->")
-    add_completion_test("World *w; w.world.")
-    add_completion_test("World *w; w.world->")
-    add_completion_test("World *w; w->worldVar.")
-    add_completion_test("World *w; w->worldVar->")
+        opts = [
+                    "-isysroot",
+                    "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.7.sdk/",
+                    "-F/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.7.sdk/System/Library/Frameworks",
+                    "-ICocoa"]
+        tu = get_tu("unittests/8.mm")
+        add_completion_test(" ", True)
+        add_completion_test("[Hello ")
+        add_completion_test("Hello * h; [h ")
+        add_completion_test("World * w; [w ")
+        add_completion_test("World * w; [[w world] ")
+        add_completion_test("World * w; [[w blah] ")
+        add_completion_test("World2 * w; [[w world2] ")
+        add_completion_test("World2 * w; [[[w world2] world] ")
+        add_completion_test("World2 * w; w.")
+        add_completion_test("World2 * w; w.world2.")
+        add_completion_test("World2 * w; w.world2.world.")
+        add_completion_test("""@implementation World2
+        - (World*) world2
+        {
+        [self """)
+        add_completion_test("""@implementation World2
+        - (World*) world2
+        {
+            self.""")
 
-    data = read_file("unittests/8.mm")
-    add_completion_test(data[:data.rfind(".")+1])
-    add_completion_test("""@implementation World3
-    - (void) something
-    {
-        """, True)
+        add_completion_test("World3 *w; w.")
+        add_completion_test("World3 *w; [w ")
+        add_completion_test("World3 *w; w->")
+        add_completion_test("World *w; w.")
+        add_completion_test("World *w; w->")
+        add_completion_test("World *w; w.world.")
+        add_completion_test("World *w; w.world->")
+        add_completion_test("World *w; w->worldVar.")
+        add_completion_test("World *w; w->worldVar->")
 
-    add_completion_test("""@implementation World4
-    - (void) myworld
-    {
-        """, True)
-    add_completion_test("World4 *w; w.")
-    add_completion_test("World4 *w; w->")
-    add_completion_test("World4 *w; [w ")
+        data = read_file("unittests/8.mm")
+        add_completion_test(data[:data.rfind(".")+1])
+        add_completion_test("""@implementation World3
+        - (void) something
+        {
+            """, True)
 
-    add_completion_test("World5 *w; [w ")
+        add_completion_test("""@implementation World4
+        - (void) myworld
+        {
+            """, True)
+        add_completion_test("World4 *w; w.")
+        add_completion_test("World4 *w; w->")
+        add_completion_test("World4 *w; [w ")
 
-    # ---------------------------------------------------------
+        add_completion_test("World5 *w; [w ")
+
+        # ---------------------------------------------------------
 
 
-    tu = get_tu("unittests/9.mm")
-    add_completion_test("[NSString ", True, True)
-    add_completion_test("NSString *s; [s ", True, True)
+        tu = get_tu("unittests/9.mm")
+        add_completion_test("[NSString ", True, True)
+        add_completion_test("NSString *s; [s ", True, True)
 
-    add_completion_test("[NSMutableData ", True, True)
-    add_completion_test("NSMutableData *s; [s ", True, True)
+        add_completion_test("[NSMutableData ", True, True)
+        add_completion_test("NSMutableData *s; [s ", True, True)
 
-    add_completion_test("Test t; [t.", True, True)
-    add_completion_test("Test t; [t.context ", True, True)
+        add_completion_test("Test t; [t.", True, True)
+        add_completion_test("Test t; [t.context ", True, True)
 
 
     # ---------------------------------------------------------

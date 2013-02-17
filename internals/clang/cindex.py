@@ -79,17 +79,18 @@ def get_cindex_library():
     # CIndex library. It could be on path or elsewhere, or versioned, etc.
     import platform
     name = platform.system()
+    import os
+    path = os.path.dirname(os.path.abspath(__file__))
+
     if name == 'Darwin':
         return cdll.LoadLibrary('libclang.dylib')
     elif name == 'Windows':
         if isWin64:
-            return cdll.LoadLibrary("libclang_x64.dll")
-        return cdll.LoadLibrary('libclang.dll')
+            return cdll.LoadLibrary("%s/../libclang_x64.dll" % path)
+        return cdll.LoadLibrary('%s/../libclang.dll' % path)
     else:
         try:
             # Try loading with absolute path first
-            import os
-            path = os.path.dirname(os.path.abspath(__file__))
             return cdll.LoadLibrary('%s/../libclang.so' % path)
         except:
             try:

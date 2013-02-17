@@ -55,12 +55,11 @@ def get_cache_library():
         return cdll.LoadLibrary('%s/libcache.dylib' % scriptpath)
     elif name == 'Windows':
         if cindex.isWin64:
-            return cdll.LoadLibrary("libcache_x64.dll")
-        return cdll.LoadLibrary('libcache.dll')
+            return cdll.LoadLibrary("%s/libcache_x64.dll" % scriptpath)
+        return cdll.LoadLibrary('%s/libcache.dll' % scriptpath)
     else:
         try:
             # Try loading with absolute path first
-
             return cdll.LoadLibrary('%s/libcache.so' % scriptpath)
         except:
             try:
@@ -799,10 +798,10 @@ class ExtensiveSearch:
                         for dirpath, dirnames, filenames in os.walk(folder):
                             for filename in filenames:
                                 full_path = os.path.join(dirpath, filename)
-                                ok = not "./src/build" in full_path
+                                ok = not "./src/build" in full_path and not "\\src\\build" in full_path
                                 if not ok:
                                     full_path = os.path.abspath(full_path)
-                                    ok = not "SublimeClang" in full_path
+                                    ok = not "SublimeClang" in full_path and not "Y:\\src\\build" in full_path
                                 if ok and self.impre.search(filename) != None:
                                     score = 1000
                                     for i in range(min(len(filename), len(name))):
