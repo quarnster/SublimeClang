@@ -39,10 +39,6 @@ if(NOT DEFINED BUILD_LIBCLANG)
     set(BUILD_LIBCLANG False)
 endif()
 
-if(NOT DEFINED PARALLEL_COMPILES)
-    set(PARALLEL_COMPILES 4)
-endif()
-
 macro(figure_out_cxx11_flags)
     set(SOURCE "#include <tr1/memory>\nint main(int argc, char** argv) { std::tr1::shared_ptr<int> sp; return 0;}")
     check_cxx_source_compiles("${SOURCE}" TR1_MEMORY)
@@ -116,12 +112,6 @@ endif()
 unset(CMAKE_REQUIRED_FLAGS)
 unset(CMAKE_REQUIRED_LIBRARIES)
 
-if(${CMAKE_SYSTEM_NAME} MATCHES "Linux")
-    set(LIBCLANG_NAME "libclang.so.${CLANG_VERSION}")
-elseif(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-    set(LIBCLANG_NAME "libclang.${CLANG_VERSION}.dylib")
-endif()
-
 set(COPY_TARGET "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libclang${LIBSUFFIX}${CMAKE_SHARED_LIBRARY_SUFFIX}")
 
 if(BUILD_LIBCLANG)
@@ -158,6 +148,14 @@ if(BUILD_LIBCLANG)
                     DEPENDS libclang
                     WORKING_DIRECTORY ${PROJECT_BINARY_DIR}
     )
+
+    if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+        add_custom_target(libclang_namechange ALL
+                        COMMAND install_name_tool -id libclang.dylib $<TARGET_FILE:libclang>
+                        VERBATIM
+                    )
+        add_dependencies(copy libclang_namechange)
+    endif()
     add_dependencies(${TARGETLIB} copy)
 endif()
 
@@ -192,12 +190,6 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Windows" AND NOT DEFINED WIN_RELEASE)
 endif()
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-    add_custom_command(TARGET ${TARGETLIB}
-                    POST_BUILD
-                    COMMAND install_name_tool -change $<TARGET_FILE:libclang> libclang.dylib $<TARGET_FILE:${TARGETLIB}>
-                    WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/../../internals/
-                    VERBATIM
-                )
     add_custom_command(OUTPUT release
                         COMMAND mkdir release
                         WORKING_DIRECTORY ${PROJECT_BINARY_DIR})
