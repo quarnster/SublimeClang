@@ -84,34 +84,34 @@ if(NOT DEFINED WIN_RELEASE)
         ${CX11LIBS}
         ${LIBPREFIX}clang${LIBSUFFIX}
     )
-endif()
 
-include(CheckFunctionExists)
-set(CMAKE_REQUIRED_FLAGS "-isysroot / -L\"${CMAKE_LIBRARY_OUTPUT_DIRECTORY}\" -L/usr/local/lib -L/usr/lib")
-set(CMAKE_REQUIRED_LIBRARIES clang LLVM-${CLANG_VERSION})
-check_function_exists(clang_getExpansionLocation HAS_RIGHT_CLANG)
-if(NOT HAS_RIGHT_CLANG)
-    # Try again, but this time without LLVM-${CLANG_VERSION}
-    set(CMAKE_REQUIRED_LIBRARIES clang)
-    check_function_exists(clang_getExpansionLocation HAS_RIGHT_CLANG2)
-endif()
-if(NOT HAS_RIGHT_CLANG AND NOT HAS_RIGHT_CLANG2)
-    message("Either libclang wasn't found, or it's not useable as it doesn't have clang_getExpansionLocation.")
-    message("libclang will be downloaded and compiled as part of the buildprocess.")
-    message("If you'd rather download a precompiled binary version for your distribution:")
-    message("    1. Hit ctrl+c now")
-    message("    2. Clean up the current configuration: rm -rf *")
-    message("    3. Go to http://llvm.org/releases/download.html and find a release matching your distribution")
-    message("    4. Extract the downloaded archive and copy the libclang.so to ${PROJECT_SOURCE_DIR}/../internals")
-    message("    5. Run cmake .. again.")
-    message("")
-    message("This time if the libclang.so is useable, it'll skip the downloading and compilation of libclang.")
-    set(BUILD_LIBCLANG True)
-endif()
+    include(CheckFunctionExists)
+    set(CMAKE_REQUIRED_FLAGS "-isysroot / -L\"${CMAKE_LIBRARY_OUTPUT_DIRECTORY}\" -L/usr/local/lib -L/usr/lib")
+    set(CMAKE_REQUIRED_LIBRARIES clang LLVM-${CLANG_VERSION})
+    check_function_exists(clang_getExpansionLocation HAS_RIGHT_CLANG)
+    if(NOT HAS_RIGHT_CLANG)
+        # Try again, but this time without LLVM-${CLANG_VERSION}
+        set(CMAKE_REQUIRED_LIBRARIES clang)
+        check_function_exists(clang_getExpansionLocation HAS_RIGHT_CLANG2)
+    endif()
+    if(NOT HAS_RIGHT_CLANG AND NOT HAS_RIGHT_CLANG2)
+        message("Either libclang wasn't found, or it's not useable as it doesn't have clang_getExpansionLocation.")
+        message("libclang will be downloaded and compiled as part of the buildprocess.")
+        message("If you'd rather download a precompiled binary version for your distribution:")
+        message("    1. Hit ctrl+c now")
+        message("    2. Clean up the current configuration: rm -rf *")
+        message("    3. Go to http://llvm.org/releases/download.html and find a release matching your distribution")
+        message("    4. Extract the downloaded archive and copy the libclang.so to ${PROJECT_SOURCE_DIR}/../internals")
+        message("    5. Run cmake .. again.")
+        message("")
+        message("This time if the libclang.so is useable, it'll skip the downloading and compilation of libclang.")
+        set(BUILD_LIBCLANG True)
+    endif()
 
-unset(CMAKE_REQUIRED_FLAGS)
-unset(CMAKE_REQUIRED_LIBRARIES)
+    unset(CMAKE_REQUIRED_FLAGS)
+    unset(CMAKE_REQUIRED_LIBRARIES)
 
+endif()
 set(COPY_TARGET "${CMAKE_LIBRARY_OUTPUT_DIRECTORY}/libclang${LIBSUFFIX}${CMAKE_SHARED_LIBRARY_SUFFIX}")
 
 if(BUILD_LIBCLANG)
@@ -125,14 +125,27 @@ if(BUILD_LIBCLANG)
     endif()
 
     if(NOT EXISTS ${PROJECT_BINARY_DIR}/llvm)
-        message("Extracting LLVM/clang")
-        execute_process(
-                    COMMAND ${CMAKE_COMMAND} -E tar xfz llvm.tar.gz
-                    COMMAND ${CMAKE_COMMAND} -E tar xfz clang.tar.gz
-                    WORKING_DIRECTORY ${PROJECT_BINARY_DIR}
-        )
+        message("Extracting LLVM")
+        execute_process(COMMAND ${CMAKE_COMMAND} -E tar xfz llvm.tar.gz WORKING_DIRECTORY ${PROJECT_BINARY_DIR})
         execute_process(COMMAND ${CMAKE_COMMAND} -E rename llvm-${CLANG_VERSION}.src llvm WORKING_DIRECTORY ${PROJECT_BINARY_DIR})
-        execute_process(COMMAND ${CMAKE_COMMAND} -E rename clang-${CLANG_VERSION}.src llvm/tools/clang WORKING_DIRECTORY ${PROJECT_BINARY_DIR})
+
+        if(${CMAKE_SYSTEM_NAME} MATCHES "Windows")
+            message(FATAL_ERROR "CMake can't extract clang.tar.gz due to http://public.kitware.com/Bug/view.php?id=13251\nPlease manually extract it and put it in llvm/tools/clang")
+        else()
+            message("Extracting Clang")
+            execute_process(COMMAND ${CMAKE_COMMAND} -E tar xfz clang.tar.gz WORKING_DIRECTORY ${PROJECT_BINARY_DIR})
+            execute_process(COMMAND ${CMAKE_COMMAND} -E rename clang-${CLANG_VERSION}.src llvm/tools/clang WORKING_DIRECTORY ${PROJECT_BINARY_DIR})
+        endif()
+    endif()
+    if(MSVC)
+        # TODO: Is this only for specific windows sdk versions?
+        set(F "llvm\\lib\\Support\\Windows\\DynamicLibrary.inc")
+        file(READ ${F} TEMP)
+        string(REPLACE "ULONG ModuleBase" "DWORD64 ModuleBase" TEMP2 ${TEMP})
+        if(NOT TEMP EQUAL TEMP2)
+            message("Patching ${F}")
+            file(WRITE ${F} TEMP2)
+        endif()
     endif()
 
     if(NOT EXISTS ${PROJECT_BINARY_DIR}/native AND CMAKE_CROSSCOMPILING)
@@ -160,27 +173,26 @@ if(BUILD_LIBCLANG)
 endif()
 
 if(${CMAKE_SYSTEM_NAME} MATCHES "Windows" AND NOT DEFINED WIN_RELEASE)
-#    TODO
-#    if(MSVC)
-#        #set(MYPATTERN "[ \t\r\n]+([0-9]+)[ \t]+([0-9A-F]+)[ \t]+([0-9A-F]+)[ \t]+([a-zA-Z0-9_]+)")
-#        #execute_process(COMMAND dumpbin /exports ${PROJECT_SOURCE_DIR}/../libclang${LIBSUFFIX}.dll OUTPUT_VARIABLE libclangdump)
-#        #string(REGEX MATCHALL ${MYPATTERN} libclangdump ${libclangdump})
-#        #string(REGEX REPLACE ${MYPATTERN} "\t\\4\t@\\1\n" libclangdump ${libclangdump})
-#        #set(libclangdump "LIBRARY\tLIBCLANG${LIBSUFFIX}\nEXPORTS\n${libclangdump}")
-#        #file(WRITE "${PROJECT_BINARY_DIR}/libclang${LIBSUFFIX}.def" ${libclangdump})
-#        add_custom_command(OUTPUT libclang${LIBSUFFIX}.def
-#            COMMAND dumpbin /exports ${COPY_TARGET}
-#            WORKING_DIRECTORY ${PROJECT_BINARY_DIR}
-#            DEPENDS ${COPY_TARGET}
-#            COMMENT "Creating libclang.def")
-#        add_custom_command(OUTPUT libclang${LIBSUFFIX}.lib
-#            COMMAND lib /def:libclang${LIBSUFFIX}.def /out:libclang${LIBSUFFIX}.lib
-#            WORKING_DIRECTORY ${PROJECT_BINARY_DIR}
-#            DEPENDS libclang${LIBSUFFIX}.def
-#            COMMENT "Creating libclang.lib")
-#        add_custom_target(linklib ALL DEPENDS libclang${LIBSUFFIX}.lib)
-#        add_dependencies(${TARGETLIB} linklib)
-#    endif()
+    if(MSVC)
+        set(MYPATTERN "[ \t\r\n]+([0-9]+)[ \t]+([0-9A-F]+)[ \t]+([0-9A-F]+)[ \t]+([a-zA-Z0-9_]+)")
+        execute_process(COMMAND dumpbin /exports ${COPY_TARGET} OUTPUT_VARIABLE libclangdump)
+        string(REGEX MATCHALL ${MYPATTERN} libclangdump ${libclangdump})
+        string(REGEX REPLACE ${MYPATTERN} "\t\\4\t@\\1\n" libclangdump ${libclangdump})
+        set(libclangdump "LIBRARY\tLIBCLANG${LIBSUFFIX}\nEXPORTS\n${libclangdump}")
+        file(WRITE "${PROJECT_BINARY_DIR}/libclang${LIBSUFFIX}.def" ${libclangdump})
+        add_custom_command(OUTPUT libclang${LIBSUFFIX}.def
+            COMMAND dumpbin /exports ${COPY_TARGET}
+            WORKING_DIRECTORY ${PROJECT_BINARY_DIR}
+            DEPENDS ${COPY_TARGET}
+            COMMENT "Creating libclang.def")
+        add_custom_command(OUTPUT libclang${LIBSUFFIX}.lib
+            COMMAND lib /def:libclang${LIBSUFFIX}.def /out:libclang${LIBSUFFIX}.lib
+            WORKING_DIRECTORY ${PROJECT_BINARY_DIR}
+            DEPENDS libclang${LIBSUFFIX}.def
+            COMMENT "Creating libclang.lib")
+        add_custom_target(linklib ALL DEPENDS libclang${LIBSUFFIX}.lib)
+        add_dependencies(${TARGETLIB} linklib)
+    endif()
     add_custom_target(copy2 ALL
                     COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_FILE:${TARGETLIB}> ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}
                     WORKING_DIRECTORY  ${PROJECT_BINARY_DIR}
@@ -249,21 +261,6 @@ if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
 endif()
 
 if(DEFINED WIN_RELEASE)
-    file(DOWNLOAD https://raw.github.com/quarnster/SublimeClang/master/package.json ${PROJECT_BINARY_DIR}/current.json LOG log)
-    file(READ "${PROJECT_BINARY_DIR}/current.json" TEMP)
-    string(REGEX MATCH "\"url\": \"(.*/(.*))\"" TEMP ${TEMP})
-
-    if(NOT EXISTS ${PROJECT_BINARY_DIR}/${CMAKE_MATCH_2})
-        message("Downloading current SublimeClang release...")
-        file(DOWNLOAD ${CMAKE_MATCH_1} ${PROJECT_BINARY_DIR}/${CMAKE_MATCH_2})
-    endif()
-    add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/source
-        COMMAND ${CMAKE_COMMAND} -E make_directory source
-        COMMAND ${CMAKE_COMMAND} -E chdir source ${CMAKE_COMMAND} -E tar xf ${PROJECT_BINARY_DIR}/${CMAKE_MATCH_2}
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different source/libclang.dll ${PROJECT_SOURCE_DIR}/../internals/libclang.dll
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different source/libclang_x64.dll ${PROJECT_SOURCE_DIR}/../internals/libclang_x64.dll
-        WORKING_DIRECTORY ${PROJECT_BINARY_DIR}
-    )
     macro(win_build DIR TARGET LIB)
         if(${TARGET} MATCHES "/x86")
             set(CLANGLIB libclang.dll)
@@ -272,11 +269,6 @@ if(DEFINED WIN_RELEASE)
             set(CLANGLIB libclang_x64.dll)
             set(PYTHON c:\\Python27_x64\\python)
         endif()
-        add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/../internals/${CLANGLIB}
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different source/${CLANGLIB} ${PROJECT_SOURCE_DIR}/../internals/${CLANGLIB}
-            DEPENDS ${PROJECT_BINARY_DIR}/source
-            WORKING_DIRECTORY ${PROJECT_BINARY_DIR}
-        )
 
         add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/${DIR}
             COMMAND ${CMAKE_COMMAND} -E make_directory ${DIR}
@@ -285,7 +277,6 @@ if(DEFINED WIN_RELEASE)
         add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/${DIR}/cmds.bat
             COMMAND ${CMAKE_COMMAND} ARGS -E echo "call \\\"C:\\Program Files\\Microsoft SDKs\\Windows\\v7.1\\Bin\\SetEnv.cmd\\\" /Release ${TARGET}" > cmds.bat
             COMMAND ${CMAKE_COMMAND} ARGS -E echo "\\\"${CMAKE_COMMAND}\\\" -DCMAKE_BUILD_TYPE=MinSizeRel -G \\\"NMake Makefiles\\\" \\\"${PROJECT_SOURCE_DIR}\\\"" >> cmds.bat
-            DEPENDS ${PROJECT_BINARY_DIR}/${DIR} ${PROJECT_BINARY_DIR}/source
             WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/${DIR}
         )
         add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/${DIR}/build.bat
@@ -294,22 +285,22 @@ if(DEFINED WIN_RELEASE)
             DEPENDS ${PROJECT_BINARY_DIR}/${DIR}
             WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/${DIR}
         )
-        add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/${DIR}/CMakeCache.txt
+        add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/${DIR}/Makefile
             COMMAND cmds.bat
-            DEPENDS ${PROJECT_BINARY_DIR}/${DIR}/cmds.bat ${PROJECT_BINARY_DIR}/../internals/${CLANGLIB}
+            DEPENDS ${PROJECT_BINARY_DIR}/${DIR}/cmds.bat
             WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/${DIR}
         )
         add_custom_command(OUTPUT ${PROJECT_SOURCE_DIR}/../internals/${LIB}
             COMMAND build.bat
-            DEPENDS ${PROJECT_BINARY_DIR}/${DIR}/CMakeCache.txt ${PROJECT_BINARY_DIR}/${DIR}/build.bat
+            DEPENDS ${PROJECT_BINARY_DIR}/${DIR}/Makefile ${PROJECT_BINARY_DIR}/${DIR}/build.bat
             WORKING_DIRECTORY ${PROJECT_BINARY_DIR}/${DIR}
         )
         add_custom_target(build_${LIB} ALL
-            DEPENDS ${PROJECT_SOURCE_DIR}/../${LIB}
+            DEPENDS ${PROJECT_SOURCE_DIR}/../internals/${LIB}
         )
 
         add_custom_target(unittest_${LIB} ALL
-            COMMAND ${CMAKE_COMMAND} -E chdir .. ${PYTHON} unittests/unittest.py -disableplatformspecific
+            COMMAND ${CMAKE_COMMAND} -E chdir .. ${PYTHON} unittests/unittest.py -disableplatformspecific -nogotoimp -nogotodef #TODO
             DEPENDS build_${LIB}
             WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
         )

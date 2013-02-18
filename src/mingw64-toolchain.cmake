@@ -5,6 +5,9 @@ set(CMAKE_CXX_COMPILER /Developer/mingw64/bin/x86_64-w64-mingw32-g++)
 set(CMAKE_RC_COMPILER  /Developer/mingw64/bin/x86_64-w64-mingw32-windres)
 
 
+set(CMAKE_CXX_FLAGS_DEBUG "-gdwarf-2" CACHE STRING "c++ Debug flags" )
+add_definitions("-mabi=ms -mms-aggregate-return")
+
 set(CMAKE_SHARED_LINKER_FLAGS "-static-libgcc -static-libstdc++")
 
 set(CMAKE_FIND_ROOT_PATH /Developer/mingw64/mingw)
