@@ -181,11 +181,14 @@
     // so to make them take effect you'll have to clear the cache first. The
     // default keybinding for clearing the cache is alt+d,alt+c.
     //
-    // ${home}, ${env:<variable>}, ${project_path:} and ${folder:} tokens can be used in these options.
+    // ${home}, ${env:<variable>}, ${project_path}, ${project_path:} and ${folder:} tokens can be
+    // used in these options.
     //
     // ${home} is replaced with the value of the HOME environment variable.
     //
     // ${env:<variable>} is replaced with the "variable" environment variable.
+    //
+    // ${project_path} returns the directory of the project for the current file or current window.
     //
     // ${project_path:} tries to find a file with the given name in all the registered project folders and
     // returns the first file found, or the original file name if none is found.
