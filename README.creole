@@ -33,6 +33,7 @@ If you run into any issues, please have a look at issue [[https://github.com/qua
     ## If you don't want to use package control, you can manually install it
     ### Go to your packages directory and type:
     ####        git clone --recursive https://github.com/quarnster/SublimeClang SublimeClang
+    ####        After this you'll have to Compile libcache as described in the Additional Prerequisites (Linux Only) section
     ### To update run the following command:
     ####        git pull && git submodule foreach --recursive git pull origin master
     # Back in the editor, open up the command palette by pressing cmd+shift+P or ctrl+shift+P
