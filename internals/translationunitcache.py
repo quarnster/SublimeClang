@@ -1251,14 +1251,14 @@ class TranslationUnitCache(Worker):
 
             if opts_script:
                 # shlex.split barfs if fed with an unicode strings
-                args = shlex.split(opts_script.encode()) + [filename]
+                args = shlex.split(sencode(opts_script)) + [filename]
                 process = subprocess.Popen(args, stderr=subprocess.PIPE, stdout=subprocess.PIPE)
                 output = process.communicate()
                 if process.returncode:
                     print("The options_script failed with code [%s]" % process.returncode)
                     print(output[1])
                 else:
-                    opts += shlex.split(output[0])
+                    opts += shlex.split(bdecode(output[0]))
 
             if self.debug_options:
                 print("Will compile file %s with the following options:\n%s" % (filename, opts))
