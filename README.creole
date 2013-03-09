@@ -1,3 +1,10 @@
+= Plugin discontinued =
+
+** I don't intend to continue development of this plugin, so I've disabled the issues page. If something is broken, submit a pull request and I'll consider merging it.
+
+** Eventually SublimeClang will be replaced by https://github.com/quarnster/completion, but as I don't code much in clang supported languages these days it's not a very high priority for me personally.
+If you'd like to see it move along quicker, submit a pull request in that project and/or participate in its discussions.
+
 === Description ===
 Clang plugin for Sublime Text 2 providing auto complete suggestions for C/C++/ObjC/ObjC++. It'll also optionally parse the code as it's typed and show errors and warnings.
 
