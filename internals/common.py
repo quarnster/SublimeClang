@@ -197,7 +197,7 @@ except:
     def display_user_selection(options, callback):
         callback(0)
 
-    def loof_for_file(filename, current_dir, levels_up):
+    def look_for_file(filename, current_dir, levels_up):
         return None
 
 
