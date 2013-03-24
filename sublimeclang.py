@@ -43,7 +43,7 @@ try:
     from internals import translationunitcache
     from internals.parsehelp import parsehelp
     plugin_loaded()
-except:
+except ImportError:
     import queue as Queue
     from .internals.clang import cindex
     from .errormarkers import clear_error_marks, add_error_mark, show_error_marks, \
