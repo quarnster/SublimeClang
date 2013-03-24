@@ -63,51 +63,49 @@ call is efficient.
 # o implement additional SourceLocation, SourceRange, and File methods.
 
 from ctypes import *
-from ..common import error_message, bencode, bdecode
+from ..common import error_message, bencode, bdecode, look_for_file
 import platform
 import sys
 
 isWin64 = False
 if platform.system() == 'Windows':
     bits,linkage = platform.architecture()
-    if bits=="64bit":
+    if bits == '64bit':
         isWin64 = True
 
 def get_cindex_library():
-    # FIXME: It's probably not the case that the library is actually found in
-    # this location. We need a better system of identifying and loading the
-    # CIndex library. It could be on path or elsewhere, or versioned, etc.
     import platform
     name = platform.system()
     import os
     path = os.path.dirname(os.path.abspath(__file__))
+    filename = ''
 
     if name == 'Darwin':
-        return cdll.LoadLibrary('libclang.dylib')
+        filename = 'libclang.dylib'
     elif name == 'Windows':
-        if isWin64:
-            return cdll.LoadLibrary("%s/../libclang_x64.dll" % path)
-        return cdll.LoadLibrary('%s/../libclang.dll' % path)
+        filename = 'libclang_x64.dll' if isWin64 else 'libclang.dll'
     else:
-        try:
-            # Try loading with absolute path first
-            return cdll.LoadLibrary('%s/../libclang.so' % path)
-        except:
-            try:
-                # See if there's one in the system path
-                return cdll.LoadLibrary("libclang.so")
-            except:
-                import traceback
-                traceback.print_exc()
-                error_message("""\
-It looks like libclang.so couldn't be loaded. On Linux you have to \
-compile it yourself, or install it via your package manager. \
+        filename = 'libclang.so'
+
+    filepath = look_for_file(filename, path, 3)
+    if filepath:
+        return cdll.LoadLibrary(filepath)
+    try:
+        # See if there's one in the system path
+        return cdll.LoadLibrary(filename)
+    except:
+        import traceback
+        traceback.print_exc()
+        error_message("""\
+It looks like %s couldn't be loaded. You have to compile it yourself, \
+or download from https://github.com/quarnster/SublimeClang/downloads.
+
 Please note that this plugin uses features from clang 3.0 so \
 make sure that is the version you have installed.
 
-Once installed, you need to copy libclang.so into the root of this \
+Once you have the file, you need to copy %s into the root of this \
 plugin. See http://github.com/quarnster/SublimeClang for more details.
-""")
+""" % (filename, filename))
 
 # ctypes doesn't implicitly convert c_void_p to the appropriate wrapper
 # object. This is a problem, because it means that from_parameter will see an

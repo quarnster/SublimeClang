@@ -27,7 +27,7 @@ import sys
 from .common import Worker, complete_path, expand_path, get_setting, get_path_setting,\
                     get_language, LockedVariable, run_in_main_thread, error_message,\
                     display_user_selection, get_cpu_count, status_message, bencode, bdecode,\
-                    sencode, sdecode, are_we_there_yet
+                    sencode, sdecode, are_we_there_yet, look_for_file
 from .clang import cindex
 from .parsehelp.parsehelp import *
 
@@ -52,29 +52,31 @@ scriptpath = os.path.dirname(os.path.abspath(__file__))
 def get_cache_library():
     import platform
     name = platform.system()
+    filename = ''
+
     if name == 'Darwin':
-        return cdll.LoadLibrary('%s/libcache.dylib' % scriptpath)
+        filename = 'libcache.dylib'
     elif name == 'Windows':
-        if cindex.isWin64:
-            return cdll.LoadLibrary("%s/libcache_x64.dll" % scriptpath)
-        return cdll.LoadLibrary('%s/libcache.dll' % scriptpath)
+        filename = 'libcache_x64.dll' if cindex.isWin64 else 'libcache.dll'
     else:
-        try:
-            # Try loading with absolute path first
-            return cdll.LoadLibrary('%s/libcache.so' % scriptpath)
-        except:
-            try:
-                # See if there's one in the system path
-                return cdll.LoadLibrary("libcache.so")
-            except:
-                import traceback
-                traceback.print_exc()
-                error_message("""\
-It looks like libcache.so couldn't be loaded. On Linux you have to \
+        filename = 'libcache.so'
+
+    filepath = look_for_file(filename, scriptpath, 3)
+    if filepath:
+        # Try loading with absolute path first
+        return cdll.LoadLibrary(filepath)
+    try:
+        # See if there's one in the system path
+        return cdll.LoadLibrary(filename)
+    except:
+        import traceback
+        traceback.print_exc()
+        error_message("""\
+It looks like %s couldn't be loaded. On Linux you have to \
 compile it yourself.
 
 See http://github.com/quarnster/SublimeClang for more details.
-""")
+""" % (filename))
 
 
 class CacheEntry(Structure):
@@ -109,22 +111,23 @@ class CacheCompletionResults(Structure):
 
 
 cachelib = get_cache_library()
-try:
-    import json
-    _getVersion = cachelib.getVersion
-    _getVersion.restype = c_char_p
-    f = open("%s/../package.json" % scriptpath)
-    data = json.load(f)
-    f.close()
-    json = data["packages"][0]["platforms"]["*"][0]["version"]
-    lib = _getVersion().decode(sys.getdefaultencoding())
-    print("Have SublimeClang package: %s" % json)
-    print("Have SublimeClang libcache: %s" % lib)
-    assert lib == json
-except:
-    import traceback
-    traceback.print_exc()
-    error_message("Your SublimeClang libcache is out of date. Try restarting ST2 and if that fails, uninstall SublimeClang, restart ST2 and install it again.")
+if cachelib:
+    try:
+        import json
+        _getVersion = cachelib.getVersion
+        _getVersion.restype = c_char_p
+        f = open("%s/../package.json" % scriptpath)
+        data = json.load(f)
+        f.close()
+        json = data["packages"][0]["platforms"]["*"][0]["version"]
+        lib = _getVersion().decode(sys.getdefaultencoding())
+        print("Have SublimeClang package: %s" % json)
+        print("Have SublimeClang libcache: %s" % lib)
+        assert lib == json
+    except:
+        import traceback
+        traceback.print_exc()
+        error_message("Your SublimeClang libcache is out of date. Try restarting ST2 and if that fails, uninstall SublimeClang, restart ST2 and install it again.")
 
 _createCache = cachelib.createCache
 _createCache.restype = POINTER(_Cache)
