@@ -160,6 +160,17 @@ try:
     def display_user_selection(options, callback):
         sublime.active_window().show_quick_panel(options, callback)
 
+    def look_for_file(filename, current_dir, levels_up):
+        """Look for file up to #levels_up dir levels, starting from #current_dir."""
+        while current_dir != os.path.dirname(current_dir):
+            if os.path.exists(os.path.join(current_dir, filename)):
+                return os.path.join(current_dir, filename)
+            if levels_up <= 0:
+                break
+            levels_up -= 1
+            current_dir = os.path.dirname(current_dir)
+        return None
+
 except:
     # Just used for unittesting
     def are_we_there_yet(f):
@@ -185,6 +196,9 @@ except:
 
     def display_user_selection(options, callback):
         callback(0)
+
+    def loof_for_file(filename, current_dir, levels_up):
+        return None
 
 
 class LockedVariable:
