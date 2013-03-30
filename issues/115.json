@@ -1,0 +1,83 @@
+[
+  {
+    "url": "https://api.github.com/repos/quarnster/SublimeClang/issues/comments/7730174",
+    "html_url": "https://github.com/quarnster/SublimeClang/issues/115#issuecomment-7730174",
+    "issue_url": "https://api.github.com/repos/quarnster/SublimeClang/issues/115",
+    "id": 7730174,
+    "user": {
+      "login": "quarnster",
+      "id": 1230389,
+      "avatar_url": "https://secure.gravatar.com/avatar/10a89302c6736c988ce06d8a41c923c0?d=https://a248.e.akamai.net/assets.github.com%2Fimages%2Fgravatars%2Fgravatar-user-420.png",
+      "gravatar_id": "10a89302c6736c988ce06d8a41c923c0",
+      "url": "https://api.github.com/users/quarnster",
+      "html_url": "https://github.com/quarnster",
+      "followers_url": "https://api.github.com/users/quarnster/followers",
+      "following_url": "https://api.github.com/users/quarnster/following",
+      "gists_url": "https://api.github.com/users/quarnster/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/quarnster/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/quarnster/subscriptions",
+      "organizations_url": "https://api.github.com/users/quarnster/orgs",
+      "repos_url": "https://api.github.com/users/quarnster/repos",
+      "events_url": "https://api.github.com/users/quarnster/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/quarnster/received_events",
+      "type": "User"
+    },
+    "created_at": "2012-08-14T15:50:25Z",
+    "updated_at": "2012-08-14T15:50:25Z",
+    "body": "Does it work if you do:\n\n```python\n        value = re.sub(r'\\${home}', re.escape(os.getenv('HOME')) if os.getenv('HOME') else \"HOME_NOT_SET\", value)\n```\n"
+  },
+  {
+    "url": "https://api.github.com/repos/quarnster/SublimeClang/issues/comments/7730263",
+    "html_url": "https://github.com/quarnster/SublimeClang/issues/115#issuecomment-7730263",
+    "issue_url": "https://api.github.com/repos/quarnster/SublimeClang/issues/115",
+    "id": 7730263,
+    "user": {
+      "login": "Aktau",
+      "id": 189413,
+      "avatar_url": "https://secure.gravatar.com/avatar/7b04c723316dd727866faa8d79962e77?d=https://a248.e.akamai.net/assets.github.com%2Fimages%2Fgravatars%2Fgravatar-user-420.png",
+      "gravatar_id": "7b04c723316dd727866faa8d79962e77",
+      "url": "https://api.github.com/users/Aktau",
+      "html_url": "https://github.com/Aktau",
+      "followers_url": "https://api.github.com/users/Aktau/followers",
+      "following_url": "https://api.github.com/users/Aktau/following",
+      "gists_url": "https://api.github.com/users/Aktau/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/Aktau/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/Aktau/subscriptions",
+      "organizations_url": "https://api.github.com/users/Aktau/orgs",
+      "repos_url": "https://api.github.com/users/Aktau/repos",
+      "events_url": "https://api.github.com/users/Aktau/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/Aktau/received_events",
+      "type": "User"
+    },
+    "created_at": "2012-08-14T15:53:05Z",
+    "updated_at": "2012-08-14T15:53:05Z",
+    "body": "Works perfectly"
+  },
+  {
+    "url": "https://api.github.com/repos/quarnster/SublimeClang/issues/comments/7730462",
+    "html_url": "https://github.com/quarnster/SublimeClang/issues/115#issuecomment-7730462",
+    "issue_url": "https://api.github.com/repos/quarnster/SublimeClang/issues/115",
+    "id": 7730462,
+    "user": {
+      "login": "quarnster",
+      "id": 1230389,
+      "avatar_url": "https://secure.gravatar.com/avatar/10a89302c6736c988ce06d8a41c923c0?d=https://a248.e.akamai.net/assets.github.com%2Fimages%2Fgravatars%2Fgravatar-user-420.png",
+      "gravatar_id": "10a89302c6736c988ce06d8a41c923c0",
+      "url": "https://api.github.com/users/quarnster",
+      "html_url": "https://github.com/quarnster",
+      "followers_url": "https://api.github.com/users/quarnster/followers",
+      "following_url": "https://api.github.com/users/quarnster/following",
+      "gists_url": "https://api.github.com/users/quarnster/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/quarnster/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/quarnster/subscriptions",
+      "organizations_url": "https://api.github.com/users/quarnster/orgs",
+      "repos_url": "https://api.github.com/users/quarnster/repos",
+      "events_url": "https://api.github.com/users/quarnster/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/quarnster/received_events",
+      "type": "User"
+    },
+    "created_at": "2012-08-14T15:58:40Z",
+    "updated_at": "2012-08-14T15:58:40Z",
+    "body": "Ok, thanks, I've submitted a fix for this."
+  }
+]

@@ -1,0 +1,29 @@
+[
+  {
+    "url": "https://api.github.com/repos/quarnster/SublimeClang/issues/comments/12827316",
+    "html_url": "https://github.com/quarnster/SublimeClang/issues/193#issuecomment-12827316",
+    "issue_url": "https://api.github.com/repos/quarnster/SublimeClang/issues/193",
+    "id": 12827316,
+    "user": {
+      "login": "looki",
+      "id": 777411,
+      "avatar_url": "https://secure.gravatar.com/avatar/3ca828e9cc67955576fac58347f0ea84?d=https://a248.e.akamai.net/assets.github.com%2Fimages%2Fgravatars%2Fgravatar-user-420.png",
+      "gravatar_id": "3ca828e9cc67955576fac58347f0ea84",
+      "url": "https://api.github.com/users/looki",
+      "html_url": "https://github.com/looki",
+      "followers_url": "https://api.github.com/users/looki/followers",
+      "following_url": "https://api.github.com/users/looki/following",
+      "gists_url": "https://api.github.com/users/looki/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/looki/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/looki/subscriptions",
+      "organizations_url": "https://api.github.com/users/looki/orgs",
+      "repos_url": "https://api.github.com/users/looki/repos",
+      "events_url": "https://api.github.com/users/looki/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/looki/received_events",
+      "type": "User"
+    },
+    "created_at": "2013-01-29T09:48:44Z",
+    "updated_at": "2013-01-29T09:51:43Z",
+    "body": "Never mind - After reading more of the closed issues, I realized that you do NOT have control over this. \r\n\r\nIn case anybody reads this and needs a solution -> https://github.com/quarnster/SublimeClang/issues/31 Removing '<' from the word separators works amazingly well. I hope it doesn't cause any other issues."
+  }
+]

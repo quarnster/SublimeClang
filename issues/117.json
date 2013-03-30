@@ -1,0 +1,83 @@
+[
+  {
+    "url": "https://api.github.com/repos/quarnster/SublimeClang/issues/comments/7864135",
+    "html_url": "https://github.com/quarnster/SublimeClang/issues/117#issuecomment-7864135",
+    "issue_url": "https://api.github.com/repos/quarnster/SublimeClang/issues/117",
+    "id": 7864135,
+    "user": {
+      "login": "quarnster",
+      "id": 1230389,
+      "avatar_url": "https://secure.gravatar.com/avatar/10a89302c6736c988ce06d8a41c923c0?d=https://a248.e.akamai.net/assets.github.com%2Fimages%2Fgravatars%2Fgravatar-user-420.png",
+      "gravatar_id": "10a89302c6736c988ce06d8a41c923c0",
+      "url": "https://api.github.com/users/quarnster",
+      "html_url": "https://github.com/quarnster",
+      "followers_url": "https://api.github.com/users/quarnster/followers",
+      "following_url": "https://api.github.com/users/quarnster/following",
+      "gists_url": "https://api.github.com/users/quarnster/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/quarnster/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/quarnster/subscriptions",
+      "organizations_url": "https://api.github.com/users/quarnster/orgs",
+      "repos_url": "https://api.github.com/users/quarnster/repos",
+      "events_url": "https://api.github.com/users/quarnster/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/quarnster/received_events",
+      "type": "User"
+    },
+    "created_at": "2012-08-20T09:06:55Z",
+    "updated_at": "2012-08-20T09:06:55Z",
+    "body": "If ctypes can't be imported there's still something wrong with step 1. I consider this a duplicate of issue #35."
+  },
+  {
+    "url": "https://api.github.com/repos/quarnster/SublimeClang/issues/comments/7865756",
+    "html_url": "https://github.com/quarnster/SublimeClang/issues/117#issuecomment-7865756",
+    "issue_url": "https://api.github.com/repos/quarnster/SublimeClang/issues/117",
+    "id": 7865756,
+    "user": {
+      "login": "rhadesan",
+      "id": 2182180,
+      "avatar_url": "https://secure.gravatar.com/avatar/e3eabc18af448c9ffa9e46bd71d63d3d?d=https://a248.e.akamai.net/assets.github.com%2Fimages%2Fgravatars%2Fgravatar-user-420.png",
+      "gravatar_id": "e3eabc18af448c9ffa9e46bd71d63d3d",
+      "url": "https://api.github.com/users/rhadesan",
+      "html_url": "https://github.com/rhadesan",
+      "followers_url": "https://api.github.com/users/rhadesan/followers",
+      "following_url": "https://api.github.com/users/rhadesan/following",
+      "gists_url": "https://api.github.com/users/rhadesan/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/rhadesan/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/rhadesan/subscriptions",
+      "organizations_url": "https://api.github.com/users/rhadesan/orgs",
+      "repos_url": "https://api.github.com/users/rhadesan/repos",
+      "events_url": "https://api.github.com/users/rhadesan/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/rhadesan/received_events",
+      "type": "User"
+    },
+    "created_at": "2012-08-20T10:40:26Z",
+    "updated_at": "2012-08-20T10:40:26Z",
+    "body": "I think it is not duplicate of #35 - because I did everything mentioned in this post.\n\nBut in linked post is mentioned, that libpython2.6.so must be resolvable by sublime text. Hovewer, I did `pythonbrew install --configure=\"--enable-unicode=ucs4\" 2.6`, but it did not create this library. Any idea? Some missing parameter?"
+  },
+  {
+    "url": "https://api.github.com/repos/quarnster/SublimeClang/issues/comments/7871313",
+    "html_url": "https://github.com/quarnster/SublimeClang/issues/117#issuecomment-7871313",
+    "issue_url": "https://api.github.com/repos/quarnster/SublimeClang/issues/117",
+    "id": 7871313,
+    "user": {
+      "login": "quarnster",
+      "id": 1230389,
+      "avatar_url": "https://secure.gravatar.com/avatar/10a89302c6736c988ce06d8a41c923c0?d=https://a248.e.akamai.net/assets.github.com%2Fimages%2Fgravatars%2Fgravatar-user-420.png",
+      "gravatar_id": "10a89302c6736c988ce06d8a41c923c0",
+      "url": "https://api.github.com/users/quarnster",
+      "html_url": "https://github.com/quarnster",
+      "followers_url": "https://api.github.com/users/quarnster/followers",
+      "following_url": "https://api.github.com/users/quarnster/following",
+      "gists_url": "https://api.github.com/users/quarnster/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/quarnster/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/quarnster/subscriptions",
+      "organizations_url": "https://api.github.com/users/quarnster/orgs",
+      "repos_url": "https://api.github.com/users/quarnster/repos",
+      "events_url": "https://api.github.com/users/quarnster/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/quarnster/received_events",
+      "type": "User"
+    },
+    "created_at": "2012-08-20T14:44:47Z",
+    "updated_at": "2012-08-20T14:47:07Z",
+    "body": "It's a duplicate of #35 and I have nothing further to add. Please continue any discussion regarding getting ctypes importable from within sublime text 2 in issue #35, not here."
+  }
+]

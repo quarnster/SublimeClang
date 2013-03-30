@@ -1,0 +1,29 @@
+[
+  {
+    "url": "https://api.github.com/repos/quarnster/SublimeClang/issues/comments/12975633",
+    "html_url": "https://github.com/quarnster/SublimeClang/issues/196#issuecomment-12975633",
+    "issue_url": "https://api.github.com/repos/quarnster/SublimeClang/issues/196",
+    "id": 12975633,
+    "user": {
+      "login": "RobertBorg",
+      "id": 1288566,
+      "avatar_url": "https://secure.gravatar.com/avatar/2d7f98684298c7259b713addc34711a4?d=https://a248.e.akamai.net/assets.github.com%2Fimages%2Fgravatars%2Fgravatar-user-420.png",
+      "gravatar_id": "2d7f98684298c7259b713addc34711a4",
+      "url": "https://api.github.com/users/RobertBorg",
+      "html_url": "https://github.com/RobertBorg",
+      "followers_url": "https://api.github.com/users/RobertBorg/followers",
+      "following_url": "https://api.github.com/users/RobertBorg/following",
+      "gists_url": "https://api.github.com/users/RobertBorg/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/RobertBorg/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/RobertBorg/subscriptions",
+      "organizations_url": "https://api.github.com/users/RobertBorg/orgs",
+      "repos_url": "https://api.github.com/users/RobertBorg/repos",
+      "events_url": "https://api.github.com/users/RobertBorg/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/RobertBorg/received_events",
+      "type": "User"
+    },
+    "created_at": "2013-02-01T01:07:27Z",
+    "updated_at": "2013-02-01T01:07:27Z",
+    "body": "After doing some more research on sublime plugin api and the code of this plugin ( i've got 0 python experience) it seems like this is a sublime bug/limitation. I can't find any way for this plugin to know if a project load has begun and not yet finished. \r\nThus I can only see work-arounds as solutions to this problem. for instance a setting like wait_for_dummy_project_setting_to_load which would require all projects to have such a dummy setting, effectively making it opt-in for all projects. same result can be achieved using enabled : false as default and enabling per project.\r\n\r\nAnyone else got any ideas? "
+  }
+]

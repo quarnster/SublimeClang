@@ -1,0 +1,83 @@
+[
+  {
+    "url": "https://api.github.com/repos/quarnster/SublimeClang/issues/comments/5017309",
+    "html_url": "https://github.com/quarnster/SublimeClang/issues/47#issuecomment-5017309",
+    "issue_url": "https://api.github.com/repos/quarnster/SublimeClang/issues/47",
+    "id": 5017309,
+    "user": {
+      "login": "quarnster",
+      "id": 1230389,
+      "avatar_url": "https://secure.gravatar.com/avatar/10a89302c6736c988ce06d8a41c923c0?d=https://a248.e.akamai.net/assets.github.com%2Fimages%2Fgravatars%2Fgravatar-user-420.png",
+      "gravatar_id": "10a89302c6736c988ce06d8a41c923c0",
+      "url": "https://api.github.com/users/quarnster",
+      "html_url": "https://github.com/quarnster",
+      "followers_url": "https://api.github.com/users/quarnster/followers",
+      "following_url": "https://api.github.com/users/quarnster/following",
+      "gists_url": "https://api.github.com/users/quarnster/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/quarnster/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/quarnster/subscriptions",
+      "organizations_url": "https://api.github.com/users/quarnster/orgs",
+      "repos_url": "https://api.github.com/users/quarnster/repos",
+      "events_url": "https://api.github.com/users/quarnster/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/quarnster/received_events",
+      "type": "User"
+    },
+    "created_at": "2012-04-08T18:25:56Z",
+    "updated_at": "2012-04-08T18:25:56Z",
+    "body": "As far as I'm aware there's no plugin api for syntax highlighting in ST2. In theory I suppose a unique tmLanguage plist file could be generated for each source file though.\r\n\r\n"
+  },
+  {
+    "url": "https://api.github.com/repos/quarnster/SublimeClang/issues/comments/5018121",
+    "html_url": "https://github.com/quarnster/SublimeClang/issues/47#issuecomment-5018121",
+    "issue_url": "https://api.github.com/repos/quarnster/SublimeClang/issues/47",
+    "id": 5018121,
+    "user": {
+      "login": "Muon",
+      "id": 402745,
+      "avatar_url": "https://secure.gravatar.com/avatar/5bc0f4d94a0b8c8ac30d02ece79a1e2e?d=https://a248.e.akamai.net/assets.github.com%2Fimages%2Fgravatars%2Fgravatar-user-420.png",
+      "gravatar_id": "5bc0f4d94a0b8c8ac30d02ece79a1e2e",
+      "url": "https://api.github.com/users/Muon",
+      "html_url": "https://github.com/Muon",
+      "followers_url": "https://api.github.com/users/Muon/followers",
+      "following_url": "https://api.github.com/users/Muon/following",
+      "gists_url": "https://api.github.com/users/Muon/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/Muon/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/Muon/subscriptions",
+      "organizations_url": "https://api.github.com/users/Muon/orgs",
+      "repos_url": "https://api.github.com/users/Muon/repos",
+      "events_url": "https://api.github.com/users/Muon/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/Muon/received_events",
+      "type": "User"
+    },
+    "created_at": "2012-04-08T20:13:43Z",
+    "updated_at": "2012-04-08T20:13:43Z",
+    "body": "That sounds painfully inefficient. Time to bug the Sublime devs?"
+  },
+  {
+    "url": "https://api.github.com/repos/quarnster/SublimeClang/issues/comments/6910069",
+    "html_url": "https://github.com/quarnster/SublimeClang/issues/47#issuecomment-6910069",
+    "issue_url": "https://api.github.com/repos/quarnster/SublimeClang/issues/47",
+    "id": 6910069,
+    "user": {
+      "login": "reinsteam",
+      "id": 518794,
+      "avatar_url": "https://secure.gravatar.com/avatar/d1504f9f37117170634372b9fe8fd7a0?d=https://a248.e.akamai.net/assets.github.com%2Fimages%2Fgravatars%2Fgravatar-user-420.png",
+      "gravatar_id": "d1504f9f37117170634372b9fe8fd7a0",
+      "url": "https://api.github.com/users/reinsteam",
+      "html_url": "https://github.com/reinsteam",
+      "followers_url": "https://api.github.com/users/reinsteam/followers",
+      "following_url": "https://api.github.com/users/reinsteam/following",
+      "gists_url": "https://api.github.com/users/reinsteam/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/reinsteam/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/reinsteam/subscriptions",
+      "organizations_url": "https://api.github.com/users/reinsteam/orgs",
+      "repos_url": "https://api.github.com/users/reinsteam/repos",
+      "events_url": "https://api.github.com/users/reinsteam/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/reinsteam/received_events",
+      "type": "User"
+    },
+    "created_at": "2012-07-11T15:32:14Z",
+    "updated_at": "2012-07-11T15:35:06Z",
+    "body": "Hi Fredrick, \n\nI've made a request for described functionality (http://sublimetext.userecho.com/topic/117845-/) It would be nice to achieve better syntax highlighting results with power of Sublime Clang"
+  }
+]

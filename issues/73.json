@@ -1,0 +1,83 @@
+[
+  {
+    "url": "https://api.github.com/repos/quarnster/SublimeClang/issues/comments/6416366",
+    "html_url": "https://github.com/quarnster/SublimeClang/issues/73#issuecomment-6416366",
+    "issue_url": "https://api.github.com/repos/quarnster/SublimeClang/issues/73",
+    "id": 6416366,
+    "user": {
+      "login": "quarnster",
+      "id": 1230389,
+      "avatar_url": "https://secure.gravatar.com/avatar/10a89302c6736c988ce06d8a41c923c0?d=https://a248.e.akamai.net/assets.github.com%2Fimages%2Fgravatars%2Fgravatar-user-420.png",
+      "gravatar_id": "10a89302c6736c988ce06d8a41c923c0",
+      "url": "https://api.github.com/users/quarnster",
+      "html_url": "https://github.com/quarnster",
+      "followers_url": "https://api.github.com/users/quarnster/followers",
+      "following_url": "https://api.github.com/users/quarnster/following",
+      "gists_url": "https://api.github.com/users/quarnster/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/quarnster/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/quarnster/subscriptions",
+      "organizations_url": "https://api.github.com/users/quarnster/orgs",
+      "repos_url": "https://api.github.com/users/quarnster/repos",
+      "events_url": "https://api.github.com/users/quarnster/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/quarnster/received_events",
+      "type": "User"
+    },
+    "created_at": "2012-06-19T05:29:21Z",
+    "updated_at": "2012-06-19T05:29:21Z",
+    "body": "I can't reproduce this. What's the sublime console output when you set debug_options to true in your SublimeClang user settings?\n\nIf you set dont_prepend_clang_includes to true in your SublimeClang user settings, does it start working again? What's printed now in the Sublime Text 2 console when debug_options is set to true?"
+  },
+  {
+    "url": "https://api.github.com/repos/quarnster/SublimeClang/issues/comments/6416587",
+    "html_url": "https://github.com/quarnster/SublimeClang/issues/73#issuecomment-6416587",
+    "issue_url": "https://api.github.com/repos/quarnster/SublimeClang/issues/73",
+    "id": 6416587,
+    "user": {
+      "login": "nicrd",
+      "id": 1567091,
+      "avatar_url": "https://secure.gravatar.com/avatar/66bb93e0f171236d7cd0759597a4ccb5?d=https://a248.e.akamai.net/assets.github.com%2Fimages%2Fgravatars%2Fgravatar-user-420.png",
+      "gravatar_id": "66bb93e0f171236d7cd0759597a4ccb5",
+      "url": "https://api.github.com/users/nicrd",
+      "html_url": "https://github.com/nicrd",
+      "followers_url": "https://api.github.com/users/nicrd/followers",
+      "following_url": "https://api.github.com/users/nicrd/following",
+      "gists_url": "https://api.github.com/users/nicrd/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/nicrd/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/nicrd/subscriptions",
+      "organizations_url": "https://api.github.com/users/nicrd/orgs",
+      "repos_url": "https://api.github.com/users/nicrd/repos",
+      "events_url": "https://api.github.com/users/nicrd/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/nicrd/received_events",
+      "type": "User"
+    },
+    "created_at": "2012-06-19T05:54:05Z",
+    "updated_at": "2012-06-19T05:54:05Z",
+    "body": "Awesome! With dont_prepend_clang_includes set to true it works once again.  Indeed, the only difference in the output command line was the prepended clang include:\n```-I/Users/nicolasrd/Library/Application Support/Sublime Text 2/Packages/SublimeClang/clang/include```\n\nThank you very much!\n\np.s. here are the other command line arguments from debug_options (is there anything wrong?):\n```-m32\n-Wall\n-Wno-overloaded-virtual\n-I/usr/lib/clang/3.1/include/\n-I/usr/lib/clang/3.0/include/\n-I/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/usr/llvm-gcc-4.2/lib/gcc/i686-apple-darwin11/4.2.1/include/\n-isysroot\n/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneSimulator.platform/Developer/SDKs/iPhoneSimulator5.1.sdk/\n-D__IPHONE_OS_VERSION_MIN_REQUIRED=50100\n-I/Developer/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS5.0.sdk/System/Library/Frameworks/OpenGLES.framework/Headers\n-I<my project's source dir>/3rdparty\n-I<my project's source dir>/\n-fno-exceptions\n-x\nc++\n```\nI replaced my actual source dir with *\\<my project's source dir\\>*."
+  },
+  {
+    "url": "https://api.github.com/repos/quarnster/SublimeClang/issues/comments/6416821",
+    "html_url": "https://github.com/quarnster/SublimeClang/issues/73#issuecomment-6416821",
+    "issue_url": "https://api.github.com/repos/quarnster/SublimeClang/issues/73",
+    "id": 6416821,
+    "user": {
+      "login": "quarnster",
+      "id": 1230389,
+      "avatar_url": "https://secure.gravatar.com/avatar/10a89302c6736c988ce06d8a41c923c0?d=https://a248.e.akamai.net/assets.github.com%2Fimages%2Fgravatars%2Fgravatar-user-420.png",
+      "gravatar_id": "10a89302c6736c988ce06d8a41c923c0",
+      "url": "https://api.github.com/users/quarnster",
+      "html_url": "https://github.com/quarnster",
+      "followers_url": "https://api.github.com/users/quarnster/followers",
+      "following_url": "https://api.github.com/users/quarnster/following",
+      "gists_url": "https://api.github.com/users/quarnster/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/quarnster/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/quarnster/subscriptions",
+      "organizations_url": "https://api.github.com/users/quarnster/orgs",
+      "repos_url": "https://api.github.com/users/quarnster/repos",
+      "events_url": "https://api.github.com/users/quarnster/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/quarnster/received_events",
+      "type": "User"
+    },
+    "created_at": "2012-06-19T06:17:52Z",
+    "updated_at": "2012-06-19T06:17:52Z",
+    "body": "If I copy your settings I can reproduce this error locally. I also found that it worked for me without changing the clang prepend if I removed these:\n\n```\n-I/usr/lib/clang/3.1/include/\n-I/usr/lib/clang/3.0/include/\n```\n\nNot quite sure why having both these and the prepended include path results in an error though."
+  }
+]

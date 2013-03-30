@@ -1,0 +1,29 @@
+[
+  {
+    "url": "https://api.github.com/repos/quarnster/SublimeClang/issues/comments/14546112",
+    "html_url": "https://github.com/quarnster/SublimeClang/issues/215#issuecomment-14546112",
+    "issue_url": "https://api.github.com/repos/quarnster/SublimeClang/issues/215",
+    "id": 14546112,
+    "user": {
+      "login": "quarnster",
+      "id": 1230389,
+      "avatar_url": "https://secure.gravatar.com/avatar/10a89302c6736c988ce06d8a41c923c0?d=https://a248.e.akamai.net/assets.github.com%2Fimages%2Fgravatars%2Fgravatar-user-420.png",
+      "gravatar_id": "10a89302c6736c988ce06d8a41c923c0",
+      "url": "https://api.github.com/users/quarnster",
+      "html_url": "https://github.com/quarnster",
+      "followers_url": "https://api.github.com/users/quarnster/followers",
+      "following_url": "https://api.github.com/users/quarnster/following",
+      "gists_url": "https://api.github.com/users/quarnster/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/quarnster/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/quarnster/subscriptions",
+      "organizations_url": "https://api.github.com/users/quarnster/orgs",
+      "repos_url": "https://api.github.com/users/quarnster/repos",
+      "events_url": "https://api.github.com/users/quarnster/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/quarnster/received_events",
+      "type": "User"
+    },
+    "created_at": "2013-03-07T07:18:58Z",
+    "updated_at": "2013-03-07T07:18:58Z",
+    "body": "By default it creates an [implicit pch](https://github.com/quarnster/SublimeClang/blob/fde221403339f95e42e50f9a5e783b50b744ab3b/SublimeClang.sublime-settings#L73), so I think not. I have no ideas or suggestions on how to improve performance unfortunately, but I'd happily accept any pull requests or proven tips that improve performance."
+  }
+]

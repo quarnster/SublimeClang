@@ -1,0 +1,56 @@
+[
+  {
+    "url": "https://api.github.com/repos/quarnster/SublimeClang/issues/comments/10625393",
+    "html_url": "https://github.com/quarnster/SublimeClang/issues/174#issuecomment-10625393",
+    "issue_url": "https://api.github.com/repos/quarnster/SublimeClang/issues/174",
+    "id": 10625393,
+    "user": {
+      "login": "quarnster",
+      "id": 1230389,
+      "avatar_url": "https://secure.gravatar.com/avatar/10a89302c6736c988ce06d8a41c923c0?d=https://a248.e.akamai.net/assets.github.com%2Fimages%2Fgravatars%2Fgravatar-user-420.png",
+      "gravatar_id": "10a89302c6736c988ce06d8a41c923c0",
+      "url": "https://api.github.com/users/quarnster",
+      "html_url": "https://github.com/quarnster",
+      "followers_url": "https://api.github.com/users/quarnster/followers",
+      "following_url": "https://api.github.com/users/quarnster/following",
+      "gists_url": "https://api.github.com/users/quarnster/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/quarnster/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/quarnster/subscriptions",
+      "organizations_url": "https://api.github.com/users/quarnster/orgs",
+      "repos_url": "https://api.github.com/users/quarnster/repos",
+      "events_url": "https://api.github.com/users/quarnster/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/quarnster/received_events",
+      "type": "User"
+    },
+    "created_at": "2012-11-22T07:02:59Z",
+    "updated_at": "2012-11-22T07:59:35Z",
+    "body": "I've pushed a new version which might fix this issue. If it doesn't I'll need more help to figure out how to fix it. Please try 1.0.40 and let me know whether it works for you or not."
+  },
+  {
+    "url": "https://api.github.com/repos/quarnster/SublimeClang/issues/comments/10626155",
+    "html_url": "https://github.com/quarnster/SublimeClang/issues/174#issuecomment-10626155",
+    "issue_url": "https://api.github.com/repos/quarnster/SublimeClang/issues/174",
+    "id": 10626155,
+    "user": {
+      "login": "mrhjkim",
+      "id": 470171,
+      "avatar_url": "https://secure.gravatar.com/avatar/d796765ea8e0214b354ded710ced7ee2?d=https://a248.e.akamai.net/assets.github.com%2Fimages%2Fgravatars%2Fgravatar-user-420.png",
+      "gravatar_id": "d796765ea8e0214b354ded710ced7ee2",
+      "url": "https://api.github.com/users/mrhjkim",
+      "html_url": "https://github.com/mrhjkim",
+      "followers_url": "https://api.github.com/users/mrhjkim/followers",
+      "following_url": "https://api.github.com/users/mrhjkim/following",
+      "gists_url": "https://api.github.com/users/mrhjkim/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/mrhjkim/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/mrhjkim/subscriptions",
+      "organizations_url": "https://api.github.com/users/mrhjkim/orgs",
+      "repos_url": "https://api.github.com/users/mrhjkim/repos",
+      "events_url": "https://api.github.com/users/mrhjkim/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/mrhjkim/received_events",
+      "type": "User"
+    },
+    "created_at": "2012-11-22T07:52:37Z",
+    "updated_at": "2012-11-22T07:52:37Z",
+    "body": "It works.\r\nThanks for fast patch"
+  }
+]

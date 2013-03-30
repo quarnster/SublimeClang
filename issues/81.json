@@ -1,0 +1,56 @@
+[
+  {
+    "url": "https://api.github.com/repos/quarnster/SublimeClang/issues/comments/6578358",
+    "html_url": "https://github.com/quarnster/SublimeClang/issues/81#issuecomment-6578358",
+    "issue_url": "https://api.github.com/repos/quarnster/SublimeClang/issues/81",
+    "id": 6578358,
+    "user": {
+      "login": "quarnster",
+      "id": 1230389,
+      "avatar_url": "https://secure.gravatar.com/avatar/10a89302c6736c988ce06d8a41c923c0?d=https://a248.e.akamai.net/assets.github.com%2Fimages%2Fgravatars%2Fgravatar-user-420.png",
+      "gravatar_id": "10a89302c6736c988ce06d8a41c923c0",
+      "url": "https://api.github.com/users/quarnster",
+      "html_url": "https://github.com/quarnster",
+      "followers_url": "https://api.github.com/users/quarnster/followers",
+      "following_url": "https://api.github.com/users/quarnster/following",
+      "gists_url": "https://api.github.com/users/quarnster/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/quarnster/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/quarnster/subscriptions",
+      "organizations_url": "https://api.github.com/users/quarnster/orgs",
+      "repos_url": "https://api.github.com/users/quarnster/repos",
+      "events_url": "https://api.github.com/users/quarnster/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/quarnster/received_events",
+      "type": "User"
+    },
+    "created_at": "2012-06-26T15:12:10Z",
+    "updated_at": "2012-06-26T15:12:10Z",
+    "body": "I agree with you 100%, unfortunately that isn't something controllable from within SublimeClang. Please upvote the feature request at [userecho](http://sublimetext.userecho.com/topic/85632-need-the-completion-menu-to-be-wider/)."
+  },
+  {
+    "url": "https://api.github.com/repos/quarnster/SublimeClang/issues/comments/6598260",
+    "html_url": "https://github.com/quarnster/SublimeClang/issues/81#issuecomment-6598260",
+    "issue_url": "https://api.github.com/repos/quarnster/SublimeClang/issues/81",
+    "id": 6598260,
+    "user": {
+      "login": "kkaefer",
+      "id": 52399,
+      "avatar_url": "https://secure.gravatar.com/avatar/d3586b91137e12d1f521d07f118a187e?d=https://a248.e.akamai.net/assets.github.com%2Fimages%2Fgravatars%2Fgravatar-user-420.png",
+      "gravatar_id": "d3586b91137e12d1f521d07f118a187e",
+      "url": "https://api.github.com/users/kkaefer",
+      "html_url": "https://github.com/kkaefer",
+      "followers_url": "https://api.github.com/users/kkaefer/followers",
+      "following_url": "https://api.github.com/users/kkaefer/following",
+      "gists_url": "https://api.github.com/users/kkaefer/gists{/gist_id}",
+      "starred_url": "https://api.github.com/users/kkaefer/starred{/owner}{/repo}",
+      "subscriptions_url": "https://api.github.com/users/kkaefer/subscriptions",
+      "organizations_url": "https://api.github.com/users/kkaefer/orgs",
+      "repos_url": "https://api.github.com/users/kkaefer/repos",
+      "events_url": "https://api.github.com/users/kkaefer/events{/privacy}",
+      "received_events_url": "https://api.github.com/users/kkaefer/received_events",
+      "type": "User"
+    },
+    "created_at": "2012-06-27T09:03:19Z",
+    "updated_at": "2012-06-27T09:03:19Z",
+    "body": "Ah, alright. Upvoted. Thanks!"
+  }
+]
