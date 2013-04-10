@@ -32,7 +32,9 @@ Please go [[https://github.com/quarnster/SublimeClang/issues?sort=created&direct
 If you run into any issues, please have a look at issue [[https://github.com/quarnster/SublimeClang/issues/35|#35]] for additional notes or to ask for help.
 
 === Installation ===
-    # The easiest way to install SublimeClang is via the excellent Package Control Plugin
+    # The easiest way to install SublimeClang is via the excellent Package Control Plugin. Note that SublimeClang doesn't install correctly with version v1.6.3
+    of Package Control; either use the latest testing version or (if it exists) 
+    a newer stable version of Package Control.
     ## See http://wbond.net/sublime_packages/package_control#Installation
     ### Once package control has been installed, bring up the command palette (cmd+shift+P or ctrl+shift+P)
     ### Type Install and select "Package Control: Install Package"
