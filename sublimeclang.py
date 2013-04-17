@@ -346,7 +346,7 @@ class ClangComplete(sublime_plugin.TextCommand):
     def run(self, edit, characters):
         regions = [a for a in self.view.sel()]
         self.view.sel().clear()
-        for region in regions:
+        for region in reversed(regions):
             pos = 0
             region.end() + len(characters)
             if region.size() > 0:
@@ -439,10 +439,10 @@ class SublimeClangAutoComplete(sublime_plugin.EventListener):
                 except:
                     traceback.print_exc()
             if cached_results != None:
-                print("found fast completions")
+                # print("found fast completions")
                 ret = cached_results
             else:
-                print("doing slow completions")
+                # print("doing slow completions")
                 row, col = view.rowcol(locations[0] - len(prefix))
                 unsaved_files = []
                 if view.is_dirty():
