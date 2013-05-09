@@ -30,6 +30,7 @@ except:
 import os
 import re
 import sys
+import glob
 
 if sys.version[0] == '2':
     def sencode(s):
@@ -148,6 +149,17 @@ try:
                 if os.path.exists(path) \
             ]
         view = window.active_view()
+        project_path = None
+        if hasattr(window, "project_file_name"):
+            project_path = os.path.split(window.project_file_name())[0]
+        else:
+            for f in window.folders():
+                projects = glob.glob(os.path.join(f, '*.sublime-project'))
+                if len(projects):
+                    project_path = f
+                    break
+        if project_path:
+            value = re.sub(r'\${project_path}', project_path, value)
         value = re.sub(r'\${project_path:(?P<file>[^}]+)}', lambda m: len(get_existing_files(m)) > 0 and get_existing_files(m)[0] or m.group('file'), value)
         value = re.sub(r'\${env:(?P<variable>[^}]+)}', lambda m: os.getenv(m.group('variable')) if os.getenv(m.group('variable')) else "%s_NOT_SET" % m.group('variable'), value)
         value = re.sub(r'\${home}', re.escape(os.getenv('HOME')) if os.getenv('HOME') else "HOME_NOT_SET", value)
