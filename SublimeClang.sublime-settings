@@ -188,7 +188,9 @@
     //
     // ${env:<variable>} is replaced with the "variable" environment variable.
     //
-    // ${project_path} returns the directory of the project for the current file or current window.
+    // ${project_path} returns the directory of the project for the current file or current window. In
+    // Sublime Text 2 where no associated project information available, the first folder containing a
+    // sublime-project file opened will be chosen.
     //
     // ${project_path:} tries to find a file with the given name in all the registered project folders and
     // returns the first file found, or the original file name if none is found.
