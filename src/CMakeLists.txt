@@ -164,7 +164,7 @@ if(BUILD_LIBCLANG)
 
     if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
         add_custom_target(libclang_namechange ALL
-                        COMMAND install_name_tool -id libclang.dylib $<TARGET_FILE:libclang>
+                        COMMAND install_name_tool -id "@loader_path/libclang.dylib" $<TARGET_FILE:libclang>
                         VERBATIM
                     )
         add_dependencies(copy libclang_namechange)
