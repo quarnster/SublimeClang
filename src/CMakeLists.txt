@@ -77,7 +77,10 @@ if(NOT DEFINED WIN_RELEASE)
     add_definitions(-DSUBLIMECLANG_VERSION="${CMAKE_MATCH_2}" ${CX11FLAGS})
     set(TARGETLIB ${LIBPREFIX}cache${LIBSUFFIX})
     set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/../internals)
-    link_directories(${CMAKE_LIBRARY_OUTPUT_DIRECTORY} /usr/local/lib /usr/lib /usr/lib64/llvm)
+    if(NOT APPLE)
+        set(EXTRA_LIBRARY_DIRECTORY /usr/lib64/llvm)
+    endif()
+    link_directories(${CMAKE_LIBRARY_OUTPUT_DIRECTORY} /usr/local/lib /usr/lib ${EXTRA_LIBRARY_DIRECTORY})
     add_library(${TARGETLIB} SHARED main.cpp )
     target_link_libraries(
         ${TARGETLIB}
@@ -164,7 +167,7 @@ if(BUILD_LIBCLANG)
 
     if(${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
         add_custom_target(libclang_namechange ALL
-                        COMMAND install_name_tool -id libclang.dylib $<TARGET_FILE:libclang>
+                        COMMAND install_name_tool -id "@loader_path/libclang.dylib" $<TARGET_FILE:libclang>
                         VERBATIM
                     )
         add_dependencies(copy libclang_namechange)
