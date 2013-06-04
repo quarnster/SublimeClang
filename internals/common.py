@@ -150,7 +150,7 @@ try:
             ]
         view = window.active_view()
         project_path = None
-        if hasattr(window, "project_file_name"):
+        if hasattr(window, "project_file_name") and window.project_file_name() is not None:
             project_path = os.path.split(window.project_file_name())[0]
         else:
             for f in window.folders():
