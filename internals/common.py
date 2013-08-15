@@ -153,16 +153,14 @@ try:
         if hasattr(window, "project_file_name") and window.project_file_name() is not None:
             project_path = os.path.split(window.project_file_name())[0]
         else:
-            folders = window.folders()
-            project_path = folders[0]
-            for f in folders:
+            for f in window.folders():
                 projects = glob.glob(os.path.join(f, '*.sublime-project'))
                 if len(projects):
                     project_path = f
                     break
 
-        project_path = project_path.replace("\\", "\\\\") # Path will be used within a regex, thus escape every backslash
         if project_path:
+            project_path = project_path.replace("\\", "\\\\") # Path will be used within a regex, thus escape every backslash
             value = re.sub(r'\${project_path}', project_path, value)
         value = re.sub(r'\${project_path:(?P<file>[^}]+)}', lambda m: len(get_existing_files(m)) > 0 and get_existing_files(m)[0] or m.group('file'), value)
         value = re.sub(r'\${env:(?P<variable>[^}]+)}', lambda m: os.getenv(m.group('variable')) if os.getenv(m.group('variable')) else "%s_NOT_SET" % m.group('variable'), value)
