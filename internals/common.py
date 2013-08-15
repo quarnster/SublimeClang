@@ -153,7 +153,9 @@ try:
         if hasattr(window, "project_file_name") and window.project_file_name() is not None:
             project_path = os.path.split(window.project_file_name())[0]
         else:
-            for f in window.folders():
+            folders = window.folders()
+            project_path = folders[0]
+            for f in folders:
                 projects = glob.glob(os.path.join(f, '*.sublime-project'))
                 if len(projects):
                     project_path = f
