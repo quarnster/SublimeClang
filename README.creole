@@ -1,55 +1,40 @@
-= Plugin discontinued =
+= Fork of quarnster/SublimeClang: Porting it to clang 3.8.0, Make it stable on Ubuntu 15.04, Ubuntu 15.10, Ubuntu 16.04 =
 
-** I don't intend to continue development of this plugin, so I've disabled the issues page. If something is broken, submit a pull request and I'll consider merging it. The issue history is [[https://github.com/quarnster/SublimeClang/tree/master/issues|archived]] should you want to poke in it.
+** From: https://github.com/quarnster/SublimeClang
 
-** Eventually SublimeClang will be replaced by https://github.com/quarnster/completion, but as I don't code much in clang supported languages these days it's not a very high priority for me personally.
-If you'd like to see it move along quicker, submit a pull request in that project and/or participate in its discussions.
+=== Support Sublime Text 3 / Sublime Text 2 ===
+
 
 === Description ===
-Clang plugin for Sublime Text 2 providing auto complete suggestions for C/C++/ObjC/ObjC++. It'll also optionally parse the code as it's typed and show errors and warnings.
+Clang plugin for Sublime Text 2 / Sublime Text 3 providing auto complete suggestions for C/C++/ObjC/ObjC++. It'll also optionally parse the code as it's typed and show errors and warnings.
 
 === Known issues and feature requests ===
 Please go [[https://github.com/quarnster/SublimeClang/issues?sort=created&direction=desc&state=open|here]] to see the currently known issues and feature request, or to file a new.
 
 === Prerequisites ===
-  # To use the clang static analyzer you need to have clang installed and in your path. The other functionality should work without having the clang binaries installed.
+  # This Ported Version Only Build And Test On Ubuntu Only
 
-=== Additional Prerequisites (Linux Only)===
+=== Additional Prerequisites (Sublime Text 2 on Linux Only. Sublime Text 3 Doesn't Need)===
   # [[http://sublimetext.userecho.com/topic/85126-ctypes-cant-be-imported-in-linux/|ctypes can't be imported]] in the Linux version of Sublime Text 2 right now. This can however be worked around easily with the help of pythonbrew:
   ## curl -kL http://xrl.us/pythonbrewinstall | bash
   ## source "$HOME/.pythonbrew/etc/bashrc"
   ## pythonbrew install --configure="--enable-unicode=ucs4" 2.6
   ## ln -s $HOME/.pythonbrew/pythons/Python-2.6/lib/python2.6/ <your Sublime Text 2 folder>/lib/python2.6
-  # If you install SublimeClang via Package Control, it seems [[http://github.com/quarnster/SublimeClang/issues/97|libcache and libclang will be deleted]] when the package is updated, so it's recommended that you manually install the plugin by using the git commands listed in the Installation section.
-  # Once SublimeClang has been installed, libcache will have to be compiled:
-  ## cd src
-  ## mkdir build
-  ## cd build
-  ## cmake ..
-  ## make
-  * Note that if a usable libclang library isn't found, it will be downloaded and built as part of the build process.
-
-If you run into any issues, please have a look at issue [[https://github.com/quarnster/SublimeClang/issues/35|#35]] for additional notes or to ask for help.
+  
+  
 
 === Installation ===
-    # The easiest way to install SublimeClang is via the excellent Package Control Plugin. Note that SublimeClang doesn't install correctly with version v1.6.3
-    of Package Control; either use the latest testing version or (if it exists) 
-    a newer stable version of Package Control.
-    ## See http://wbond.net/sublime_packages/package_control#Installation
-    ### Once package control has been installed, bring up the command palette (cmd+shift+P or ctrl+shift+P)
-    ### Type Install and select "Package Control: Install Package"
-    ### Select SublimeClang from the list. Package Control will keep it automatically updated for you
-    ## If you don't want to use package control, you can manually install it
-    ### Go to your packages directory and type:
-    ####        git clone --recursive https://github.com/quarnster/SublimeClang SublimeClang
-    ####        After this you'll have to Compile libcache as described in the Additional Prerequisites (Linux Only) section
-    ### To update run the following command:
-    ####        git pull && git submodule foreach --recursive git pull origin master
-    # Back in the editor, open up the command palette by pressing cmd+shift+P or ctrl+shift+P
-    # Type SublimeClang and open up the settings file you want to modify with any include directories or other options you want to provide to clang.
+    # sudo apt-get build-dep clang llvm  
+    # cd ~/.config/sublime-text-3/Packages (if sublime text 2: cd ~/.config/sublime-text-2/Packages)  
+    # git clone https://github.com/julee/SublimeClang  
+    # mkdir SublimeClang/src/build  
+    # cd SublimeClang/src/build  
+    # cmake .. (NOTE: Will download clang and llvm source packages from llvm.org.)  
+    # make -j8  
+    # After building completes, start sublime, with shortcut Ctrl+` to see whether plugin SublimeClang thows exception or not. If no error, it works well now.
 
 === Usage ===
-After installation, suggestions from clang should be provided when triggering the autocomplete operation in Sublime Text 2. By default it'll inhibit the Sublime Text 2 built in word completion, but the inhibition can be disabled by setting the configuration option "inhibit_sublime_completions" to false.
+After installation, suggestions from clang should be provided when triggering the autocomplete operation in Sublime Text 2/ Sublime Text 3. By default it'll inhibit the Sublime Text 2/ Sublime Text 3 built in word completion, but the inhibition can be disabled by setting the configuration option "inhibit_sublime_completions" to false.
 
 If you modify a file that clang can compile and if there are any errors or warnings in that file, you should see the output in the output panel, as well as having the warnings and errors marked in the source file.
 
@@ -68,6 +53,42 @@ There's also the following key-bindings (tweak Default.sublime-keymaps to change
       |alt+d,alt+s|Run the Clang static analyzer on the current file|
       |alt+d,alt+o|Run the Clang static analyzer on the current project|
       |alt+d,alt+f|Toggle whether fast (but possibly inaccurate) completions are used or not|
+
+
+
+=== Global Configure / Project Configure ===
+# See Preferences -> Package Settings -> SublimeClang -> Default to see all options. You could set one or more options in User Setting file to override default values. (Global Configuration) 
+# Also could set options for one project  
+All options in default configuration file can override in project file, just add prefix "sublimeclang_" for the option.  
+# Tips: you may want to set  "sublimeclang_enable_fast_completions": false   for a C++ project, otherwise completion may not work well.  
+# This is a sample project:
+{{{
+    {
+        "folders":
+        [
+            {
+                "path": "/home/julee/Documents/code/amb"
+            }
+        ],
+        "settings":
+        {
+            "sublimeclang_enable_fast_completions": false,
+            "sublimeclang_options":
+            [
+                "-Wall",
+                "-I",
+                "/usr/include/x86_64-linux-gnu/c++/5",
+                "-I",
+                "/home/julee/Documents/code/Git_Ambarella/ambalink/host.oem/usr/arm-buildroot-linux-gnueabi/sysroot/usr/include/",
+                "-I",
+                "${project_path:include}"
+            ]
+        }
+    }
+}}}
+
+
+
 
 === Show your support ===
 
